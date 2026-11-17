@@ -8,8 +8,8 @@ abstract interface class LocationProvider {
 }
 
 class GeolocatorLocationService implements LocationProvider {
-  /// Near the University of Santo Tomas, Manila, the project's demo corridor.
-  static const LatLng fallbackCenter = LatLng(14.6091, 120.9890);
+  /// Mandaue City, Cebu (approximate city center). Used when GPS is unavailable.
+  static const LatLng fallbackCenter = LatLng(10.3236, 123.9322);
 
   @override
   Future<LatLng> currentOrFallback() async {
