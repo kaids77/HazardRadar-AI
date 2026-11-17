@@ -4,9 +4,12 @@ import 'package:latlong2/latlong.dart';
 
 import '../../geo/philippines.dart';
 import '../../models/incident.dart';
+import '../../models/user_profile.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
+import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
+import 'incident_sheet.dart';
 import 'map_style.dart';
 import 'risk_style.dart';
 
@@ -16,10 +19,14 @@ class MapScreen extends StatefulWidget {
     super.key,
     required this.incidents,
     required this.location,
+    required this.profile,
+    required this.votes,
   });
 
   final IncidentRepository incidents;
   final LocationProvider location;
+  final UserProfile profile;
+  final VoteRepository votes;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -97,15 +104,32 @@ class _MapScreenState extends State<MapScreen> {
   Marker _markerFor(Incident incident) {
     return Marker(
       point: LatLng(incident.latitude, incident.longitude),
-      width: 26,
-      height: 26,
+      // 44 px tap target around a 26 px dot.
+      width: 44,
+      height: 44,
       child: Semantics(
+        button: true,
         label: '${incident.riskLevel} risk: ${incident.category}',
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: riskColor(incident.riskLevel),
-            shape: BoxShape.circle,
-            border: Border.fromBorderSide(BorderSide(color: AppColors.cream, width: 3)),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => showIncidentSheet(
+            context,
+            incident: incident,
+            profile: widget.profile,
+            incidents: widget.incidents,
+            votes: widget.votes,
+            location: widget.location,
+          ),
+          child: Center(
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: riskColor(incident.riskLevel),
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.cream, width: 3),
+              ),
+            ),
           ),
         ),
       ),

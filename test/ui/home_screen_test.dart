@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
@@ -14,6 +16,7 @@ import 'package:hazardradarai/services/report_repository.dart';
 import 'package:hazardradarai/services/report_service.dart';
 import 'package:hazardradarai/services/session_service.dart';
 import 'package:hazardradarai/services/triage_service.dart';
+import 'package:hazardradarai/services/vote_repository.dart';
 import 'package:hazardradarai/ui/home/home_screen.dart';
 
 class _OkAuth implements AuthService {
@@ -40,6 +43,14 @@ class _NoIncidents implements IncidentRepository {
   @override
   Stream<List<Incident>> watchActivePublic({int limit = 150}) =>
       Stream.value(const <Incident>[]);
+
+  @override
+  Future<Uint8List?> loadPhoto(String incidentId) async => null;
+}
+
+class _NoVotes implements VoteRepository {
+  @override
+  Future<void> cast({required String incidentId, required String uid, required int value}) async {}
 }
 
 class _FixedLocation implements LocationProvider {
@@ -71,6 +82,7 @@ Widget _app(SessionService session) => MaterialApp(
           repository: _NoRepo(),
         ),
         photos: _NoPhotos(),
+        votes: _NoVotes(),
       ),
     );
 

@@ -12,6 +12,7 @@ import 'services/report_repository.dart';
 import 'services/report_service.dart';
 import 'services/session_service.dart';
 import 'services/triage_service.dart';
+import 'services/vote_repository.dart';
 import 'theme/app_theme.dart';
 import 'ui/home/home_screen.dart';
 import 'ui/splash/splash_screen.dart';
@@ -43,6 +44,7 @@ Future<void> main() async {
       location: GeolocatorLocationService(),
       reports: reports,
       photos: CameraPhotoCapture(),
+      votes: FirestoreVoteRepository(),
     ),
   );
 }
@@ -55,6 +57,7 @@ class HazardRadarApp extends StatelessWidget {
     required this.location,
     required this.reports,
     required this.photos,
+    required this.votes,
   });
 
   final SessionService session;
@@ -62,6 +65,7 @@ class HazardRadarApp extends StatelessWidget {
   final LocationProvider location;
   final ReportService reports;
   final PhotoCapture photos;
+  final VoteRepository votes;
 
   @override
   Widget build(BuildContext context) {
@@ -76,6 +80,7 @@ class HazardRadarApp extends StatelessWidget {
           location: location,
           reports: reports,
           photos: photos,
+          votes: votes,
         ),
       ),
     );

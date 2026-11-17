@@ -7,6 +7,7 @@ import '../../services/location_service.dart';
 import '../../services/photo_service.dart';
 import '../../services/report_service.dart';
 import '../../services/session_service.dart';
+import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
 import '../map/map_screen.dart';
 import '../report/report_screen.dart';
@@ -20,6 +21,7 @@ class HomeScreen extends StatefulWidget {
     required this.location,
     required this.reports,
     required this.photos,
+    required this.votes,
   });
 
   final SessionService session;
@@ -27,6 +29,7 @@ class HomeScreen extends StatefulWidget {
   final LocationProvider location;
   final ReportService reports;
   final PhotoCapture photos;
+  final VoteRepository votes;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -99,6 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
           body: MapScreen(
             incidents: widget.incidents,
             location: widget.location,
+            profile: profile,
+            votes: widget.votes,
           ),
         );
       },
