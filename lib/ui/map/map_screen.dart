@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
+import '../../geo/philippines.dart';
 import '../../models/incident.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
@@ -25,12 +26,6 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  /// Approximate bounding box of the Philippines. The map cannot pan outside it.
-  static final LatLngBounds _philippines = LatLngBounds(
-    const LatLng(4.5, 116.7),
-    const LatLng(21.3, 127.0),
-  );
-
   late final Future<LatLng> _center;
   late final Stream<List<Incident>> _incidentStream;
 
@@ -57,12 +52,12 @@ class _MapScreenState extends State<MapScreen> {
               children: [
                 FlutterMap(
                   options: MapOptions(
-                    initialCenter: _philippines.contains(centerSnapshot.data!)
+                    initialCenter: philippinesBounds.contains(centerSnapshot.data!)
                         ? centerSnapshot.data!
                         : GeolocatorLocationService.fallbackCenter,
                     initialZoom: 15,
                     minZoom: 5,
-                    cameraConstraint: CameraConstraint.contain(bounds: _philippines),
+                    cameraConstraint: CameraConstraint.contain(bounds: philippinesBounds),
                   ),
                   children: [
                     TileLayer(
@@ -73,7 +68,7 @@ class _MapScreenState extends State<MapScreen> {
                     MarkerLayer(
                       markers: [
                         for (final incident in incidents)
-                          if (_philippines.contains(LatLng(incident.latitude, incident.longitude)))
+                          if (philippinesBounds.contains(LatLng(incident.latitude, incident.longitude)))
                             _markerFor(incident),
                       ],
                     ),
