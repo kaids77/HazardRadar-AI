@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local Node proxy
+proxy/node_modules/
+
+# Secrets: never commit the local environment file (.env.example stays tracked)
+.env

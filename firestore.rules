@@ -1,0 +1,95 @@
+rules_version = '2';
+
+// Deny by default: any path not matched below is refused.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function hasRole(role) {
+      return signedIn() && exists(userPath()) && get(userPath()).data.role == role;
+    }
+
+    function isStaff() {
+      return hasRole('DISPATCHER') || hasRole('ADMIN');
+    }
+
+    function isBanned() {
+      return signedIn() && exists(userPath()) && get(userPath()).data.accountStatus == 'BANNED';
+    }
+
+    // Profiles. Users can create only their own Level 1 profile.
+    // Role and account status can change only through an admin.
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['role', 'tier', 'accountStatus', 'createdAt'])
+        && request.resource.data.role == 'CITIZEN'
+        && request.resource.data.tier == 1
+        && request.resource.data.accountStatus == 'ACTIVE';
+
+      allow update: if hasRole('ADMIN')
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'accountStatus']);
+
+      allow delete: if false;
+    }
+
+    // Hazard reports.
+    match /incidents/{incidentId} {
+      allow read: if signedIn() && (
+        resource.data.visibility == 'PUBLIC'
+        || resource.data.reporterUid == request.auth.uid
+        || isStaff()
+      );
+
+      allow create: if signedIn()
+        && !isBanned()
+        && request.resource.data.keys().hasOnly([
+          'reporterUid', 'category', 'riskLevel', 'aiSummary', 'recommendedAction',
+          'note', 'photoUrl', 'latitude', 'longitude', 'geohash',
+          'status', 'visibility', 'netVotes', 'createdAt'
+        ])
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.status == 'ACTIVE'
+        && request.resource.data.visibility == 'PUBLIC'
+        && request.resource.data.netVotes == 0
+        && request.resource.data.riskLevel in ['Low', 'Medium', 'High']
+        && request.resource.data.category is string && request.resource.data.category.size() <= 40
+        && request.resource.data.note is string && request.resource.data.note.size() <= 500
+        && request.resource.data.aiSummary is string && request.resource.data.aiSummary.size() <= 500
+        && request.resource.data.recommendedAction is string && request.resource.data.recommendedAction.size() <= 500
+        && request.resource.data.photoUrl is string && request.resource.data.photoUrl.size() <= 2000
+        && request.resource.data.geohash is string && request.resource.data.geohash.size() <= 12
+        && request.resource.data.latitude is number && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
+        && request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180;
+
+      // Only staff change status, visibility, or resolution notes.
+      // Owners and voters cannot edit reports. Task 9 adds vote-driven changes,
+      // and Task 12 enforces the status order.
+      allow update: if isStaff()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'visibility', 'resolutionNote', 'updatedAt'])
+        && request.resource.data.status in ['ACTIVE', 'IN_PROGRESS', 'RESOLVED'];
+
+      allow delete: if hasRole('ADMIN');
+
+      // One vote per user per incident. Votes cannot be edited or removed.
+      match /votes/{voterId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && !isBanned()
+          && request.auth.uid == voterId
+          && request.resource.data.keys().hasOnly(['value', 'createdAt'])
+          && request.resource.data.value in [1, -1, 2, -2];
+        allow update, delete: if false;
+      }
+    }
+  }
+}
