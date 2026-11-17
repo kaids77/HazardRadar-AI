@@ -36,8 +36,21 @@ service cloud.firestore {
         && request.resource.data.tier == 1
         && request.resource.data.accountStatus == 'ACTIVE';
 
-      allow update: if hasRole('ADMIN')
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'accountStatus']);
+      // Admins change role and account status. A user may raise only their own
+      // tier, only from 1 to 2, and only after a Google account is linked to
+      // this uid. The linked provider is read from the ID token, not from the client.
+      allow update: if (
+          hasRole('ADMIN')
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'accountStatus'])
+        ) || (
+          signedIn()
+          && request.auth.uid == uid
+          && resource.data.accountStatus == 'ACTIVE'
+          && resource.data.tier == 1
+          && request.resource.data.tier == 2
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tier'])
+          && 'google.com' in request.auth.token.firebase.identities
+        );
 
       allow delete: if false;
     }
