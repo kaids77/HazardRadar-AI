@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/user_profile.dart';
@@ -43,7 +44,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 return const CircularProgressIndicator(color: AppColors.redOrange);
               }
               if (snapshot.hasError || !snapshot.hasData) {
-                return _ErrorState(onRetry: _retry);
+                return _ErrorState(
+                  onRetry: _retry,
+                  // Shows the real cause in debug builds only. Release builds show the generic message.
+                  detail: kDebugMode ? '${snapshot.error}' : null,
+                );
               }
               return _ProfileCard(profile: snapshot.data!);
             },
@@ -85,20 +90,30 @@ class _ProfileCard extends StatelessWidget {
 }
 
 class _ErrorState extends StatelessWidget {
-  const _ErrorState({required this.onRetry});
+  const _ErrorState({required this.onRetry, this.detail});
 
   final VoidCallback onRetry;
+  final String? detail;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'Could not connect. Check your network and try again.',
           textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyLarge,
+          style: textTheme.bodyLarge,
         ),
+        if (detail != null) ...[
+          const SizedBox(height: 12),
+          SelectableText(
+            detail!,
+            textAlign: TextAlign.center,
+            style: textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+          ),
+        ],
         const SizedBox(height: 16),
         ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
       ],
