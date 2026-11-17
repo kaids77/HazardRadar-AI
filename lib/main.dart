@@ -9,6 +9,7 @@ import 'services/incident_repository.dart';
 import 'services/location_service.dart';
 import 'services/photo_service.dart';
 import 'services/profile_repository.dart';
+import 'services/proxy_client.dart';
 import 'services/report_repository.dart';
 import 'services/report_service.dart';
 import 'services/session_service.dart';
@@ -32,10 +33,10 @@ Future<void> main() async {
   final proxyUrl = AppConfig.parseProxyUrl(AppConfig.proxyUrl);
   final proxy = proxyUrl == null || AppConfig.proxyToken.isEmpty
       ? null
-      : ProxyTriageService(baseUrl: proxyUrl, token: AppConfig.proxyToken);
+      : ProxyClient(baseUrl: proxyUrl, token: AppConfig.proxyToken);
   final reports = ReportService(
     auth: auth,
-    triage: FallbackTriageService(proxy: proxy),
+    triage: FallbackTriageService(proxy: proxy == null ? null : ProxyTriageService(proxy)),
     repository: FirestoreReportRepository(),
   );
 

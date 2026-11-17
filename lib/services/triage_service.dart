@@ -1,9 +1,5 @@
-import 'dart:async';
-import 'dart:convert';
-
-import 'package:http/http.dart' as http;
-
 import '../models/triage_result.dart';
+import 'proxy_client.dart';
 
 /// Turns a citizen's raw note into a category, risk level, and summary.
 abstract interface class TriageService {
@@ -13,33 +9,15 @@ abstract interface class TriageService {
 
 /// Calls the local proxy, which holds the Groq key. The app never sees that key.
 class ProxyTriageService {
-  ProxyTriageService({
-    required Uri baseUrl,
-    required String token,
-    http.Client? client,
-    this.timeout = const Duration(seconds: 8),
-  })  : _baseUrl = baseUrl,
-        _token = token,
-        _client = client ?? http.Client();
+  const ProxyTriageService(this._proxy);
 
-  final Uri _baseUrl;
-  final String _token;
-  final http.Client _client;
-  final Duration timeout;
+  final ProxyClient _proxy;
 
   /// Returns null on any failure: network error, timeout, non-200, or a malformed body.
   Future<TriageResult?> tryClassify(String note) async {
     try {
-      final response = await _client
-          .post(
-            _baseUrl.resolve('triage'),
-            headers: {'content-type': 'application/json', 'x-proxy-token': _token},
-            body: jsonEncode({'note': note}),
-          )
-          .timeout(timeout);
-      if (response.statusCode != 200) return null;
-      return TriageResult.tryFromJson(jsonDecode(utf8.decode(response.bodyBytes)));
-    } on Object {
+      return TriageResult.tryFromJson(await _proxy.postJson('triage', {'note': note}));
+    } on ProxyException {
       return null;
     }
   }

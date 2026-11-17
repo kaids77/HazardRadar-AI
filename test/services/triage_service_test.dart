@@ -6,6 +6,7 @@ import 'package:http/testing.dart';
 
 import 'package:hazardradarai/config/app_config.dart';
 import 'package:hazardradarai/models/triage_result.dart';
+import 'package:hazardradarai/services/proxy_client.dart';
 import 'package:hazardradarai/services/triage_service.dart';
 
 const _good = {
@@ -16,9 +17,11 @@ const _good = {
 };
 
 ProxyTriageService _proxy(MockClient client) => ProxyTriageService(
-      baseUrl: Uri.parse('http://127.0.0.1:3000/'),
-      token: 'test-token',
-      client: client,
+      ProxyClient(
+        baseUrl: Uri.parse('http://127.0.0.1:3000/'),
+        token: 'test-token',
+        client: client,
+      ),
     );
 
 void main() {
@@ -59,10 +62,12 @@ void main() {
 
     test('returns null when the request times out', () async {
       final service = ProxyTriageService(
-        baseUrl: Uri.parse('http://127.0.0.1:3000/'),
-        token: 't',
-        timeout: const Duration(milliseconds: 20),
-        client: MockClient((_) => Future.delayed(const Duration(seconds: 1), () => http.Response('{}', 200))),
+        ProxyClient(
+          baseUrl: Uri.parse('http://127.0.0.1:3000/'),
+          token: 't',
+          timeout: const Duration(milliseconds: 20),
+          client: MockClient((_) => Future.delayed(const Duration(seconds: 1), () => http.Response('{}', 200))),
+        ),
       );
       expect(await service.tryClassify('x'), isNull);
     });
