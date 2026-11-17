@@ -49,3 +49,6 @@ proxy/node_modules/
 
 # Secrets: never commit the local environment file (.env.example stays tracked)
 .env
+
+# Generated Android build reports
+android/build/
