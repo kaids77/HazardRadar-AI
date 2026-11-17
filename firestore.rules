@@ -70,23 +70,58 @@ service cloud.firestore {
         && request.resource.data.latitude is number && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
         && request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180;
 
-      // Only staff change status, visibility, or resolution notes.
-      // Owners and voters cannot edit reports. Task 9 adds vote-driven changes,
-      // and Task 12 enforces the status order.
-      allow update: if isStaff()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'visibility', 'resolutionNote', 'updatedAt'])
-        && request.resource.data.status in ['ACTIVE', 'IN_PROGRESS', 'RESOLVED'];
+      function votePath(incidentId) {
+        return /databases/$(database)/documents/incidents/$(incidentId)/votes/$(request.auth.uid);
+      }
+
+      // A vote changes only netVotes, and visibility when the report is quarantined.
+      // netVotes must move by exactly the value of the vote document created in the
+      // same batch. A report at -3 or lower must become QUARANTINED in that write.
+      function isVoteUpdate(incidentId) {
+        return signedIn()
+          && !isBanned()
+          && resource.data.status == 'ACTIVE'
+          && resource.data.visibility == 'PUBLIC'
+          && !exists(votePath(incidentId))
+          && existsAfter(votePath(incidentId))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['netVotes', 'visibility'])
+          && request.resource.data.netVotes is int
+          && request.resource.data.netVotes - resource.data.netVotes == getAfter(votePath(incidentId)).data.value
+          && (request.resource.data.netVotes > -3 || request.resource.data.visibility == 'QUARANTINED')
+          && (request.resource.data.visibility == 'PUBLIC'
+              || (request.resource.data.visibility == 'QUARANTINED' && request.resource.data.netVotes <= -3));
+      }
+
+      // Staff change status, visibility, or resolution notes. Voters change only
+      // what isVoteUpdate allows. Owners cannot edit reports. Task 12 enforces
+      // the status order.
+      allow update: if (
+          isStaff()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'visibility', 'resolutionNote', 'updatedAt'])
+          && request.resource.data.status in ['ACTIVE', 'IN_PROGRESS', 'RESOLVED']
+        ) || isVoteUpdate(incidentId);
 
       allow delete: if hasRole('ADMIN');
 
+      // Allowed vote values by tier. Tier 1 cannot vote. Tier 2 votes with weight 1,
+      // tier 3 and above with weight 2.
+      function voteValues() {
+        let tier = get(userPath()).data.tier;
+        return tier == 2 ? [1, -1] : (tier >= 3 ? [2, -2] : []);
+      }
+
       // One vote per user per incident. Votes cannot be edited or removed.
+      // Reporters cannot vote on their own report. The 200 m distance check is
+      // made in the app, because rules cannot see the voter's location.
       match /votes/{voterId} {
         allow read: if signedIn();
         allow create: if signedIn()
           && !isBanned()
+          && exists(userPath())
           && request.auth.uid == voterId
           && request.resource.data.keys().hasOnly(['value', 'createdAt'])
-          && request.resource.data.value in [1, -1, 2, -2];
+          && request.resource.data.value in voteValues()
+          && get(/databases/$(database)/documents/incidents/$(incidentId)).data.reporterUid != request.auth.uid;
         allow update, delete: if false;
       }
 
