@@ -3,12 +3,17 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
 import 'package:hazardradarai/models/incident.dart';
+import 'package:hazardradarai/models/report.dart';
 import 'package:hazardradarai/models/user_profile.dart';
 import 'package:hazardradarai/services/auth_service.dart';
 import 'package:hazardradarai/services/incident_repository.dart';
 import 'package:hazardradarai/services/location_service.dart';
+import 'package:hazardradarai/services/photo_service.dart';
 import 'package:hazardradarai/services/profile_repository.dart';
+import 'package:hazardradarai/services/report_repository.dart';
+import 'package:hazardradarai/services/report_service.dart';
 import 'package:hazardradarai/services/session_service.dart';
+import 'package:hazardradarai/services/triage_service.dart';
 import 'package:hazardradarai/ui/home/home_screen.dart';
 
 class _OkAuth implements AuthService {
@@ -40,6 +45,19 @@ class _NoIncidents implements IncidentRepository {
 class _FixedLocation implements LocationProvider {
   @override
   Future<LatLng> currentOrFallback() async => GeolocatorLocationService.fallbackCenter;
+
+  @override
+  Future<LatLng?> current() async => GeolocatorLocationService.fallbackCenter;
+}
+
+class _NoPhotos implements PhotoCapture {
+  @override
+  Future<CompressedPhoto?> takePhoto() async => null;
+}
+
+class _NoRepo implements ReportRepository {
+  @override
+  Future<String> create(NewReport report) async => 'id';
 }
 
 Widget _app(SessionService session) => MaterialApp(
@@ -47,6 +65,12 @@ Widget _app(SessionService session) => MaterialApp(
         session: session,
         incidents: _NoIncidents(),
         location: _FixedLocation(),
+        reports: ReportService(
+          auth: _OkAuth(),
+          triage: const KeywordTriageService(),
+          repository: _NoRepo(),
+        ),
+        photos: _NoPhotos(),
       ),
     );
 
@@ -61,6 +85,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('Commuter Observer'), findsOneWidget);
+    expect(find.text('Report hazard'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 

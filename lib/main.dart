@@ -1,12 +1,17 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'config/app_config.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'services/incident_repository.dart';
 import 'services/location_service.dart';
+import 'services/photo_service.dart';
 import 'services/profile_repository.dart';
+import 'services/report_repository.dart';
+import 'services/report_service.dart';
 import 'services/session_service.dart';
+import 'services/triage_service.dart';
 import 'theme/app_theme.dart';
 import 'ui/home/home_screen.dart';
 import 'ui/splash/splash_screen.dart';
@@ -15,9 +20,20 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  final auth = FirebaseAuthService();
   final session = SessionService(
-    auth: FirebaseAuthService(),
+    auth: auth,
     profiles: FirestoreProfileRepository(),
+  );
+
+  final proxyUrl = AppConfig.parseProxyUrl(AppConfig.proxyUrl);
+  final proxy = proxyUrl == null || AppConfig.proxyToken.isEmpty
+      ? null
+      : ProxyTriageService(baseUrl: proxyUrl, token: AppConfig.proxyToken);
+  final reports = ReportService(
+    auth: auth,
+    triage: FallbackTriageService(proxy: proxy),
+    repository: FirestoreReportRepository(),
   );
 
   runApp(
@@ -25,6 +41,8 @@ Future<void> main() async {
       session: session,
       incidents: FirestoreIncidentRepository(),
       location: GeolocatorLocationService(),
+      reports: reports,
+      photos: CameraPhotoCapture(),
     ),
   );
 }
@@ -35,11 +53,15 @@ class HazardRadarApp extends StatelessWidget {
     required this.session,
     required this.incidents,
     required this.location,
+    required this.reports,
+    required this.photos,
   });
 
   final SessionService session;
   final IncidentRepository incidents;
   final LocationProvider location;
+  final ReportService reports;
+  final PhotoCapture photos;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +74,8 @@ class HazardRadarApp extends StatelessWidget {
           session: session,
           incidents: incidents,
           location: location,
+          reports: reports,
+          photos: photos,
         ),
       ),
     );

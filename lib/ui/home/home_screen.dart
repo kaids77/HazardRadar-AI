@@ -4,9 +4,12 @@ import 'package:flutter/material.dart';
 import '../../models/user_profile.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
+import '../../services/photo_service.dart';
+import '../../services/report_service.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_theme.dart';
 import '../map/map_screen.dart';
+import '../report/report_screen.dart';
 
 /// Waits for sign-in and the profile, then shows the live hazard map.
 class HomeScreen extends StatefulWidget {
@@ -15,11 +18,15 @@ class HomeScreen extends StatefulWidget {
     required this.session,
     required this.incidents,
     required this.location,
+    required this.reports,
+    required this.photos,
   });
 
   final SessionService session;
   final IncidentRepository incidents;
   final LocationProvider location;
+  final ReportService reports;
+  final PhotoCapture photos;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -38,6 +45,23 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _profile = widget.session.start();
     });
+  }
+
+  Future<void> _openReport() async {
+    final sent = await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) => ReportScreen(
+          reports: widget.reports,
+          photos: widget.photos,
+          location: widget.location,
+        ),
+      ),
+    );
+    if (sent == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Report sent. Thank you.')));
+    }
   }
 
   @override
@@ -71,6 +95,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final profile = snapshot.data!;
         return _Frame(
           tierLabel: profile.tierTitle,
+          onReport: _openReport,
           body: MapScreen(
             incidents: widget.incidents,
             location: widget.location,
@@ -82,10 +107,11 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Frame extends StatelessWidget {
-  const _Frame({required this.tierLabel, required this.body});
+  const _Frame({required this.tierLabel, required this.body, this.onReport});
 
   final String? tierLabel;
   final Widget body;
+  final VoidCallback? onReport;
 
   @override
   Widget build(BuildContext context) {
@@ -97,12 +123,28 @@ class _Frame extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: Center(
-                child: Text(tierLabel!, style: Theme.of(context).textTheme.labelLarge),
+                child: Text(
+                  tierLabel!,
+                  style: Theme.of(context).textTheme.labelLarge,
+                ),
               ),
             ),
         ],
       ),
       body: body,
+      floatingActionButton: onReport == null
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: onReport,
+              elevation: 0,
+              focusElevation: 0,
+              hoverElevation: 0,
+              highlightElevation: 0,
+              shape: const RoundedRectangleBorder(),
+              backgroundColor: AppColors.redOrange,
+              foregroundColor: AppColors.onRedOrange,
+              label: const Text('Report hazard'),
+            ),
     );
   }
 }
