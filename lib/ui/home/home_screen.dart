@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/user_profile.dart';
+import '../../services/chat_service.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_service.dart';
@@ -23,6 +24,7 @@ class HomeScreen extends StatefulWidget {
     required this.reports,
     required this.photos,
     required this.votes,
+    this.chat,
   });
 
   final SessionService session;
@@ -31,6 +33,7 @@ class HomeScreen extends StatefulWidget {
   final ReportService reports;
   final PhotoCapture photos;
   final VoteRepository votes;
+  final ChatService? chat;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -120,6 +123,8 @@ class _HomeScreenState extends State<HomeScreen> {
             location: widget.location,
             profile: profile,
             votes: widget.votes,
+            chat: widget.chat,
+            onReport: _openReport,
           ),
         );
       },

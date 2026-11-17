@@ -5,6 +5,7 @@ import 'config/app_config.dart';
 import 'firebase_options.dart';
 import 'services/account_linker.dart';
 import 'services/auth_service.dart';
+import 'services/chat_service.dart';
 import 'services/incident_repository.dart';
 import 'services/location_service.dart';
 import 'services/photo_service.dart';
@@ -48,6 +49,7 @@ Future<void> main() async {
       reports: reports,
       photos: CameraPhotoCapture(),
       votes: FirestoreVoteRepository(),
+      chat: proxy == null ? null : ProxyChatService(proxy),
     ),
   );
 }
@@ -61,6 +63,7 @@ class HazardRadarApp extends StatelessWidget {
     required this.reports,
     required this.photos,
     required this.votes,
+    this.chat,
   });
 
   final SessionService session;
@@ -69,6 +72,7 @@ class HazardRadarApp extends StatelessWidget {
   final ReportService reports;
   final PhotoCapture photos;
   final VoteRepository votes;
+  final ChatService? chat;
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +88,7 @@ class HazardRadarApp extends StatelessWidget {
           reports: reports,
           photos: photos,
           votes: votes,
+          chat: chat,
         ),
       ),
     );
