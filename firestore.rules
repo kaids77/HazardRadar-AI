@@ -54,7 +54,7 @@ service cloud.firestore {
         && !isBanned()
         && request.resource.data.keys().hasOnly([
           'reporterUid', 'category', 'riskLevel', 'aiSummary', 'recommendedAction',
-          'note', 'photoUrl', 'latitude', 'longitude', 'geohash',
+          'note', 'latitude', 'longitude', 'geohash',
           'status', 'visibility', 'netVotes', 'createdAt'
         ])
         && request.resource.data.reporterUid == request.auth.uid
@@ -66,7 +66,6 @@ service cloud.firestore {
         && request.resource.data.note is string && request.resource.data.note.size() <= 500
         && request.resource.data.aiSummary is string && request.resource.data.aiSummary.size() <= 500
         && request.resource.data.recommendedAction is string && request.resource.data.recommendedAction.size() <= 500
-        && request.resource.data.photoUrl is string && request.resource.data.photoUrl.size() <= 2000
         && request.resource.data.geohash is string && request.resource.data.geohash.size() <= 12
         && request.resource.data.latitude is number && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
         && request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180;
@@ -88,6 +87,26 @@ service cloud.firestore {
           && request.auth.uid == voterId
           && request.resource.data.keys().hasOnly(['value', 'createdAt'])
           && request.resource.data.value in [1, -1, 2, -2];
+        allow update, delete: if false;
+      }
+
+      // One compressed photo per report, stored in Firestore instead of Storage.
+      // It is created together with the incident in the same batch, so the
+      // ownership check reads the incident as it will be after the batch (getAfter).
+      match /photo/main {
+        allow read: if signedIn() && (
+          get(/databases/$(database)/documents/incidents/$(incidentId)).data.visibility == 'PUBLIC'
+          || get(/databases/$(database)/documents/incidents/$(incidentId)).data.reporterUid == request.auth.uid
+          || isStaff()
+        );
+        allow create: if signedIn()
+          && !isBanned()
+          && request.resource.data.keys().hasOnly(['reporterUid', 'mimeType', 'imageBase64', 'createdAt'])
+          && request.resource.data.reporterUid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/incidents/$(incidentId)).data.reporterUid == request.auth.uid
+          && request.resource.data.mimeType in ['image/jpeg', 'image/webp']
+          && request.resource.data.imageBase64 is string
+          && request.resource.data.imageBase64.size() <= 900000;
         allow update, delete: if false;
       }
     }
