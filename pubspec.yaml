@@ -57,6 +57,16 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  # Splash screen assets. The splash photo goes in assets/images/splash.jpg.
+  # Add this line under assets only after the file exists, or the build fails:
+  #   - assets/images/splash.jpg
+  fonts:
+    - family: DMSerifDisplay
+      fonts:
+        - asset: assets/fonts/DMSerifDisplay-Regular.ttf
+        - asset: assets/fonts/DMSerifDisplay-Italic.ttf
+          style: italic
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
