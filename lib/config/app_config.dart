@@ -1,6 +1,7 @@
-/// Build-time settings, passed with `--dart-define`. Nothing here is committed.
+/// Build-time settings. Nothing here is committed.
 ///
-/// flutter run --dart-define=PROXY_URL=http://127.0.0.1:3000/ --dart-define=PROXY_TOKEN=...
+/// Copy dart_defines.example.json to dart_defines.json (gitignored), fill it in, then run:
+/// flutter run --dart-define-from-file=dart_defines.json
 ///
 /// Without both values the app still works and triages reports on the device.
 abstract final class AppConfig {
