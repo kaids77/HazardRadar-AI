@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'config/app_config.dart';
 import 'firebase_options.dart';
+import 'services/account_linker.dart';
 import 'services/auth_service.dart';
 import 'services/incident_repository.dart';
 import 'services/location_service.dart';
@@ -25,6 +26,7 @@ Future<void> main() async {
   final session = SessionService(
     auth: auth,
     profiles: FirestoreProfileRepository(),
+    linker: FirebaseGoogleLinker(serverClientId: AppConfig.googleServerClientId),
   );
 
   final proxyUrl = AppConfig.parseProxyUrl(AppConfig.proxyUrl);

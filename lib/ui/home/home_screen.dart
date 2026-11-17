@@ -9,6 +9,7 @@ import '../../services/report_service.dart';
 import '../../services/session_service.dart';
 import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
+import '../account/account_sheet.dart';
 import '../map/map_screen.dart';
 import '../report/report_screen.dart';
 
@@ -38,6 +39,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<UserProfile> _profile;
 
+  /// Set after a Google upgrade. Replaces the loaded profile without
+  /// rebuilding the map through a new future.
+  UserProfile? _upgraded;
+
   @override
   void initState() {
     super.initState();
@@ -46,8 +51,18 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _retry() {
     setState(() {
+      _upgraded = null;
       _profile = widget.session.start();
     });
+  }
+
+  Future<void> _openAccount(UserProfile profile) async {
+    final upgraded = await showAccountSheet(context, profile: profile, session: widget.session);
+    if (upgraded == null || !mounted) return;
+    setState(() => _upgraded = upgraded);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('You are now a ${upgraded.tierTitle}.')),
+    );
   }
 
   Future<void> _openReport() async {
@@ -95,9 +110,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         }
-        final profile = snapshot.data!;
+        final profile = _upgraded ?? snapshot.data!;
         return _Frame(
           tierLabel: profile.tierTitle,
+          onAccount: () => _openAccount(profile),
           onReport: _openReport,
           body: MapScreen(
             incidents: widget.incidents,
@@ -112,11 +128,12 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 class _Frame extends StatelessWidget {
-  const _Frame({required this.tierLabel, required this.body, this.onReport});
+  const _Frame({required this.tierLabel, required this.body, this.onReport, this.onAccount});
 
   final String? tierLabel;
   final Widget body;
   final VoidCallback? onReport;
+  final VoidCallback? onAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -126,12 +143,14 @@ class _Frame extends StatelessWidget {
         actions: [
           if (tierLabel != null)
             Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Center(
-                child: Text(
-                  tierLabel!,
-                  style: Theme.of(context).textTheme.labelLarge,
+              padding: const EdgeInsets.only(right: 8),
+              child: TextButton(
+                onPressed: onAccount,
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.ink,
+                  shape: const RoundedRectangleBorder(),
                 ),
+                child: Text(tierLabel!, style: Theme.of(context).textTheme.labelLarge),
               ),
             ),
         ],
