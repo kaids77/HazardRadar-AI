@@ -48,4 +48,17 @@ void main() {
     final badLongitude = valid()..['longitude'] = -181;
     expect(Incident.tryFromFirestore('d', badLongitude), isNull);
   });
+
+  test('reads reporter and action, and marks three net votes as verified', () {
+    final data = valid()
+      ..['reporterUid'] = 'uid-1'
+      ..['recommendedAction'] = 'Keep clear.'
+      ..['netVotes'] = 3;
+    final incident = Incident.tryFromFirestore('abc', data)!;
+
+    expect(incident.reporterUid, 'uid-1');
+    expect(incident.recommendedAction, 'Keep clear.');
+    expect(incident.isVerified, isTrue);
+    expect(Incident.tryFromFirestore('abc', valid())!.isVerified, isFalse);
+  });
 }

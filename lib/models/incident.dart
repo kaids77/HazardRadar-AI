@@ -8,6 +8,8 @@ class Incident {
     required this.latitude,
     required this.longitude,
     required this.netVotes,
+    this.reporterUid = '',
+    this.recommendedAction = '',
   });
 
   final String id;
@@ -17,6 +19,12 @@ class Incident {
   final double latitude;
   final double longitude;
   final int netVotes;
+  final String reporterUid;
+  final String recommendedAction;
+
+  /// Three net votes make a report a verified hazard.
+  static const int verifiedThreshold = 3;
+  bool get isVerified => netVotes >= verifiedThreshold;
 
   /// Returns null when required fields are missing or the coordinates are out of range.
   /// The map skips those documents instead of crashing.
@@ -40,6 +48,12 @@ class Incident {
       latitude: latitude.toDouble(),
       longitude: longitude.toDouble(),
       netVotes: netVotes is int ? netVotes : 0,
+      reporterUid: data['reporterUid'] is String
+          ? data['reporterUid'] as String
+          : '',
+      recommendedAction: data['recommendedAction'] is String
+          ? data['recommendedAction'] as String
+          : '',
     );
   }
 }
