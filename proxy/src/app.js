@@ -2,6 +2,7 @@ import express from 'express';
 
 import { requireProxyToken } from './auth.js';
 import { buildChatMessages, parseChatResult, validateChatRequest } from './chat.js';
+import { loopbackCors } from './cors.js';
 import { UpstreamError, ValidationError } from './errors.js';
 import { buildTriageMessages, parseTriageResult, validateNote } from './triage.js';
 
@@ -15,6 +16,7 @@ const JSON_BODY_LIMIT = '16kb';
 export function createApp({ config, groq, log = console.log }) {
   const app = express();
   app.disable('x-powered-by');
+  app.use(loopbackCors());
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   // Logs method, path, status, and duration only. Bodies and headers are never logged.
