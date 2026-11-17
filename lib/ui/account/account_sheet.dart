@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/user_profile.dart';
@@ -49,8 +50,10 @@ class _AccountSheetState extends State<AccountSheet> {
       if (upgraded != null) Navigator.of(context).pop(upgraded);
     } on LinkFailed catch (failure) {
       if (mounted) setState(() => _error = failure.message);
-    } catch (_) {
-      if (mounted) setState(() => _error = 'Could not upgrade your account. Try again.');
+    } catch (error) {
+      // Debug builds show the real cause, such as permission-denied. Release builds do not.
+      const message = 'Could not upgrade your account. Try again.';
+      if (mounted) setState(() => _error = kDebugMode ? '$message\n$error' : message);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
