@@ -6,6 +6,7 @@ import '../../models/incident.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
 import '../../theme/app_theme.dart';
+import 'map_style.dart';
 import 'risk_style.dart';
 
 /// Live map of active public hazards, centered on the commuter's location.
@@ -24,6 +25,12 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
+  /// Approximate bounding box of the Philippines. The map cannot pan outside it.
+  static final LatLngBounds _philippines = LatLngBounds(
+    const LatLng(4.5, 116.7),
+    const LatLng(21.3, 127.0),
+  );
+
   late final Future<LatLng> _center;
   late final Stream<List<Incident>> _incidentStream;
 
@@ -50,16 +57,25 @@ class _MapScreenState extends State<MapScreen> {
               children: [
                 FlutterMap(
                   options: MapOptions(
-                    initialCenter: centerSnapshot.data!,
+                    initialCenter: _philippines.contains(centerSnapshot.data!)
+                        ? centerSnapshot.data!
+                        : GeolocatorLocationService.fallbackCenter,
                     initialZoom: 15,
+                    minZoom: 5,
+                    cameraConstraint: CameraConstraint.contain(bounds: _philippines),
                   ),
                   children: [
                     TileLayer(
                       urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.example.hazardradarai',
+                      tileBuilder: tintedTileBuilder,
                     ),
                     MarkerLayer(
-                      markers: [for (final incident in incidents) _markerFor(incident)],
+                      markers: [
+                        for (final incident in incidents)
+                          if (_philippines.contains(LatLng(incident.latitude, incident.longitude)))
+                            _markerFor(incident),
+                      ],
                     ),
                     RichAttributionWidget(
                       attributions: [
@@ -86,14 +102,15 @@ class _MapScreenState extends State<MapScreen> {
   Marker _markerFor(Incident incident) {
     return Marker(
       point: LatLng(incident.latitude, incident.longitude),
-      width: 24,
-      height: 24,
+      width: 26,
+      height: 26,
       child: Semantics(
         label: '${incident.riskLevel} risk: ${incident.category}',
         child: DecoratedBox(
           decoration: BoxDecoration(
             color: riskColor(incident.riskLevel),
             shape: BoxShape.circle,
+            border: Border.fromBorderSide(BorderSide(color: AppColors.cream, width: 3)),
           ),
         ),
       ),
@@ -109,10 +126,13 @@ class _Notice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
-      decoration: const BoxDecoration(color: AppColors.cream),
+      decoration: const BoxDecoration(color: AppColors.sage),
       child: Padding(
         padding: const EdgeInsets.all(12),
-        child: Text(text, style: Theme.of(context).textTheme.bodyMedium),
+        child: Text(
+          text,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.ink),
+        ),
       ),
     );
   }

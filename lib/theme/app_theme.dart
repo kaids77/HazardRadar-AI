@@ -44,7 +44,13 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          fontFamily: 'DMSerifDisplay',
+          fontSize: 22,
+          color: AppColors.ink,
+        ),
       ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.redOrange),
       cardTheme: const CardThemeData(
         color: AppColors.sage,
         elevation: 0,
