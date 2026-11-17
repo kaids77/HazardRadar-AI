@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
+import 'services/incident_repository.dart';
+import 'services/location_service.dart';
 import 'services/profile_repository.dart';
 import 'services/session_service.dart';
 import 'theme/app_theme.dart';
@@ -18,13 +20,26 @@ Future<void> main() async {
     profiles: FirestoreProfileRepository(),
   );
 
-  runApp(HazardRadarApp(session: session));
+  runApp(
+    HazardRadarApp(
+      session: session,
+      incidents: FirestoreIncidentRepository(),
+      location: GeolocatorLocationService(),
+    ),
+  );
 }
 
 class HazardRadarApp extends StatelessWidget {
-  const HazardRadarApp({super.key, required this.session});
+  const HazardRadarApp({
+    super.key,
+    required this.session,
+    required this.incidents,
+    required this.location,
+  });
 
   final SessionService session;
+  final IncidentRepository incidents;
+  final LocationProvider location;
 
   @override
   Widget build(BuildContext context) {
@@ -33,7 +48,11 @@ class HazardRadarApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       home: SplashScreen(
-        nextBuilder: (_) => HomeScreen(session: session),
+        nextBuilder: (_) => HomeScreen(
+          session: session,
+          incidents: incidents,
+          location: location,
+        ),
       ),
     );
   }

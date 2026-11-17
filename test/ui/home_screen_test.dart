@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
 
+import 'package:hazardradarai/models/incident.dart';
 import 'package:hazardradarai/models/user_profile.dart';
 import 'package:hazardradarai/services/auth_service.dart';
+import 'package:hazardradarai/services/incident_repository.dart';
+import 'package:hazardradarai/services/location_service.dart';
 import 'package:hazardradarai/services/profile_repository.dart';
 import 'package:hazardradarai/services/session_service.dart';
 import 'package:hazardradarai/ui/home/home_screen.dart';
@@ -27,23 +31,42 @@ class _ProfileRepo implements ProfileRepository {
       );
 }
 
+class _NoIncidents implements IncidentRepository {
+  @override
+  Stream<List<Incident>> watchActivePublic({int limit = 150}) =>
+      Stream.value(const <Incident>[]);
+}
+
+class _FixedLocation implements LocationProvider {
+  @override
+  Future<LatLng> currentOrFallback() async => GeolocatorLocationService.fallbackCenter;
+}
+
+Widget _app(SessionService session) => MaterialApp(
+      home: HomeScreen(
+        session: session,
+        incidents: _NoIncidents(),
+        location: _FixedLocation(),
+      ),
+    );
+
 void main() {
-  testWidgets('shows a loading indicator, then the commuter profile', (tester) async {
+  testWidgets('shows a loading indicator, then the tier label in the app bar', (tester) async {
     final session = SessionService(auth: _OkAuth(), profiles: _ProfileRepo());
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(session: session)));
+    await tester.pumpWidget(_app(session));
 
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump();
 
     expect(find.text('Commuter Observer'), findsOneWidget);
-    expect(find.text('uid: uid-abc'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
   testWidgets('shows a retry action when sign-in fails', (tester) async {
     final session = SessionService(auth: _FailingAuth(), profiles: _ProfileRepo());
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(session: session)));
+    await tester.pumpWidget(_app(session));
     await tester.pumpAndSettle();
 
     expect(find.text('Retry'), findsOneWidget);
