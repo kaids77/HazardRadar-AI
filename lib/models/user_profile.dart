@@ -13,6 +13,7 @@ class UserProfile {
   static const String roleCitizen = 'CITIZEN';
   static const String accountActive = 'ACTIVE';
   static const int tierCommuterObserver = 1;
+  static const int tierCivicScout = 2;
 
   final String uid;
   final String role;

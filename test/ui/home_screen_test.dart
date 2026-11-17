@@ -37,6 +37,14 @@ class _ProfileRepo implements ProfileRepository {
         tier: 1,
         accountStatus: 'ACTIVE',
       );
+
+  @override
+  Future<UserProfile> upgradeToCivicScout(String uid) async => UserProfile(
+        uid: uid,
+        role: 'CITIZEN',
+        tier: 2,
+        accountStatus: 'ACTIVE',
+      );
 }
 
 class _NoIncidents implements IncidentRepository {
