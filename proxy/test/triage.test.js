@@ -48,3 +48,17 @@ test('validateNote trims and rejects empty or oversized notes', () => {
   assert.throws(() => validateNote('x'.repeat(501)), /at most 500/);
   assert.throws(() => validateNote(42), /must be a string/);
 });
+
+test('category is mapped onto the fixed list and unknown labels become Other', () => {
+  const withCategory = (category) => JSON.stringify({ ...JSON.parse(VALID_JSON), category });
+  assert.equal(parseTriageResult(withCategory('electrical')).category, 'Electrical');
+  assert.equal(parseTriageResult(withCategory('LIGHTING')).category, 'Lighting');
+  assert.equal(parseTriageResult(withCategory('Road')).category, 'Other');
+  assert.equal(parseTriageResult(withCategory('Sinkhole')).category, 'Other');
+});
+
+test('the prompt lists exactly the six categories', async () => {
+  const { buildTriageMessages, CATEGORIES } = await import('../src/triage.js');
+  assert.deepEqual([...CATEGORIES], ['Pothole', 'Electrical', 'Flooding', 'Obstruction', 'Lighting', 'Other']);
+  assert.match(buildTriageMessages('x')[0].content, /Pothole, Electrical, Flooding, Obstruction, Lighting, Other/);
+});

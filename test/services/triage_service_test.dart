@@ -102,7 +102,7 @@ void main() {
       final failing = FallbackTriageService(
         proxy: _proxy(MockClient((_) async => http.Response('', 500))),
       );
-      expect((await failing.classify('Big pothole near the gate')).category, 'Road');
+      expect((await failing.classify('Big pothole near the gate')).category, 'Pothole');
       expect((await const FallbackTriageService().classify('live wire sparking')).riskLevel, 'High');
       expect((await const FallbackTriageService().classify('something odd')).category, 'Other');
     });

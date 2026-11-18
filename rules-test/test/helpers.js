@@ -68,6 +68,7 @@ export function newIncident(uid, overrides = {}) {
     status: 'ACTIVE',
     visibility: 'PUBLIC',
     netVotes: 0,
+    aiProcessed: true,
     ...overrides,
   };
 }

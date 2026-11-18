@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -6,6 +8,7 @@ import '../../services/chat_service.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_service.dart';
+import '../../services/report_enricher.dart';
 import '../../services/report_service.dart';
 import '../../services/session_service.dart';
 import '../../services/vote_repository.dart';
@@ -13,6 +16,7 @@ import '../../theme/app_theme.dart';
 import '../account/account_sheet.dart';
 import '../map/map_screen.dart';
 import '../report/report_screen.dart';
+import 'home_services.dart';
 
 /// Waits for sign-in and the profile, then shows the live hazard map.
 class HomeScreen extends StatefulWidget {
@@ -25,6 +29,7 @@ class HomeScreen extends StatefulWidget {
     required this.photos,
     required this.votes,
     this.chat,
+    this.enricher,
   });
 
   final SessionService session;
@@ -34,6 +39,21 @@ class HomeScreen extends StatefulWidget {
   final PhotoCapture photos;
   final VoteRepository votes;
   final ChatService? chat;
+
+  /// Null in builds without a proxy. Re-checks the user's offline-triaged reports.
+  final ReportEnricher? enricher;
+
+  factory HomeScreen.fromServices(HomeServices services, {Key? key}) => HomeScreen(
+        key: key,
+        session: services.session,
+        incidents: services.incidents,
+        location: services.location,
+        reports: services.reports,
+        photos: services.photos,
+        votes: services.votes,
+        chat: services.chat,
+        enricher: services.enricher,
+      );
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -49,13 +69,21 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _profile = widget.session.start();
+    _profile = _start();
+  }
+
+  /// Starts the session, then re-checks offline-triaged reports in the background.
+  Future<UserProfile> _start() async {
+    final profile = await widget.session.start();
+    final enricher = widget.enricher;
+    if (enricher != null) unawaited(enricher.enrichPending(profile.uid));
+    return profile;
   }
 
   void _retry() {
     setState(() {
       _upgraded = null;
-      _profile = widget.session.start();
+      _profile = _start();
     });
   }
 

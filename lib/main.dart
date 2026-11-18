@@ -12,6 +12,7 @@ import 'services/location_service.dart';
 import 'services/photo_service.dart';
 import 'services/profile_repository.dart';
 import 'services/proxy_client.dart';
+import 'services/report_enricher.dart';
 import 'services/report_repository.dart';
 import 'services/report_service.dart';
 import 'services/session_service.dart';
@@ -19,6 +20,7 @@ import 'services/triage_service.dart';
 import 'services/vote_repository.dart';
 import 'theme/app_theme.dart';
 import 'ui/home/home_screen.dart';
+import 'ui/home/home_services.dart';
 import 'ui/splash/splash_screen.dart';
 
 Future<void> main() async {
@@ -39,44 +41,35 @@ Future<void> main() async {
           baseUrl: proxyUrl,
           idToken: () async => FirebaseAuth.instance.currentUser?.getIdToken(),
         );
+  final proxyTriage = proxy == null ? null : ProxyTriageService(proxy);
   final reports = ReportService(
     auth: auth,
-    triage: FallbackTriageService(proxy: proxy == null ? null : ProxyTriageService(proxy)),
+    triage: FallbackTriageService(proxy: proxyTriage),
     repository: FirestoreReportRepository(),
   );
 
   runApp(
     HazardRadarApp(
-      session: session,
-      incidents: FirestoreIncidentRepository(),
-      location: GeolocatorLocationService(),
-      reports: reports,
-      photos: CameraPhotoCapture(),
-      votes: FirestoreVoteRepository(),
-      chat: proxy == null ? null : ProxyChatService(proxy),
+      services: HomeServices(
+        session: session,
+        incidents: FirestoreIncidentRepository(),
+        location: GeolocatorLocationService(),
+        reports: reports,
+        photos: CameraPhotoCapture(),
+        votes: FirestoreVoteRepository(),
+        chat: proxy == null ? null : ProxyChatService(proxy),
+        enricher: proxyTriage == null
+            ? null
+            : ReportEnricher(repository: FirestorePendingReportRepository(), proxy: proxyTriage),
+      ),
     ),
   );
 }
 
 class HazardRadarApp extends StatelessWidget {
-  const HazardRadarApp({
-    super.key,
-    required this.session,
-    required this.incidents,
-    required this.location,
-    required this.reports,
-    required this.photos,
-    required this.votes,
-    this.chat,
-  });
+  const HazardRadarApp({super.key, required this.services});
 
-  final SessionService session;
-  final IncidentRepository incidents;
-  final LocationProvider location;
-  final ReportService reports;
-  final PhotoCapture photos;
-  final VoteRepository votes;
-  final ChatService? chat;
+  final HomeServices services;
 
   @override
   Widget build(BuildContext context) {
@@ -84,17 +77,7 @@ class HazardRadarApp extends StatelessWidget {
       title: 'HazardRadar AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: SplashScreen(
-        nextBuilder: (_) => HomeScreen(
-          session: session,
-          incidents: incidents,
-          location: location,
-          reports: reports,
-          photos: photos,
-          votes: votes,
-          chat: chat,
-        ),
-      ),
+      home: SplashScreen(nextBuilder: (_) => HomeScreen.fromServices(services)),
     );
   }
 }

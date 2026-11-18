@@ -1,11 +1,14 @@
+import 'hazard_category.dart';
+
 /// Structured output of hazard triage. Matches the proxy `/triage` response and
-/// the limits in `firestore.rules` (category 40, text fields 500 characters).
+/// the limits in `firestore.rules` (category from the fixed list, text fields 500 characters).
 class TriageResult {
   const TriageResult({
     required this.category,
     required this.riskLevel,
     required this.aiSummary,
     required this.recommendedAction,
+    this.aiProcessed = true,
   });
 
   static const List<String> riskLevels = ['Low', 'Medium', 'High'];
@@ -17,8 +20,12 @@ class TriageResult {
   final String aiSummary;
   final String recommendedAction;
 
+  /// False when the on-device keyword classifier produced this result.
+  /// Those reports are re-checked by the AI later.
+  final bool aiProcessed;
+
   /// Returns null unless every field is present, within limits, and the risk level is known.
-  /// The proxy already validates its output, but the app does not trust the network.
+  /// The category is mapped onto the fixed list. The app does not trust the network.
   static TriageResult? tryFromJson(Object? json) {
     if (json is! Map) return null;
     final category = _text(json['category'], maxCategoryLength);
@@ -28,7 +35,7 @@ class TriageResult {
     if (category == null || aiSummary == null || recommendedAction == null) return null;
     if (riskLevel is! String || !riskLevels.contains(riskLevel)) return null;
     return TriageResult(
-      category: category,
+      category: HazardCategory.normalize(category),
       riskLevel: riskLevel,
       aiSummary: aiSummary,
       recommendedAction: recommendedAction,

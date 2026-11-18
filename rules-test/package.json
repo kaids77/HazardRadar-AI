@@ -8,7 +8,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test --test-concurrency=1",
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\"",
     "emulator:test": "firebase emulators:exec --only firestore --project demo-hazardradar \"npm test\""
   },
   "devDependencies": {

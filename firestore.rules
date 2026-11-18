@@ -24,6 +24,18 @@ service cloud.firestore {
       return signedIn() && exists(userPath()) && get(userPath()).data.accountStatus == 'BANNED';
     }
 
+    // Fixed hazard categories. Must match lib/models/hazard_category.dart and proxy/src/triage.js.
+    function categories() {
+      return ['Pothole', 'Electrical', 'Flooding', 'Obstruction', 'Lighting', 'Other'];
+    }
+
+    function validTriage(data) {
+      return data.category in categories()
+        && data.riskLevel in ['Low', 'Medium', 'High']
+        && data.aiSummary is string && data.aiSummary.size() > 0 && data.aiSummary.size() <= 500
+        && data.recommendedAction is string && data.recommendedAction.size() > 0 && data.recommendedAction.size() <= 500;
+    }
+
     // Profiles. Users can create only their own Level 1 profile.
     // Role and account status can change only through an admin.
     match /users/{uid} {
@@ -68,17 +80,15 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'reporterUid', 'category', 'riskLevel', 'aiSummary', 'recommendedAction',
           'note', 'latitude', 'longitude', 'geohash',
-          'status', 'visibility', 'netVotes', 'createdAt'
+          'status', 'visibility', 'netVotes', 'aiProcessed', 'createdAt'
         ])
         && request.resource.data.reporterUid == request.auth.uid
         && request.resource.data.status == 'ACTIVE'
         && request.resource.data.visibility == 'PUBLIC'
         && request.resource.data.netVotes == 0
-        && request.resource.data.riskLevel in ['Low', 'Medium', 'High']
-        && request.resource.data.category is string && request.resource.data.category.size() <= 40
+        && request.resource.data.aiProcessed is bool
+        && validTriage(request.resource.data)
         && request.resource.data.note is string && request.resource.data.note.size() <= 500
-        && request.resource.data.aiSummary is string && request.resource.data.aiSummary.size() <= 500
-        && request.resource.data.recommendedAction is string && request.resource.data.recommendedAction.size() <= 500
         && request.resource.data.geohash is string && request.resource.data.geohash.size() <= 12
         && request.resource.data.latitude is number && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
         && request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180;
@@ -105,14 +115,27 @@ service cloud.firestore {
               || (request.resource.data.visibility == 'QUARANTINED' && request.resource.data.netVotes <= -3));
       }
 
+      // A report triaged offline (aiProcessed false) may be updated once by its owner
+      // with the AI result. Only the triage fields change, and aiProcessed becomes true.
+      function isEnrichment() {
+        return signedIn()
+          && !isBanned()
+          && resource.data.reporterUid == request.auth.uid
+          && resource.data.get('aiProcessed', true) == false
+          && request.resource.data.aiProcessed == true
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['category', 'riskLevel', 'aiSummary', 'recommendedAction', 'aiProcessed'])
+          && validTriage(request.resource.data);
+      }
+
       // Staff change status, visibility, or resolution notes. Voters change only
-      // what isVoteUpdate allows. Owners cannot edit reports. Task 12 enforces
-      // the status order.
+      // what isVoteUpdate allows. Owners may only apply a pending AI result. Task 12
+      // enforces the status order.
       allow update: if (
           isStaff()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'visibility', 'resolutionNote', 'updatedAt'])
           && request.resource.data.status in ['ACTIVE', 'IN_PROGRESS', 'RESOLVED']
-        ) || isVoteUpdate(incidentId);
+        ) || isVoteUpdate(incidentId) || isEnrichment();
 
       allow delete: if hasRole('ADMIN');
 

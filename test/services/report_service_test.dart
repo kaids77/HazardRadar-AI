@@ -74,7 +74,7 @@ void main() {
 
     expect(report.incidentFields().keys.toSet(), {
       'reporterUid', 'category', 'riskLevel', 'aiSummary', 'recommendedAction',
-      'note', 'latitude', 'longitude', 'geohash', 'status', 'visibility', 'netVotes',
+      'note', 'latitude', 'longitude', 'geohash', 'status', 'visibility', 'netVotes', 'aiProcessed',
     });
     expect(report.incidentFields()['status'], 'ACTIVE');
     expect(report.incidentFields()['visibility'], 'PUBLIC');

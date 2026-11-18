@@ -1,3 +1,4 @@
+import '../models/hazard_category.dart';
 import '../models/triage_result.dart';
 import 'proxy_client.dart';
 
@@ -24,50 +25,73 @@ class ProxyTriageService {
 }
 
 /// On-device classifier used when the proxy is unavailable, so a report never fails.
+/// Keywords cover English, Tagalog, and Cebuano. They match whole words only, so
+/// "baha" (flood) does not match "bahay" (house). Rules are checked in order, so the
+/// higher-risk categories come first.
 class KeywordTriageService implements TriageService {
   const KeywordTriageService();
 
-  static const _rules = <_Rule>[
-    _Rule('Electrical', 'High', ['wire', 'spark', 'electric', 'live wire', 'transformer', 'pole', 'cable'],
-        'Possible electrical hazard reported.', 'Keep clear and alert the electric utility.'),
-    _Rule('Flooding', 'Medium', ['flood', 'baha', 'water', 'drain', 'clogged'],
-        'Flooding or blocked drainage reported.', 'Avoid the area and report to the local drainage office.'),
-    _Rule('Road', 'Medium', ['pothole', 'crater', 'hole', 'crack', 'sinkhole', 'road', 'butas'],
-        'Road surface damage reported.', 'Slow down, avoid the damaged lane, and notify public works.'),
-    _Rule('Obstruction', 'Low', ['fallen', 'tree', 'blocked', 'obstruct', 'debris', 'garbage'],
-        'Obstruction reported on the path.', 'Take an alternate route until it is cleared.'),
+  static final _rules = <_Rule>[
+    _Rule(HazardCategory.electrical, 'High', const [
+      'wire', 'wires', 'live wire', 'spark', 'sparks', 'sparking', 'electric', 'electrical',
+      'electrocution', 'transformer', 'cable', 'cables', 'kuryente', 'kable', 'koryente',
+      'nag-spark', 'nagspark', 'poste',
+    ], 'Possible electrical hazard reported.', 'Keep clear and alert the electric utility.'),
+    _Rule(HazardCategory.flooding, 'Medium', const [
+      'flood', 'flooded', 'flooding', 'baha', 'binaha', 'bahain', 'nagbaha', 'drain', 'drainage',
+      'clogged', 'barado', 'nakabara', 'kanal', 'canal', 'tubig', 'water',
+    ], 'Flooding or blocked drainage reported.', 'Avoid the area and report to the local drainage office.'),
+    _Rule(HazardCategory.lighting, 'Low', const [
+      'streetlight', 'streetlights', 'street light', 'street lights', 'lamp', 'lamppost', 'dark',
+      'ilaw', 'walang ilaw', 'patay ang ilaw', 'patay na ilaw', 'suga', 'walay suga', 'ngitngit', 'madilim',
+    ], 'Broken or missing street lighting reported.', 'Use a lit route at night and notify the city electrician.'),
+    _Rule(HazardCategory.pothole, 'Medium', const [
+      'pothole', 'potholes', 'crater', 'sinkhole', 'hole', 'crack', 'cracked', 'butas', 'lubak',
+      'lungag', 'buslot', 'guba', 'sira ang daan',
+    ], 'Road surface damage reported.', 'Slow down, avoid the damaged lane, and notify public works.'),
+    _Rule(HazardCategory.obstruction, 'Low', const [
+      'fallen', 'tree', 'blocked', 'obstruction', 'obstructed', 'debris', 'garbage', 'rocks',
+      'landslide', 'natumba', 'nahulog', 'kahoy', 'puno', 'basura', 'sagbot', 'nakaharang', 'harang',
+    ], 'Obstruction reported on the path.', 'Take an alternate route until it is cleared.'),
   ];
 
   @override
   Future<TriageResult> classify(String note) async {
     final text = note.toLowerCase();
     for (final rule in _rules) {
-      if (rule.keywords.any(text.contains)) {
+      if (rule.matches(text)) {
         return TriageResult(
           category: rule.category,
           riskLevel: rule.riskLevel,
           aiSummary: rule.summary,
           recommendedAction: rule.action,
+          aiProcessed: false,
         );
       }
     }
     return const TriageResult(
-      category: 'Other',
+      category: HazardCategory.other,
       riskLevel: 'Low',
       aiSummary: 'Hazard reported by a commuter.',
       recommendedAction: 'A reviewer will check this report.',
+      aiProcessed: false,
     );
   }
 }
 
 class _Rule {
-  const _Rule(this.category, this.riskLevel, this.keywords, this.summary, this.action);
+  _Rule(this.category, this.riskLevel, List<String> keywords, this.summary, this.action)
+      : _pattern = RegExp(
+          '(^|[^a-z0-9])(${keywords.map(RegExp.escape).join('|')})(?=[^a-z0-9]|\$)',
+        );
 
   final String category;
   final String riskLevel;
-  final List<String> keywords;
   final String summary;
   final String action;
+  final RegExp _pattern;
+
+  bool matches(String lowerText) => _pattern.hasMatch(lowerText);
 }
 
 /// Tries the proxy first, then the offline classifier. [proxy] is null when
