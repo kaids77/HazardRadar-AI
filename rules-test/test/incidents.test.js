@@ -56,7 +56,9 @@ test('every fixed category is accepted', async () => {
   const db = guest(env, 'alice');
   const categories = ['Pothole', 'Electrical', 'Flooding', 'Obstruction', 'Lighting', 'Other'];
   for (const [i, category] of categories.entries()) {
-    await assertSucceeds(fileReport(db, 'alice', category, { count: i + 1, incident: { category } }));
+    await assertSucceeds(
+      fileReport(db, 'alice', category, { count: i + 1, ctp: 10 * (i + 1), total: i + 1, incident: { category } }),
+    );
   }
 });
 

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../geo/philippine_day.dart';
 import '../models/report.dart';
+import 'level_policy.dart';
 import 'report_rejected.dart';
 
 abstract interface class ReportRepository {
@@ -53,6 +54,9 @@ class FirestoreReportRepository implements ReportRepository {
             'reportDay': Timestamp.fromDate(counter.day),
             'reportCount': counter.count,
             'lastReportId': incident.id,
+            // Every published report earns +10 Civic Trust Points (checked by the rules).
+            'ctp': _int(profile?['ctp']) + LevelPolicy.ctpPerReport,
+            'reportsTotal': _int(profile?['reportsTotal']) + 1,
           });
       });
     } on FirebaseException catch (error) {
@@ -65,4 +69,6 @@ class FirestoreReportRepository implements ReportRepository {
     }
     return incident.id;
   }
+
+  static int _int(Object? value) => value is int ? value : 0;
 }

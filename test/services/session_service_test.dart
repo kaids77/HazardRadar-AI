@@ -44,6 +44,26 @@ class FakeProfileRepository implements ProfileRepository {
       accountStatus: UserProfile.accountActive,
     );
   }
+
+  final List<String> earnedLevelUids = [];
+
+  @override
+  Future<UserProfile> applyEarnedLevel(String uid) async {
+    earnedLevelUids.add(uid);
+    return UserProfile(uid: uid, role: 'CITIZEN', tier: 2, accountStatus: 'ACTIVE', ctp: 50);
+  }
+
+  @override
+  Future<void> setFocusBadge(String uid, String badge) async {}
+}
+
+/// A repository whose stored profile has earned a level.
+class EarnedLevelRepository extends FakeProfileRepository {
+  @override
+  Future<UserProfile> getOrCreateProfile(String uid) async {
+    requestedUids.add(uid);
+    return UserProfile(uid: uid, role: 'CITIZEN', tier: 1, accountStatus: 'ACTIVE', ctp: 50);
+  }
 }
 
 class FakeLinker implements AccountLinker {
@@ -68,6 +88,22 @@ void main() {
     expect(profile.uid, 'uid-123');
     expect(profile.tier, 1);
     expect(profile.role, 'CITIZEN');
+  });
+
+  test('start applies a level earned with points', () async {
+    final profiles = EarnedLevelRepository();
+    final session = SessionService(auth: FakeAuthService('uid-1'), profiles: profiles);
+
+    final profile = await session.start();
+
+    expect(profile.tier, 2);
+    expect(profiles.earnedLevelUids, ['uid-1']);
+  });
+
+  test('start does not try a level-up when none is due', () async {
+    final profiles = FakeProfileRepository();
+    await SessionService(auth: FakeAuthService('uid-1'), profiles: profiles).start();
+    expect(profiles.earnedLevelUids, isEmpty);
   });
 
   group('upgradeWithGoogle', () {

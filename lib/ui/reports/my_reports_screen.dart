@@ -33,6 +33,7 @@ class MyReportsScreen extends StatefulWidget {
     required this.profile,
     required this.reports,
     this.onSignIn,
+    this.onPickBadge,
   });
 
   final UserProfile profile;
@@ -40,6 +41,9 @@ class MyReportsScreen extends StatefulWidget {
 
   /// Opens the Google upgrade. Shown to guests only.
   final VoidCallback? onSignIn;
+
+  /// Saves a focus badge. Offered to Neighborhood Sentinels without one.
+  final ValueChanged<String>? onPickBadge;
 
   @override
   State<MyReportsScreen> createState() => _MyReportsScreenState();
@@ -79,6 +83,12 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
               const SizedBox(height: 12),
             ],
             _ProfileCard(profile: widget.profile),
+            if (widget.profile.tier >= UserProfile.tierSentinel &&
+                widget.profile.focusBadge == null &&
+                widget.onPickBadge != null) ...[
+              const SizedBox(height: 12),
+              _BadgePicker(onPick: widget.onPickBadge!),
+            ],
             const SizedBox(height: 20),
             Text('My reports', style: _heading),
             const SizedBox(height: 8),
@@ -145,6 +155,48 @@ class _GuestCard extends StatelessWidget {
               child: const Text('Sign in with Google'),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _BadgePicker extends StatelessWidget {
+  const _BadgePicker({required this.onPick});
+
+  final ValueChanged<String> onPick;
+
+  static const _descriptions = {
+    'Roadway Watch': 'Potholes, sinkholes, and road obstructions',
+    'Grid Guardian': 'Downed lines, exposed wiring, and streetlights',
+    'Hydro Monitor': 'Flooding, clogged drains, and water main breaks',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.sage,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Choose your focus badge', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          for (final badge in LevelPolicy.focusBadges)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: OutlinedButton(
+                onPressed: () => onPick(badge),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.ink,
+                  side: const BorderSide(color: AppColors.ink),
+                  shape: const RoundedRectangleBorder(),
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.all(12),
+                ),
+                child: Text('$badge: ${_descriptions[badge]}'),
+              ),
+            ),
         ],
       ),
     );

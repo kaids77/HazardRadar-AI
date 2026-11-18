@@ -90,6 +90,22 @@ void main() {
     expect(find.text('Pothole · HZD-AAAAAA'), findsNothing);
   });
 
+  testWidgets('a Sentinel without a badge picks one', (tester) async {
+    String? picked;
+    await _pump(
+      tester,
+      MyReportsScreen(
+        profile: UserProfile(uid: 'u', role: 'VERIFIER', tier: 3, accountStatus: 'ACTIVE', ctp: 260),
+        reports: _Repo(const []),
+        onPickBadge: (badge) => picked = badge,
+      ),
+    );
+
+    expect(find.text('Choose your focus badge'), findsOneWidget);
+    await tester.tap(find.textContaining('Grid Guardian'));
+    expect(picked, 'Grid Guardian');
+  });
+
   testWidgets('the data saver switch is saved', (tester) async {
     final store = MemorySettingsStore();
     final settings = AppSettings(store);

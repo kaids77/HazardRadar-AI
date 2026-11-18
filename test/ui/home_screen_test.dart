@@ -55,6 +55,12 @@ class _ProfileRepo implements ProfileRepository {
         tier: 2,
         accountStatus: 'ACTIVE',
       );
+
+  @override
+  Future<UserProfile> applyEarnedLevel(String uid) => getOrCreateProfile(uid);
+
+  @override
+  Future<void> setFocusBadge(String uid, String badge) async {}
 }
 
 class _NoIncidents implements IncidentRepository {

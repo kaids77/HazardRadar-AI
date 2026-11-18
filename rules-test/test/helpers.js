@@ -85,7 +85,12 @@ export function phToday(offsetDays = 0) {
  * Files a report the way the app does: incident, photo, and the reporter's daily
  * counter in one batch. [count] is the new reportCount the client claims.
  */
-export function fileReport(db, uid, id, { count = 1, day = phToday(), tier = 1, incident = {}, profileExtra = {} } = {}) {
+export function fileReport(
+  db,
+  uid,
+  id,
+  { count = 1, day = phToday(), tier = 1, ctp = 10, total = 1, incident = {}, profileExtra = {} } = {},
+) {
   const batch = writeBatch(db);
   batch.set(doc(db, `incidents/${id}`), {
     ...newIncident(uid),
@@ -99,6 +104,13 @@ export function fileReport(db, uid, id, { count = 1, day = phToday(), tier = 1, 
     imageBase64: 'abc',
     createdAt: serverTimestamp(),
   });
-  batch.update(doc(db, `users/${uid}`), { reportDay: day, reportCount: count, lastReportId: id, ...profileExtra });
+  batch.update(doc(db, `users/${uid}`), {
+    reportDay: day,
+    reportCount: count,
+    lastReportId: id,
+    ctp,
+    reportsTotal: total,
+    ...profileExtra,
+  });
   return batch.commit();
 }

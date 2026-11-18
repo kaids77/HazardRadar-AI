@@ -22,6 +22,27 @@ abstract final class LevelPolicy {
   static const int ctpPerReport = 10;
   static const int ctpPerResolved = 10;
 
+  static const List<String> focusBadges = ['Roadway Watch', 'Grid Guardian', 'Hydro Monitor'];
+
+  /// The level a profile has earned but not yet applied, or null.
+  /// Mirrors isMeritUpgrade() in firestore.rules. Staff and blocked accounts never level up here.
+  static ({int tier, String role})? dueUpgrade(UserProfile profile) {
+    if (profile.accountStatus != UserProfile.accountActive && profile.accountStatus != UserProfile.accountWarned) {
+      return null;
+    }
+    if (profile.tier == UserProfile.tierCommuterObserver && profile.ctp >= scoutCtp) {
+      return (tier: UserProfile.tierCivicScout, role: profile.role);
+    }
+    if (profile.tier == UserProfile.tierCivicScout &&
+        profile.role == UserProfile.roleCitizen &&
+        profile.ctp >= sentinelCtp &&
+        profile.reportsTotal > 0 &&
+        profile.reportsResolved * 100 >= profile.reportsTotal * 85) {
+      return (tier: UserProfile.tierSentinel, role: UserProfile.roleVerifier);
+    }
+    return null;
+  }
+
   static LevelProgress progress(UserProfile profile) {
     return switch (profile.tier) {
       1 => LevelProgress(

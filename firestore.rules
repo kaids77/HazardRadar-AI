@@ -82,16 +82,50 @@ service cloud.firestore {
 
       // The daily counter changes only in the same write that creates the user's new
       // report (lastReportId). The incident create rule checks the count and the limit.
+      // Every published report also earns exactly +10 CTP and +1 to reportsTotal.
       function isReportCounterUpdate() {
         let after = request.resource.data;
         return signedIn()
           && request.auth.uid == uid
-          && after.diff(resource.data).affectedKeys().hasOnly(['reportDay', 'reportCount', 'lastReportId'])
+          && after.diff(resource.data).affectedKeys()
+               .hasOnly(['reportDay', 'reportCount', 'lastReportId', 'ctp', 'reportsTotal'])
+          && after.ctp == resource.data.get('ctp', 0) + 10
+          && after.reportsTotal == resource.data.get('reportsTotal', 0) + 1
           && after.lastReportId is string
           && after.lastReportId.matches('^[A-Za-z0-9]{1,40}$')
           && !exists(/databases/$(database)/documents/incidents/$(after.lastReportId))
           && existsAfter(/databases/$(database)/documents/incidents/$(after.lastReportId))
           && getAfter(/databases/$(database)/documents/incidents/$(after.lastReportId)).data.reporterUid == uid;
+      }
+
+      // Merit level-ups a user applies to their own profile:
+      // Level 1 -> 2 at 50 CTP; Level 2 -> 3 (role VERIFIER) at 250 CTP with at least
+      // 85% of their reports resolved. Must match lib/services/level_policy.dart.
+      function isMeritUpgrade() {
+        let before = resource.data;
+        let after = request.resource.data;
+        let changed = after.diff(before).affectedKeys();
+        return signedIn()
+          && request.auth.uid == uid
+          && before.accountStatus in ['ACTIVE', 'WARNED']
+          && (
+            (before.tier == 1 && after.tier == 2 && changed.hasOnly(['tier'])
+              && before.get('ctp', 0) >= 50)
+            || (before.tier == 2 && after.tier == 3 && before.role == 'CITIZEN' && after.role == 'VERIFIER'
+              && changed.hasOnly(['tier', 'role'])
+              && before.get('ctp', 0) >= 250
+              && before.get('reportsTotal', 0) > 0
+              && before.get('reportsResolved', 0) * 100 >= before.get('reportsTotal', 0) * 85)
+          );
+      }
+
+      // Neighborhood Sentinels pick one civic focus badge.
+      function isFocusBadgeChoice() {
+        return signedIn()
+          && request.auth.uid == uid
+          && resource.data.tier >= 3
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['focusBadge'])
+          && request.resource.data.focusBadge in ['Roadway Watch', 'Grid Guardian', 'Hydro Monitor'];
       }
 
       // Staff credit the reporter (+10 CTP, +1 resolved) only in the same write that
@@ -112,7 +146,8 @@ service cloud.firestore {
       allow update: if (
           hasRole('ADMIN')
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'accountStatus'])
-        ) || isGoogleUpgrade() || isReportCounterUpdate() || isResolveCredit();
+        ) || isGoogleUpgrade() || isReportCounterUpdate() || isResolveCredit()
+          || isMeritUpgrade() || isFocusBadgeChoice();
 
       allow delete: if false;
     }

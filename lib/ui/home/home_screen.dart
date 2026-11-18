@@ -61,13 +61,28 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   /// Reloads the profile so counts and points are current. Keeps the old copy on failure.
+  /// Announces a level gained since the last copy.
   Future<UserProfile?> _refresh() async {
+    final previousTier = _latest?.tier;
     try {
       final profile = await _s.session.start();
-      if (mounted) setState(() => _latest = profile);
+      if (!mounted) return profile;
+      setState(() => _latest = profile);
+      if (previousTier != null && profile.tier > previousTier) {
+        _toast('Level up: you are now a ${profile.tierTitle}.');
+      }
       return profile;
     } catch (_) {
       return null;
+    }
+  }
+
+  Future<void> _pickBadge(UserProfile profile, String badge) async {
+    try {
+      await _s.session.profiles.setFocusBadge(profile.uid, badge);
+      await _refresh();
+    } catch (_) {
+      if (mounted) _toast('Could not save your badge. Try again.');
     }
   }
 
@@ -166,6 +181,7 @@ class _HomeScreenState extends State<HomeScreen> {
             profile: profile,
             reports: _s.myReports,
             onSignIn: () => _openAccount(profile),
+            onPickBadge: (badge) => _pickBadge(profile, badge),
           ),
           SettingsScreen(profile: profile, settings: _s.settings, onAccount: () => _openAccount(profile)),
         ],

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/user_profile.dart';
+import 'level_policy.dart';
 
 abstract interface class ProfileRepository {
   /// Returns the profile for [uid], creating the Level 1 profile if it does not exist.
@@ -9,6 +10,13 @@ abstract interface class ProfileRepository {
   /// Raises a Level 1 profile to Level 2 (Civic Scout). Profiles already at
   /// Level 2 or above are returned unchanged.
   Future<UserProfile> upgradeToCivicScout(String uid);
+
+  /// Applies a level the user has earned with points (see LevelPolicy.dueUpgrade)
+  /// and returns the current profile. Does nothing when no level is due.
+  Future<UserProfile> applyEarnedLevel(String uid);
+
+  /// Saves a Neighborhood Sentinel's focus badge (one of LevelPolicy.focusBadges).
+  Future<void> setFocusBadge(String uid, String badge);
 }
 
 class FirestoreProfileRepository implements ProfileRepository {
@@ -57,5 +65,28 @@ class FirestoreProfileRepository implements ProfileRepository {
         'tier': UserProfile.tierCivicScout,
       });
     });
+  }
+
+  @override
+  Future<UserProfile> applyEarnedLevel(String uid) {
+    final ref = _db.collection(usersCollection).doc(uid);
+
+    return _db.runTransaction<UserProfile>((transaction) async {
+      final data = (await transaction.get(ref)).data();
+      if (data == null) throw StateError('Profile does not exist');
+      final due = LevelPolicy.dueUpgrade(UserProfile.fromFirestore(uid, data));
+      if (due == null) return UserProfile.fromFirestore(uid, data);
+
+      final changes = <String, Object>{'tier': due.tier};
+      if (due.role != data['role']) changes['role'] = due.role;
+      transaction.update(ref, changes);
+      return UserProfile.fromFirestore(uid, {...data, ...changes});
+    });
+  }
+
+  @override
+  Future<void> setFocusBadge(String uid, String badge) {
+    if (!LevelPolicy.focusBadges.contains(badge)) throw ArgumentError.value(badge, 'badge');
+    return _db.collection(usersCollection).doc(uid).update({'focusBadge': badge});
   }
 }
