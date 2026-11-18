@@ -11,6 +11,9 @@ abstract interface class VoteRepository {
   /// Records one vote of [value] (+/-1 or +/-2) and updates the report's net votes.
   /// Throws [AlreadyVotedException] if [uid] voted before.
   Future<void> cast({required String incidentId, required String uid, required int value});
+
+  /// A Neighborhood Sentinel sends a public report straight to quarantine as spam or a duplicate.
+  Future<void> flag({required String incidentId, required String uid});
 }
 
 class FirestoreVoteRepository implements VoteRepository {
@@ -41,5 +44,10 @@ class FirestoreVoteRepository implements VoteRepository {
         if (next <= quarantineAt) 'visibility': 'QUARANTINED',
       });
     });
+  }
+
+  @override
+  Future<void> flag({required String incidentId, required String uid}) {
+    return _db.collection('incidents').doc(incidentId).update({'visibility': 'QUARANTINED', 'flaggedBy': uid});
   }
 }

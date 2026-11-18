@@ -75,6 +75,9 @@ class _NoIncidents implements IncidentRepository {
 class _NoVotes implements VoteRepository {
   @override
   Future<void> cast({required String incidentId, required String uid, required int value}) async {}
+
+  @override
+  Future<void> flag({required String incidentId, required String uid}) async {}
 }
 
 class _FixedLocation implements LocationProvider {

@@ -25,6 +25,8 @@ const _incident = Incident(
   longitude: 123.9322,
   netVotes: 3,
   reporterUid: 'reporter',
+  note: 'Wire is sparking on the pole.',
+  reporterTier: 2,
 );
 
 class _Incidents implements IncidentRepository {
@@ -44,6 +46,11 @@ class _Votes implements VoteRepository {
     if (alreadyVoted) throw const AlreadyVotedException();
     cast_.add(value);
   }
+
+  final flagged = <String>[];
+
+  @override
+  Future<void> flag({required String incidentId, required String uid}) async => flagged.add(incidentId);
 }
 
 class _Location implements LocationProvider {
@@ -71,18 +78,26 @@ Future<_Votes> _open(
   String uid = 'me',
   bool alreadyVoted = false,
   Future<UserProfile?> Function()? onUpgrade,
+  Incident incident = _incident,
+  bool autoLoadPhoto = true,
+  String role = 'CITIZEN',
 }) async {
+  // The full sheet is tall; a tall test screen keeps every control built and tappable.
+  tester.view.physicalSize = const Size(800, 2400);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
   final votes = _Votes()..alreadyVoted = alreadyVoted;
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
         body: IncidentSheet(
-          incident: _incident,
-          profile: _profile(tier, uid: uid),
+          incident: incident,
+          profile: UserProfile(uid: uid, role: role, tier: tier, accountStatus: 'ACTIVE'),
           incidents: _Incidents(),
           votes: votes,
           location: _Location(position),
           onUpgrade: onUpgrade,
+          autoLoadPhoto: autoLoadPhoto,
         ),
       ),
     ),
@@ -92,6 +107,64 @@ Future<_Votes> _open(
 }
 
 void main() {
+  testWidgets('shows evidence details, the tally, and an unavailable photo notice', (tester) async {
+    await _open(tester, tier: 2);
+
+    expect(find.text('Visual evidence unavailable'), findsOneWidget);
+    expect(find.text('"Wire is sparking on the pole."'), findsOneWidget);
+    expect(find.text('Reported by a Civic Scout'), findsOneWidget);
+    expect(find.textContaining('+3 net · Verified by the community'), findsOneWidget);
+    expect(find.textContaining('HZD-INC-1 · Active'), findsOneWidget);
+  });
+
+  testWidgets('with data saver the photo waits for a tap', (tester) async {
+    await _open(tester, tier: 2, autoLoadPhoto: false);
+    expect(find.text('Load photo'), findsOneWidget);
+    await tester.tap(find.text('Load photo'));
+    await tester.pumpAndSettle();
+    expect(find.text('Visual evidence unavailable'), findsOneWidget);
+  });
+
+  testWidgets('a Sentinel flags someone else\'s report after confirming', (tester) async {
+    final votes = await _open(tester, tier: 3, role: 'VERIFIER');
+
+    await tester.tap(find.text('Flag as spam or duplicate (Sentinel)'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Flag'));
+    await tester.pumpAndSettle();
+
+    expect(votes.flagged, ['inc-1']);
+    expect(find.text('Report flagged. It is hidden from the map.'), findsOneWidget);
+  });
+
+  testWidgets('scouts cannot flag', (tester) async {
+    await _open(tester, tier: 2);
+    expect(find.text('Flag as spam or duplicate (Sentinel)'), findsNothing);
+  });
+
+  testWidgets('a quarantined report shows the disputed warning and disables voting', (tester) async {
+    final votes = await _open(
+      tester,
+      tier: 2,
+      incident: const Incident(
+        id: 'q1',
+        category: 'Other',
+        riskLevel: 'Low',
+        aiSummary: 'Shoe photo.',
+        latitude: 10.3236,
+        longitude: 123.9322,
+        netVotes: -3,
+        reporterUid: 'reporter',
+        visibility: 'QUARANTINED',
+      ),
+    );
+
+    expect(find.text('Community disputed report'), findsOneWidget);
+    await tester.tap(find.text('Still here'));
+    await tester.pumpAndSettle();
+    expect(votes.cast_, isEmpty);
+  });
+
   testWidgets('a guest who upgrades has the vote cast exactly once with the new weight', (tester) async {
     var prompts = 0;
     final votes = await _open(

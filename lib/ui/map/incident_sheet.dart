@@ -10,9 +10,12 @@ import '../../services/location_service.dart';
 import '../../services/vote_policy.dart';
 import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/status_style.dart';
+import 'incident_evidence.dart';
 import 'risk_style.dart';
 
-/// Opens the detail sheet for one hazard.
+/// Opens the detail sheet for one hazard. It starts as a short summary and can be
+/// dragged up (or expanded with a tap) to show the photo, notes, and voting.
 Future<void> showIncidentSheet(
   BuildContext context, {
   required Incident incident,
@@ -23,25 +26,40 @@ Future<void> showIncidentSheet(
   bool autoLoadPhoto = true,
   Future<UserProfile?> Function()? onUpgrade,
 }) {
+  final controller = DraggableScrollableController();
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.cream,
+    backgroundColor: Colors.transparent,
     elevation: 0,
     shape: const RoundedRectangleBorder(),
-    builder: (_) => IncidentSheet(
-      incident: incident,
-      profile: profile,
-      incidents: incidents,
-      votes: votes,
-      location: location,
-      autoLoadPhoto: autoLoadPhoto,
-      onUpgrade: onUpgrade,
+    builder: (_) => DraggableScrollableSheet(
+      controller: controller,
+      expand: false,
+      initialChildSize: 0.42,
+      minChildSize: 0.3,
+      maxChildSize: 0.94,
+      snap: true,
+      snapSizes: const [0.42, 0.94],
+      builder: (context, scrollController) => ColoredBox(
+        color: AppColors.cream,
+        child: IncidentSheet(
+          incident: incident,
+          profile: profile,
+          incidents: incidents,
+          votes: votes,
+          location: location,
+          autoLoadPhoto: autoLoadPhoto,
+          onUpgrade: onUpgrade,
+          scrollController: scrollController,
+          onExpand: () => controller.animateTo(0.94, duration: const Duration(milliseconds: 250), curve: Curves.easeOut),
+        ),
+      ),
     ),
-  );
+  ).whenComplete(controller.dispose);
 }
 
-/// Photo, AI summary, distance, and voting for one hazard.
+/// Summary, evidence, and voting for one hazard.
 class IncidentSheet extends StatefulWidget {
   const IncidentSheet({
     super.key,
@@ -52,6 +70,8 @@ class IncidentSheet extends StatefulWidget {
     required this.location,
     this.autoLoadPhoto = true,
     this.onUpgrade,
+    this.scrollController,
+    this.onExpand,
   });
 
   final Incident incident;
@@ -67,6 +87,12 @@ class IncidentSheet extends StatefulWidget {
   /// upgraded profile, or null if the user stayed a guest.
   final Future<UserProfile?> Function()? onUpgrade;
 
+  /// From the draggable sheet, so dragging and scrolling work together.
+  final ScrollController? scrollController;
+
+  /// Expands the sheet to full height. Null when the sheet is not draggable.
+  final VoidCallback? onExpand;
+
   @override
   State<IncidentSheet> createState() => _IncidentSheetState();
 }
@@ -77,6 +103,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
   late UserProfile _profile = widget.profile;
   bool _busy = false;
   bool _voted = false;
+  bool _flagged = false;
   String? _message;
 
   @override
@@ -162,152 +189,151 @@ class _IncidentSheetState extends State<IncidentSheet> {
     }
   }
 
+  bool get _canFlag =>
+      _profile.tier >= UserProfile.tierSentinel &&
+      !_profile.isStaff &&
+      widget.incident.reporterUid != _profile.uid &&
+      !widget.incident.isQuarantined &&
+      !_flagged;
+
+  Future<void> _flag() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: const RoundedRectangleBorder(),
+        title: const Text('Flag as spam or duplicate?'),
+        content: const Text('The report leaves the public map right away. A moderator reviews it.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.of(context).pop(true), child: const Text('Flag')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await widget.votes.flag(incidentId: widget.incident.id, uid: _profile.uid);
+      if (mounted) {
+        setState(() {
+          _flagged = true;
+          _message = 'Report flagged. It is hidden from the map.';
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _message = 'Could not flag the report. Try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final incident = widget.incident;
     final textTheme = Theme.of(context).textTheme;
+    final status = statusStyle(incident);
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _PhotoBlock(photo: _photo, onLoad: _loadPhoto),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Container(width: 14, height: 14, color: riskColor(incident.riskLevel)),
-                const SizedBox(width: 8),
-                Text('${incident.riskLevel} risk', style: textTheme.labelLarge),
-                const Spacer(),
-                if (incident.isVerified)
-                  Text('Verified hazard', style: textTheme.labelLarge),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              incident.category,
-              style: const TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28, color: AppColors.ink),
-            ),
-            const SizedBox(height: 8),
-            Text(incident.aiSummary, style: textTheme.bodyLarge),
-            if (incident.recommendedAction.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(incident.recommendedAction, style: textTheme.bodyMedium),
-            ],
-            const SizedBox(height: 8),
-            FutureBuilder<double?>(
-              future: _distance,
-              builder: (context, snapshot) => Text(
-                _distanceLabel(snapshot.data),
-                style: textTheme.bodySmall,
+      child: ListView(
+        controller: widget.scrollController,
+        padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+        children: [
+          Center(child: Container(width: 40, height: 4, color: AppColors.ink)),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              FlatBadge(
+                label: '${incident.riskLevel} risk',
+                background: riskColor(incident.riskLevel),
+                foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
               ),
-            ),
-            const SizedBox(height: 16),
-            Row(
+              FlatBadge(label: '${incident.reference} · ${status.label}', background: status.background, foreground: status.foreground),
+              if (incident.isVerified)
+                const FlatBadge(label: 'Verified hazard', background: AppColors.ink, foreground: AppColors.cream),
+            ],
+          ),
+          if (incident.isQuarantined) ...[const SizedBox(height: 12), const DisputedWarning()],
+          const SizedBox(height: 10),
+          Text(
+            incident.category,
+            style: const TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28, color: AppColors.ink),
+          ),
+          FutureBuilder<double?>(
+            future: _distance,
+            builder: (context, snapshot) => Text(_distanceLabel(snapshot.data), style: textTheme.bodySmall),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            color: AppColors.sage,
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: _busy || _voted ? null : () => _vote(true),
-                    style: _voteStyle,
-                    child: const Text('Still here'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: _busy || _voted ? null : () => _vote(false),
-                    style: OutlinedButton.styleFrom(
-                      minimumSize: const Size.fromHeight(48),
-                      shape: const RoundedRectangleBorder(),
-                      foregroundColor: AppColors.ink,
-                      side: const BorderSide(color: AppColors.ink),
-                    ),
-                    child: const Text('Fixed or fake'),
-                  ),
-                ),
+                Text(incident.aiProcessed ? 'AI summary' : 'Summary (offline, pending AI review)', style: textTheme.labelMedium),
+                const SizedBox(height: 4),
+                Text(incident.aiSummary, style: textTheme.bodyLarge),
               ],
             ),
-            if (_message != null) ...[
-              const SizedBox(height: 8),
-              Text(_message!, style: textTheme.bodyMedium),
-            ],
+          ),
+          if (widget.onExpand != null) ...[
+            const SizedBox(height: 4),
+            TextButton(
+              onPressed: widget.onExpand,
+              style: TextButton.styleFrom(foregroundColor: AppColors.ink, shape: const RoundedRectangleBorder()),
+              child: const Text('Swipe up for photo proof and voting'),
+            ),
           ],
-        ),
+          const SizedBox(height: 12),
+          EvidencePhoto(photo: _photo, onLoad: _loadPhoto, incident: incident),
+          const SizedBox(height: 12),
+          EvidenceDetails(incident: incident),
+          const SizedBox(height: 16),
+          VoteTally(netVotes: incident.netVotes),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: _busy || _voted || incident.isQuarantined ? null : () => _vote(true),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), shape: const RoundedRectangleBorder()),
+                  child: const Text('Still here'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _busy || _voted || incident.isQuarantined ? null : () => _vote(false),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    shape: const RoundedRectangleBorder(),
+                    foregroundColor: AppColors.ink,
+                    side: const BorderSide(color: AppColors.ink),
+                  ),
+                  child: const Text('Fixed or fake'),
+                ),
+              ),
+            ],
+          ),
+          if (_canFlag) ...[
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: _busy ? null : _flag,
+              style: TextButton.styleFrom(foregroundColor: AppColors.ink, shape: const RoundedRectangleBorder()),
+              child: const Text('Flag as spam or duplicate (Sentinel)'),
+            ),
+          ],
+          if (_message != null) ...[
+            const SizedBox(height: 8),
+            Text(_message!, style: textTheme.bodyMedium),
+          ],
+        ],
       ),
     );
   }
-
-  static final ButtonStyle _voteStyle = ElevatedButton.styleFrom(
-    minimumSize: const Size.fromHeight(48),
-    shape: const RoundedRectangleBorder(),
-  );
 
   static String _distanceLabel(double? meters) {
     if (meters == null) return 'Distance unknown';
     if (meters < 1000) return '${meters.round()} m away';
     return '${(meters / 1000).toStringAsFixed(1)} km away';
-  }
-}
-
-class _PhotoBlock extends StatelessWidget {
-  const _PhotoBlock({required this.photo, required this.onLoad});
-
-  /// Null until the photo is requested (data saver).
-  final Future<Uint8List?>? photo;
-  final VoidCallback onLoad;
-
-  @override
-  Widget build(BuildContext context) {
-    final photo = this.photo;
-    if (photo == null) {
-      return SizedBox(
-        height: 200,
-        width: double.infinity,
-        child: ColoredBox(
-          color: AppColors.sage,
-          child: Center(
-            child: OutlinedButton(
-              onPressed: onLoad,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.ink,
-                side: const BorderSide(color: AppColors.ink),
-                shape: const RoundedRectangleBorder(),
-              ),
-              child: const Text('Load photo'),
-            ),
-          ),
-        ),
-      );
-    }
-    return SizedBox(
-      height: 200,
-      width: double.infinity,
-      child: FutureBuilder<Uint8List?>(
-        future: photo,
-        builder: (context, snapshot) {
-          final bytes = snapshot.data;
-          if (bytes == null) {
-            return ColoredBox(
-              color: AppColors.sage,
-              child: Center(
-                child: snapshot.connectionState == ConnectionState.done
-                    ? const Text('No photo')
-                    : const CircularProgressIndicator(),
-              ),
-            );
-          }
-          return Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => const ColoredBox(
-              color: AppColors.sage,
-              child: Center(child: Text('Photo unavailable')),
-            ),
-          );
-        },
-      ),
-    );
   }
 }
