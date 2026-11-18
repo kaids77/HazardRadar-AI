@@ -1,5 +1,4 @@
 {
   "PROXY_URL": "http://127.0.0.1:3000/",
-  "PROXY_TOKEN": "replace_with_the_PROXY_TOKEN_from_.env",
   "GOOGLE_SERVER_CLIENT_ID": ""
 }

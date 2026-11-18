@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -32,9 +33,12 @@ Future<void> main() async {
   );
 
   final proxyUrl = AppConfig.parseProxyUrl(AppConfig.proxyUrl);
-  final proxy = proxyUrl == null || AppConfig.proxyToken.isEmpty
+  final proxy = proxyUrl == null
       ? null
-      : ProxyClient(baseUrl: proxyUrl, token: AppConfig.proxyToken);
+      : ProxyClient(
+          baseUrl: proxyUrl,
+          idToken: () async => FirebaseAuth.instance.currentUser?.getIdToken(),
+        );
   final reports = ReportService(
     auth: auth,
     triage: FallbackTriageService(proxy: proxy == null ? null : ProxyTriageService(proxy)),

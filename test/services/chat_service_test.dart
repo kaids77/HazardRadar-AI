@@ -25,7 +25,7 @@ Incident _incident(String id, double lat, {String reporter = 'secret-uid'}) => I
     );
 
 ProxyChatService _service(MockClient client) => ProxyChatService(
-      ProxyClient(baseUrl: Uri.parse('http://127.0.0.1:3000/'), token: 't', client: client),
+      ProxyClient(baseUrl: Uri.parse('http://127.0.0.1:3000/'), idToken: () async => 't', client: client),
     );
 
 void main() {

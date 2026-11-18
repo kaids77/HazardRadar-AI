@@ -3,10 +3,10 @@
 /// Copy dart_defines.example.json to dart_defines.json (gitignored), fill it in, then run:
 /// flutter run --dart-define-from-file=dart_defines.json
 ///
-/// Without both values the app still works and triages reports on the device.
+/// Without PROXY_URL the app still works and triages reports on the device.
+/// The proxy authenticates each request with the user's Firebase ID token.
 abstract final class AppConfig {
   static const String proxyUrl = String.fromEnvironment('PROXY_URL');
-  static const String proxyToken = String.fromEnvironment('PROXY_TOKEN');
 
   /// Optional web OAuth client id for Google sign-in on Android. When empty,
   /// Android reads default_web_client_id generated from google-services.json.

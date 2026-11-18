@@ -19,7 +19,7 @@ const _good = {
 ProxyTriageService _proxy(MockClient client) => ProxyTriageService(
       ProxyClient(
         baseUrl: Uri.parse('http://127.0.0.1:3000/'),
-        token: 'test-token',
+        idToken: () async => 'test-id-token',
         client: client,
       ),
     );
@@ -39,7 +39,7 @@ void main() {
   });
 
   group('ProxyTriageService', () {
-    test('posts the note with the token header and parses the result', () async {
+    test('posts the note with the ID token header and parses the result', () async {
       late http.Request seen;
       final service = _proxy(MockClient((request) async {
         seen = request;
@@ -49,7 +49,8 @@ void main() {
       final result = await service.tryClassify('sparking wire');
 
       expect(seen.url.toString(), 'http://127.0.0.1:3000/triage');
-      expect(seen.headers['x-proxy-token'], 'test-token');
+      expect(seen.headers['authorization'], 'Bearer test-id-token');
+      expect(seen.headers.containsKey('x-proxy-token'), isFalse);
       expect(jsonDecode(seen.body), {'note': 'sparking wire'});
       expect(result?.category, 'Electrical');
     });
@@ -60,11 +61,27 @@ void main() {
       expect(await _proxy(MockClient((_) async => throw http.ClientException('down'))).tryClassify('x'), isNull);
     });
 
+    test('returns null without calling the proxy when nobody is signed in', () async {
+      var calls = 0;
+      final service = ProxyTriageService(
+        ProxyClient(
+          baseUrl: Uri.parse('http://127.0.0.1:3000/'),
+          idToken: () async => null,
+          client: MockClient((_) async {
+            calls++;
+            return http.Response(jsonEncode(_good), 200);
+          }),
+        ),
+      );
+      expect(await service.tryClassify('x'), isNull);
+      expect(calls, 0);
+    });
+
     test('returns null when the request times out', () async {
       final service = ProxyTriageService(
         ProxyClient(
           baseUrl: Uri.parse('http://127.0.0.1:3000/'),
-          token: 't',
+          idToken: () async => 't',
           timeout: const Duration(milliseconds: 20),
           client: MockClient((_) => Future.delayed(const Duration(seconds: 1), () => http.Response('{}', 200))),
         ),
