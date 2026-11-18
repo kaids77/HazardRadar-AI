@@ -8,8 +8,12 @@ import 'package:hazardradarai/models/incident.dart';
 import 'package:hazardradarai/models/user_profile.dart';
 import 'package:hazardradarai/services/incident_repository.dart';
 import 'package:hazardradarai/services/location_service.dart';
+import 'package:hazardradarai/services/session_service.dart';
 import 'package:hazardradarai/services/vote_repository.dart';
+import 'package:hazardradarai/ui/account/account_sheet.dart';
 import 'package:hazardradarai/ui/map/incident_sheet.dart';
+
+import '../services/session_service_test.dart';
 
 const _incident = Incident(
   id: 'inc-1',
@@ -63,6 +67,7 @@ Future<_Votes> _open(
   LatLng? position = const LatLng(10.3236, 123.9322),
   String uid = 'me',
   bool alreadyVoted = false,
+  Future<UserProfile?> Function()? onUpgrade,
 }) async {
   final votes = _Votes()..alreadyVoted = alreadyVoted;
   await tester.pumpWidget(
@@ -74,6 +79,7 @@ Future<_Votes> _open(
           incidents: _Incidents(),
           votes: votes,
           location: _Location(position),
+          onUpgrade: onUpgrade,
         ),
       ),
     ),
@@ -83,6 +89,61 @@ Future<_Votes> _open(
 }
 
 void main() {
+  testWidgets('a guest who upgrades has the vote cast exactly once with the new weight', (tester) async {
+    var prompts = 0;
+    final votes = await _open(
+      tester,
+      tier: 1,
+      onUpgrade: () async {
+        prompts++;
+        return _profile(2, uid: 'linked');
+      },
+    );
+
+    await tester.tap(find.text('Still here'));
+    await tester.pumpAndSettle();
+
+    expect(prompts, 1);
+    expect(votes.cast_, [1]);
+    expect(find.text('Vote recorded.'), findsOneWidget);
+  });
+
+  testWidgets('a guest who stays a guest casts nothing', (tester) async {
+    final votes = await _open(tester, tier: 1, onUpgrade: () async => null);
+
+    await tester.tap(find.text('Still here'));
+    await tester.pumpAndSettle();
+
+    expect(votes.cast_, isEmpty);
+    expect(find.text('Vote recorded.'), findsNothing);
+  });
+
+  testWidgets('the guest prompt shows the reason and can be dismissed', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AccountSheet(
+            profile: _profile(1),
+            session: SessionService(auth: FakeAuthService('me'), profiles: FakeProfileRepository()),
+            reason: UpgradeReason.vote,
+          ),
+        ),
+      ),
+    );
+    expect(find.textContaining('Voting needs a linked Google account'), findsOneWidget);
+    expect(find.text('Continue as guest'), findsOneWidget);
+  });
+
+  testWidgets('an upgraded user still cannot vote on their own report', (tester) async {
+    final votes = await _open(tester, tier: 1, onUpgrade: () async => _profile(2, uid: 'reporter'));
+
+    await tester.tap(find.text('Fixed or fake'));
+    await tester.pumpAndSettle();
+
+    expect(votes.cast_, isEmpty);
+    expect(find.text('You cannot vote on your own report.'), findsOneWidget);
+  });
+
   testWidgets('shows the summary, verified badge, and distance', (tester) async {
     await _open(tester, tier: 2);
 

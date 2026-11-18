@@ -27,6 +27,7 @@ class MapScreen extends StatefulWidget {
     required this.profile,
     required this.votes,
     this.settings,
+    this.onUpgrade,
     this.chat,
     this.onReport,
   });
@@ -38,6 +39,9 @@ class MapScreen extends StatefulWidget {
 
   /// Data saver: when on, sheet photos load only after a tap. Null means photos auto-load.
   final AppSettings? settings;
+
+  /// Opens the Google upgrade when a guest votes. Resolves to the new profile, or null.
+  final Future<UserProfile?> Function()? onUpgrade;
 
   /// Null when the build has no proxy. The Radar AI button is hidden then.
   final ChatService? chat;
@@ -102,6 +106,7 @@ class _MapScreenState extends State<MapScreen> {
       votes: widget.votes,
       location: widget.location,
       autoLoadPhoto: !(widget.settings?.dataSaver ?? false),
+      onUpgrade: widget.onUpgrade,
     );
   }
 

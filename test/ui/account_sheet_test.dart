@@ -42,7 +42,7 @@ void main() {
   testWidgets('a guest upgrades and the sheet returns the Civic Scout profile', (tester) async {
     final results = await _open(tester, _profile(1), _session(() async => 'guest'));
 
-    expect(find.text('Commuter Observer'), findsOneWidget);
+    expect(find.textContaining('Commuter Observer'), findsOneWidget);
     await tester.tap(find.text('Continue with Google'));
     await tester.pumpAndSettle();
 

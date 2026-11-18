@@ -21,6 +21,7 @@ Future<void> showIncidentSheet(
   required VoteRepository votes,
   required LocationProvider location,
   bool autoLoadPhoto = true,
+  Future<UserProfile?> Function()? onUpgrade,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -35,6 +36,7 @@ Future<void> showIncidentSheet(
       votes: votes,
       location: location,
       autoLoadPhoto: autoLoadPhoto,
+      onUpgrade: onUpgrade,
     ),
   );
 }
@@ -49,6 +51,7 @@ class IncidentSheet extends StatefulWidget {
     required this.votes,
     required this.location,
     this.autoLoadPhoto = true,
+    this.onUpgrade,
   });
 
   final Incident incident;
@@ -60,6 +63,10 @@ class IncidentSheet extends StatefulWidget {
   /// False when data saver is on: the photo loads only after a tap.
   final bool autoLoadPhoto;
 
+  /// Opens the Google upgrade for a guest who tries to vote. Resolves to the
+  /// upgraded profile, or null if the user stayed a guest.
+  final Future<UserProfile?> Function()? onUpgrade;
+
   @override
   State<IncidentSheet> createState() => _IncidentSheetState();
 }
@@ -67,6 +74,7 @@ class IncidentSheet extends StatefulWidget {
 class _IncidentSheetState extends State<IncidentSheet> {
   Future<Uint8List?>? _photo;
   late final Future<double?> _distance;
+  late UserProfile _profile = widget.profile;
   bool _busy = false;
   bool _voted = false;
   String? _message;
@@ -92,14 +100,31 @@ class _IncidentSheetState extends State<IncidentSheet> {
     return const Distance().as(LengthUnit.Meter, here, there);
   }
 
+  VoteEligibility _eligibility(double? distance) => VotePolicy.check(
+        tier: _profile.tier,
+        uid: _profile.uid,
+        reporterUid: widget.incident.reporterUid,
+        distanceMeters: distance,
+      );
+
   Future<void> _vote(bool confirm) async {
+    if (_busy || _voted) return;
     final distance = await _distance;
-    final eligibility = VotePolicy.check(
-      tier: widget.profile.tier,
-      uid: widget.profile.uid,
-      reporterUid: widget.incident.reporterUid,
-      distanceMeters: distance,
-    );
+    var eligibility = _eligibility(distance);
+
+    // A guest is offered the Google upgrade. On success the same vote is checked
+    // again with the new profile (the uid can change) and cast once.
+    final upgrade = widget.onUpgrade;
+    if (eligibility == VoteEligibility.needsUpgrade && upgrade != null) {
+      setState(() => _busy = true);
+      final upgraded = await upgrade();
+      if (!mounted) return;
+      setState(() => _busy = false);
+      if (upgraded == null) return;
+      setState(() => _profile = upgraded);
+      eligibility = _eligibility(distance);
+    }
+
     final blocked = VotePolicy.explain(eligibility);
     if (blocked != null) {
       setState(() => _message = blocked);
@@ -110,11 +135,11 @@ class _IncidentSheetState extends State<IncidentSheet> {
       _busy = true;
       _message = null;
     });
-    final weight = VotePolicy.weightForTier(widget.profile.tier);
+    final weight = VotePolicy.weightForTier(_profile.tier);
     try {
       await widget.votes.cast(
         incidentId: widget.incident.id,
-        uid: widget.profile.uid,
+        uid: _profile.uid,
         value: confirm ? weight : -weight,
       );
       if (mounted) {

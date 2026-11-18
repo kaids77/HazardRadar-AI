@@ -86,11 +86,12 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _openAccount(UserProfile profile) async {
-    final upgraded = await showAccountSheet(context, profile: profile, session: _s.session);
-    if (upgraded == null || !mounted) return;
+  Future<UserProfile?> _openAccount(UserProfile profile, {UpgradeReason reason = UpgradeReason.manual}) async {
+    final upgraded = await showAccountSheet(context, profile: profile, session: _s.session, reason: reason);
+    if (upgraded == null || !mounted) return null;
     setState(() => _latest = upgraded);
     _toast('You are now a ${upgraded.tierTitle}.');
+    return upgraded;
   }
 
   /// Checks the daily limit with a fresh profile before opening the camera.
@@ -104,8 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final allowance = ReportLimitPolicy.check(profile, DateTime.now());
     if (allowance.block == ReportBlock.guestLimit) {
-      _toast(ReportLimitPolicy.explain(allowance)!);
-      await _openAccount(profile);
+      await _openAccount(profile, reason: UpgradeReason.reportLimit);
       return;
     }
     final blocked = ReportLimitPolicy.explain(allowance);
@@ -165,6 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
             chat: _s.chat,
             settings: _s.settings,
             onReport: _openReport,
+            onUpgrade: () => _openAccount(profile, reason: UpgradeReason.vote),
           ),
         ),
       ],
