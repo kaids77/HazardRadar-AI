@@ -4,57 +4,21 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/user_profile.dart';
-import '../../services/chat_service.dart';
-import '../../services/incident_repository.dart';
-import '../../services/location_service.dart';
-import '../../services/photo_service.dart';
-import '../../services/report_enricher.dart';
 import '../../services/report_limit_policy.dart';
-import '../../services/report_service.dart';
-import '../../services/session_service.dart';
-import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
 import '../account/account_sheet.dart';
 import '../map/map_screen.dart';
 import '../report/report_screen.dart';
+import '../reports/my_reports_screen.dart';
+import '../settings/settings_screen.dart';
 import 'home_services.dart';
 
-/// Waits for sign-in and the profile, then shows the live hazard map.
+/// Waits for sign-in and the profile, then shows the three tabs:
+/// Radar (live map), My Reports, and Settings.
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({
-    super.key,
-    required this.session,
-    required this.incidents,
-    required this.location,
-    required this.reports,
-    required this.photos,
-    required this.votes,
-    this.chat,
-    this.enricher,
-  });
+  const HomeScreen({super.key, required this.services});
 
-  final SessionService session;
-  final IncidentRepository incidents;
-  final LocationProvider location;
-  final ReportService reports;
-  final PhotoCapture photos;
-  final VoteRepository votes;
-  final ChatService? chat;
-
-  /// Null in builds without a proxy. Re-checks the user's offline-triaged reports.
-  final ReportEnricher? enricher;
-
-  factory HomeScreen.fromServices(HomeServices services, {Key? key}) => HomeScreen(
-        key: key,
-        session: services.session,
-        incidents: services.incidents,
-        location: services.location,
-        reports: services.reports,
-        photos: services.photos,
-        votes: services.votes,
-        chat: services.chat,
-        enricher: services.enricher,
-      );
+  final HomeServices services;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -62,21 +26,25 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late Future<UserProfile> _profile;
+  int _tab = 0;
 
   /// The newest copy of the profile after an upgrade or a report. Replaces the
   /// loaded profile without rebuilding the map through a new future.
   UserProfile? _latest;
 
+  HomeServices get _s => widget.services;
+
   @override
   void initState() {
     super.initState();
+    unawaited(_s.settings.load());
     _profile = _start();
   }
 
   /// Starts the session, then re-checks offline-triaged reports in the background.
   Future<UserProfile> _start() async {
-    final profile = await widget.session.start();
-    final enricher = widget.enricher;
+    final profile = await _s.session.start();
+    final enricher = _s.enricher;
     if (enricher != null) unawaited(enricher.enrichPending(profile.uid));
     return profile;
   }
@@ -92,8 +60,19 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// Reloads the profile so counts and points are current. Keeps the old copy on failure.
+  Future<UserProfile?> _refresh() async {
+    try {
+      final profile = await _s.session.start();
+      if (mounted) setState(() => _latest = profile);
+      return profile;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> _openAccount(UserProfile profile) async {
-    final upgraded = await showAccountSheet(context, profile: profile, session: widget.session);
+    final upgraded = await showAccountSheet(context, profile: profile, session: _s.session);
     if (upgraded == null || !mounted) return;
     setState(() => _latest = upgraded);
     _toast('You are now a ${upgraded.tierTitle}.');
@@ -101,15 +80,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// Checks the daily limit with a fresh profile before opening the camera.
   Future<void> _openReport() async {
-    final UserProfile profile;
-    try {
-      profile = await widget.session.start();
-    } catch (_) {
-      if (mounted) _toast('Could not check your account. Try again.');
+    final profile = await _refresh();
+    if (!mounted) return;
+    if (profile == null) {
+      _toast('Could not check your account. Try again.');
       return;
     }
-    if (!mounted) return;
-    setState(() => _latest = profile);
 
     final allowance = ReportLimitPolicy.check(profile, DateTime.now());
     if (allowance.block == ReportBlock.guestLimit) {
@@ -125,14 +101,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final sent = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => ReportScreen(
-          reports: widget.reports,
-          photos: widget.photos,
-          location: widget.location,
-        ),
+        builder: (_) => ReportScreen(reports: _s.reports, photos: _s.photos, location: _s.location),
       ),
     );
-    if (sent == true && mounted) _toast('Report sent. Thank you.');
+    if (sent == true && mounted) {
+      _toast('Report sent. Thank you.');
+      unawaited(_refresh());
+    }
   }
 
   @override
@@ -141,16 +116,10 @@ class _HomeScreenState extends State<HomeScreen> {
       future: _profile,
       builder: (context, snapshot) {
         if (snapshot.connectionState != ConnectionState.done) {
-          return _Frame(
-            tierLabel: null,
-            body: const Center(
-              child: CircularProgressIndicator(color: AppColors.redOrange),
-            ),
-          );
+          return const _Frame(body: Center(child: CircularProgressIndicator(color: AppColors.redOrange)));
         }
         if (snapshot.hasError || !snapshot.hasData) {
           return _Frame(
-            tierLabel: null,
             body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
@@ -163,39 +132,68 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         }
-        final profile = _latest ?? snapshot.data!;
-        return _Frame(
-          tierLabel: profile.tierTitle,
-          onAccount: () => _openAccount(profile),
-          onReport: _openReport,
-          body: Column(
-            children: [
-              if (profile.accountStatus == UserProfile.accountWarned) const _WarnedBanner(),
-              Expanded(
-                child: MapScreen(
-                  incidents: widget.incidents,
-                  location: widget.location,
-                  profile: profile,
-                  votes: widget.votes,
-                  chat: widget.chat,
-                  onReport: _openReport,
-                ),
-              ),
-            ],
-          ),
-        );
+        return _tabs(_latest ?? snapshot.data!);
       },
+    );
+  }
+
+  Widget _tabs(UserProfile profile) {
+    final radar = Column(
+      children: [
+        if (profile.accountStatus == UserProfile.accountWarned) const _WarnedBanner(),
+        Expanded(
+          child: MapScreen(
+            incidents: _s.incidents,
+            location: _s.location,
+            profile: profile,
+            votes: _s.votes,
+            chat: _s.chat,
+            settings: _s.settings,
+            onReport: _openReport,
+          ),
+        ),
+      ],
+    );
+    return _Frame(
+      tierLabel: profile.tierTitle,
+      onAccount: () => _openAccount(profile),
+      onReport: _tab == 0 ? _openReport : null,
+      body: IndexedStack(
+        index: _tab,
+        children: [
+          radar,
+          MyReportsScreen(
+            profile: profile,
+            reports: _s.myReports,
+            onSignIn: () => _openAccount(profile),
+          ),
+          SettingsScreen(profile: profile, settings: _s.settings, onAccount: () => _openAccount(profile)),
+        ],
+      ),
+      bottom: NavigationBar(
+        selectedIndex: _tab,
+        onDestinationSelected: (index) {
+          setState(() => _tab = index);
+          if (index == 1) unawaited(_refresh());
+        },
+        destinations: const [
+          NavigationDestination(icon: Icon(Icons.radar), label: 'Radar'),
+          NavigationDestination(icon: Icon(Icons.list_alt), label: 'My Reports'),
+          NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings'),
+        ],
+      ),
     );
   }
 }
 
 class _Frame extends StatelessWidget {
-  const _Frame({required this.tierLabel, required this.body, this.onReport, this.onAccount});
+  const _Frame({required this.body, this.tierLabel, this.onReport, this.onAccount, this.bottom});
 
   final String? tierLabel;
   final Widget body;
   final VoidCallback? onReport;
   final VoidCallback? onAccount;
+  final Widget? bottom;
 
   @override
   Widget build(BuildContext context) {
@@ -218,6 +216,7 @@ class _Frame extends StatelessWidget {
         ],
       ),
       body: body,
+      bottomNavigationBar: bottom,
       floatingActionButton: onReport == null
           ? null
           : FloatingActionButton.extended(

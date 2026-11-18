@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 
 /// Palette from the approved design: cream, sage, and red-orange.
-/// Low and Medium risk colors are not in the palette, so they are chosen to
-/// read clearly next to red-orange. Confirm them before the map is built.
+/// Low and Medium risk colors sit outside the palette on purpose (approved), so the
+/// three risk levels stay easy to tell apart.
 abstract final class AppColors {
   static const cream = Color(0xFFEFE6D5);
   static const sage = Color(0xFF9DBEB7);
@@ -15,6 +15,10 @@ abstract final class AppColors {
   static const riskLow = Color(0xFF2F7A56);
   static const riskMedium = Color(0xFFC77700);
   static const riskHigh = redOrange;
+
+  /// Reports a crew is working on. A flat ink-blue, with cream text on top (about 9:1).
+  static const inProgress = Color(0xFF2E4A62);
+  static const onInProgress = cream;
 }
 
 /// Flat light theme. No elevation, no shadows, no surface tint, and no gradients.
@@ -68,6 +72,33 @@ abstract final class AppTheme {
         ),
       ),
       dividerTheme: const DividerThemeData(color: AppColors.sage, space: 1),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: AppColors.cream,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        indicatorColor: AppColors.sage,
+        indicatorShape: const RoundedRectangleBorder(),
+        labelTextStyle: WidgetStateProperty.all(const TextStyle(color: AppColors.ink, fontSize: 12)),
+        iconTheme: WidgetStateProperty.all(const IconThemeData(color: AppColors.ink)),
+      ),
+      chipTheme: const ChipThemeData(
+        backgroundColor: AppColors.cream,
+        selectedColor: AppColors.redOrange,
+        labelStyle: TextStyle(color: AppColors.ink),
+        side: BorderSide(color: AppColors.ink),
+        shape: RoundedRectangleBorder(),
+        elevation: 0,
+        pressElevation: 0,
+        showCheckmark: false,
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.all(AppColors.ink),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? AppColors.redOrange : AppColors.sage,
+        ),
+        trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+      ),
     );
   }
 }

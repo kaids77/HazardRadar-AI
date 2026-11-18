@@ -8,9 +8,11 @@ import 'package:hazardradarai/geo/philippine_day.dart';
 import 'package:hazardradarai/models/incident.dart';
 import 'package:hazardradarai/models/report.dart';
 import 'package:hazardradarai/models/user_profile.dart';
+import 'package:hazardradarai/services/app_settings.dart';
 import 'package:hazardradarai/services/auth_service.dart';
 import 'package:hazardradarai/services/incident_repository.dart';
 import 'package:hazardradarai/services/location_service.dart';
+import 'package:hazardradarai/services/my_reports_repository.dart';
 import 'package:hazardradarai/services/photo_service.dart';
 import 'package:hazardradarai/services/profile_repository.dart';
 import 'package:hazardradarai/services/report_repository.dart';
@@ -19,6 +21,7 @@ import 'package:hazardradarai/services/session_service.dart';
 import 'package:hazardradarai/services/triage_service.dart';
 import 'package:hazardradarai/services/vote_repository.dart';
 import 'package:hazardradarai/ui/home/home_screen.dart';
+import 'package:hazardradarai/ui/home/home_services.dart';
 
 class _OkAuth implements AuthService {
   @override
@@ -86,18 +89,27 @@ class _NoRepo implements ReportRepository {
   Future<String> create(NewReport report) async => 'id';
 }
 
+class _MyReports implements MyReportsRepository {
+  @override
+  Stream<List<Incident>> watchMine(String uid, {int limit = 50}) => Stream.value(const <Incident>[]);
+}
+
 Widget _app(SessionService session) => MaterialApp(
       home: HomeScreen(
-        session: session,
-        incidents: _NoIncidents(),
-        location: _FixedLocation(),
-        reports: ReportService(
-          auth: _OkAuth(),
-          triage: const KeywordTriageService(),
-          repository: _NoRepo(),
+        services: HomeServices(
+          session: session,
+          incidents: _NoIncidents(),
+          location: _FixedLocation(),
+          reports: ReportService(
+            auth: _OkAuth(),
+            triage: const KeywordTriageService(),
+            repository: _NoRepo(),
+          ),
+          photos: _NoPhotos(),
+          votes: _NoVotes(),
+          myReports: _MyReports(),
+          settings: AppSettings(MemorySettingsStore()),
         ),
-        photos: _NoPhotos(),
-        votes: _NoVotes(),
       ),
     );
 

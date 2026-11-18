@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'config/app_config.dart';
 import 'firebase_options.dart';
 import 'services/account_linker.dart';
+import 'services/app_settings.dart';
 import 'services/auth_service.dart';
 import 'services/chat_service.dart';
 import 'services/incident_repository.dart';
 import 'services/location_service.dart';
+import 'services/my_reports_repository.dart';
 import 'services/photo_service.dart';
 import 'services/profile_repository.dart';
 import 'services/proxy_client.dart';
@@ -57,6 +59,8 @@ Future<void> main() async {
         reports: reports,
         photos: CameraPhotoCapture(),
         votes: FirestoreVoteRepository(),
+        myReports: FirestoreMyReportsRepository(),
+        settings: AppSettings(SharedPreferencesSettingsStore()),
         chat: proxy == null ? null : ProxyChatService(proxy),
         enricher: proxyTriage == null
             ? null
@@ -77,7 +81,7 @@ class HazardRadarApp extends StatelessWidget {
       title: 'HazardRadar AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
-      home: SplashScreen(nextBuilder: (_) => HomeScreen.fromServices(services)),
+      home: SplashScreen(nextBuilder: (_) => HomeScreen(services: services)),
     );
   }
 }

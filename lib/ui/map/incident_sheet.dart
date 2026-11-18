@@ -20,6 +20,7 @@ Future<void> showIncidentSheet(
   required IncidentRepository incidents,
   required VoteRepository votes,
   required LocationProvider location,
+  bool autoLoadPhoto = true,
 }) {
   return showModalBottomSheet<void>(
     context: context,
@@ -33,6 +34,7 @@ Future<void> showIncidentSheet(
       incidents: incidents,
       votes: votes,
       location: location,
+      autoLoadPhoto: autoLoadPhoto,
     ),
   );
 }
@@ -46,6 +48,7 @@ class IncidentSheet extends StatefulWidget {
     required this.incidents,
     required this.votes,
     required this.location,
+    this.autoLoadPhoto = true,
   });
 
   final Incident incident;
@@ -54,12 +57,15 @@ class IncidentSheet extends StatefulWidget {
   final VoteRepository votes;
   final LocationProvider location;
 
+  /// False when data saver is on: the photo loads only after a tap.
+  final bool autoLoadPhoto;
+
   @override
   State<IncidentSheet> createState() => _IncidentSheetState();
 }
 
 class _IncidentSheetState extends State<IncidentSheet> {
-  late final Future<Uint8List?> _photo;
+  Future<Uint8List?>? _photo;
   late final Future<double?> _distance;
   bool _busy = false;
   bool _voted = false;
@@ -68,8 +74,15 @@ class _IncidentSheetState extends State<IncidentSheet> {
   @override
   void initState() {
     super.initState();
-    _photo = widget.incidents.loadPhoto(widget.incident.id);
+    if (widget.autoLoadPhoto) _photo = widget.incidents.loadPhoto(widget.incident.id);
     _distance = _measureDistance();
+  }
+
+  void _loadPhoto() {
+    final photo = widget.incidents.loadPhoto(widget.incident.id);
+    setState(() {
+      _photo = photo;
+    });
   }
 
   Future<double?> _measureDistance() async {
@@ -135,7 +148,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _PhotoBlock(photo: _photo),
+            _PhotoBlock(photo: _photo, onLoad: _loadPhoto),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -214,12 +227,35 @@ class _IncidentSheetState extends State<IncidentSheet> {
 }
 
 class _PhotoBlock extends StatelessWidget {
-  const _PhotoBlock({required this.photo});
+  const _PhotoBlock({required this.photo, required this.onLoad});
 
-  final Future<Uint8List?> photo;
+  /// Null until the photo is requested (data saver).
+  final Future<Uint8List?>? photo;
+  final VoidCallback onLoad;
 
   @override
   Widget build(BuildContext context) {
+    final photo = this.photo;
+    if (photo == null) {
+      return SizedBox(
+        height: 200,
+        width: double.infinity,
+        child: ColoredBox(
+          color: AppColors.sage,
+          child: Center(
+            child: OutlinedButton(
+              onPressed: onLoad,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.ink,
+                side: const BorderSide(color: AppColors.ink),
+                shape: const RoundedRectangleBorder(),
+              ),
+              child: const Text('Load photo'),
+            ),
+          ),
+        ),
+      );
+    }
     return SizedBox(
       height: 200,
       width: double.infinity,

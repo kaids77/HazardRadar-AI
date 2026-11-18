@@ -1,6 +1,8 @@
+import '../../services/app_settings.dart';
 import '../../services/chat_service.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
+import '../../services/my_reports_repository.dart';
 import '../../services/photo_service.dart';
 import '../../services/report_enricher.dart';
 import '../../services/report_service.dart';
@@ -16,6 +18,8 @@ class HomeServices {
     required this.reports,
     required this.photos,
     required this.votes,
+    required this.myReports,
+    required this.settings,
     this.chat,
     this.enricher,
   });
@@ -26,6 +30,8 @@ class HomeServices {
   final ReportService reports;
   final PhotoCapture photos;
   final VoteRepository votes;
+  final MyReportsRepository myReports;
+  final AppSettings settings;
 
   /// Null in builds without a proxy. The Radar AI button is hidden then.
   final ChatService? chat;

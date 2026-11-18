@@ -9,6 +9,7 @@ import '../../models/user_profile.dart';
 import '../../services/chat_service.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
+import '../../services/app_settings.dart';
 import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
 import '../chat/chat_controller.dart';
@@ -25,6 +26,7 @@ class MapScreen extends StatefulWidget {
     required this.location,
     required this.profile,
     required this.votes,
+    this.settings,
     this.chat,
     this.onReport,
   });
@@ -33,6 +35,9 @@ class MapScreen extends StatefulWidget {
   final LocationProvider location;
   final UserProfile profile;
   final VoteRepository votes;
+
+  /// Data saver: when on, sheet photos load only after a tap. Null means photos auto-load.
+  final AppSettings? settings;
 
   /// Null when the build has no proxy. The Radar AI button is hidden then.
   final ChatService? chat;
@@ -96,6 +101,7 @@ class _MapScreenState extends State<MapScreen> {
       incidents: widget.incidents,
       votes: widget.votes,
       location: widget.location,
+      autoLoadPhoto: !(widget.settings?.dataSaver ?? false),
     );
   }
 
