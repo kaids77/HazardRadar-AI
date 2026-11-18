@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -6,19 +8,21 @@ import '../../geo/philippines.dart';
 import '../../models/chat.dart';
 import '../../models/incident.dart';
 import '../../models/user_profile.dart';
+import '../../services/app_settings.dart';
 import '../../services/chat_service.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
-import '../../services/app_settings.dart';
 import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_sheet.dart';
 import 'incident_sheet.dart';
+import 'map_filter.dart';
+import 'map_overlays.dart';
 import 'map_style.dart';
 import 'risk_style.dart';
 
-/// Live map of active public hazards, centered on the commuter's location.
+/// Live map of public hazards (active and in progress), centered on the commuter.
 class MapScreen extends StatefulWidget {
   const MapScreen({
     super.key,
@@ -52,28 +56,78 @@ class MapScreen extends StatefulWidget {
 }
 
 class _MapScreenState extends State<MapScreen> {
-  late final Future<LatLng> _center;
-  late final Stream<List<Incident>> _incidentStream;
   final MapController _map = MapController();
+  StreamSubscription<List<Incident>>? _subscription;
   ChatController? _chat;
+
+  LatLng? _center;
+  LocationFix? _fix;
 
   /// Latest pins from the stream. Radar AI reads these when a question is sent.
   List<Incident> _latest = const [];
+  bool _loadError = false;
+
+  /// Ids seen so far. Null until the first snapshot, so the first load never raises the banner.
+  Set<String>? _seen;
+  Incident? _alert;
+
+  MapFilter _filter = MapFilter.all;
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _center = widget.location.currentOrFallback();
-    _incidentStream = widget.incidents.watchActivePublic();
     final chat = widget.chat;
     if (chat != null) _chat = ChatController(chat);
+    _subscription = widget.incidents.watchActivePublic().listen(_onIncidents, onError: (_) {
+      if (mounted) setState(() => _loadError = true);
+    });
+    _locate();
   }
 
   @override
   void dispose() {
+    _subscription?.cancel();
     _chat?.dispose();
     _map.dispose();
     super.dispose();
+  }
+
+  Future<void> _locate() async {
+    final fix = await widget.location.currentFix();
+    if (!mounted) return;
+    final position = fix?.position;
+    setState(() {
+      _fix = fix;
+      _center ??= position != null && philippinesBounds.contains(position)
+          ? position
+          : GeolocatorLocationService.fallbackCenter;
+    });
+  }
+
+  void _onIncidents(List<Incident> incidents) {
+    if (!mounted) return;
+    setState(() {
+      _loadError = false;
+      final seen = _seen;
+      if (seen != null) {
+        final fresh = newHighRisk(seen, incidents);
+        if (fresh.isNotEmpty) _alert = fresh.first;
+      }
+      _seen = {...?seen, for (final incident in incidents) incident.id};
+      _latest = incidents;
+    });
+  }
+
+  Future<void> _recenter() async {
+    await _locate();
+    final position = _fix?.position;
+    if (!mounted) return;
+    if (position == null || !philippinesBounds.contains(position)) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location is off.')));
+      return;
+    }
+    _map.move(position, 16);
   }
 
   Future<void> _openChat() async {
@@ -91,10 +145,13 @@ class _MapScreenState extends State<MapScreen> {
         widget.onReport?.call();
       case ShowOnMap(:final incidentId):
         final incident = _latest.where((i) => i.id == incidentId).firstOrNull;
-        if (incident == null) return;
-        _map.move(LatLng(incident.latitude, incident.longitude), 17);
-        _openIncident(incident);
+        if (incident != null) _focus(incident);
     }
+  }
+
+  void _focus(Incident incident) {
+    _map.move(LatLng(incident.latitude, incident.longitude), 17);
+    _openIncident(incident);
   }
 
   void _openIncident(Incident incident) {
@@ -110,94 +167,142 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  String get _gpsLabel {
+    final fix = _fix;
+    if (fix == null) return 'GPS off · showing Mandaue City';
+    final accuracy = fix.accuracyMeters;
+    return accuracy == null ? 'GPS on' : 'GPS ±${accuracy.round()} m';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<LatLng>(
-      future: _center,
-      builder: (context, centerSnapshot) {
-        if (!centerSnapshot.hasData) {
-          return const Center(child: CircularProgressIndicator(color: AppColors.redOrange));
-        }
-        return StreamBuilder<List<Incident>>(
-          stream: _incidentStream,
-          builder: (context, incidentSnapshot) {
-            final incidents = incidentSnapshot.data ?? const <Incident>[];
-            _latest = incidents;
-            return Stack(
-              children: [
-                FlutterMap(
-                  mapController: _map,
-                  options: MapOptions(
-                    initialCenter: philippinesBounds.contains(centerSnapshot.data!)
-                        ? centerSnapshot.data!
-                        : GeolocatorLocationService.fallbackCenter,
-                    initialZoom: 15,
-                    minZoom: 5,
-                    cameraConstraint: CameraConstraint.contain(bounds: philippinesBounds),
+    final center = _center;
+    if (center == null) {
+      return const Center(child: CircularProgressIndicator(color: AppColors.redOrange));
+    }
+    final shown = applyMapFilter(
+      [for (final i in _latest) if (philippinesBounds.contains(LatLng(i.latitude, i.longitude))) i],
+      _filter,
+      _query,
+    );
+    final alert = _alert;
+    return Stack(
+      children: [
+        FlutterMap(
+          mapController: _map,
+          options: MapOptions(
+            initialCenter: center,
+            initialZoom: 15,
+            minZoom: 5,
+            cameraConstraint: CameraConstraint.contain(bounds: philippinesBounds),
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'com.example.hazardradarai',
+              tileBuilder: tintedTileBuilder,
+            ),
+            if (_fix != null)
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: _fix!.position,
+                    width: 14,
+                    height: 14,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.ink,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: AppColors.cream, width: 2),
+                      ),
+                    ),
                   ),
-                  children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.hazardradarai',
-                      tileBuilder: tintedTileBuilder,
-                    ),
-                    MarkerLayer(
-                      markers: [
-                        for (final incident in incidents)
-                          if (philippinesBounds.contains(LatLng(incident.latitude, incident.longitude)))
-                            _markerFor(incident),
-                      ],
-                    ),
-                    RichAttributionWidget(
-                      attributions: [
-                        TextSourceAttribution('OpenStreetMap contributors'),
-                      ],
-                    ),
+                ],
+              ),
+            MarkerLayer(markers: [for (final incident in shown) _markerFor(incident)]),
+            RichAttributionWidget(attributions: [TextSourceAttribution('OpenStreetMap contributors')]),
+          ],
+        ),
+        Positioned(
+          top: 12,
+          left: 12,
+          right: 12,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Expanded(child: MapSearchField(onChanged: (value) => setState(() => _query = value))),
+                  if (_chat != null) ...[
+                    const SizedBox(width: 8),
+                    _RadarButton(onPressed: _openChat),
                   ],
+                ],
+              ),
+              const SizedBox(height: 8),
+              MapFilterChips(
+                incidents: _latest,
+                selected: _filter,
+                onSelected: (filter) => setState(() => _filter = filter),
+              ),
+              if (alert != null) ...[
+                const SizedBox(height: 8),
+                NewHighRiskBanner(
+                  incident: alert,
+                  onOpen: () {
+                    setState(() => _alert = null);
+                    _focus(alert);
+                  },
+                  onDismiss: () => setState(() => _alert = null),
                 ),
-                if (_chat != null)
-                  Positioned(
-                    top: 16,
-                    right: 16,
-                    child: _RadarButton(onPressed: _openChat),
-                  ),
-                if (incidentSnapshot.hasError)
-                  Positioned(
-                    left: 16,
-                    right: _chat == null ? 16 : 160,
-                    top: 16,
-                    child: const _Notice(text: 'Could not load hazards. Pins may be out of date.'),
-                  ),
               ],
-            );
-          },
-        );
-      },
+              if (_loadError) ...[
+                const SizedBox(height: 8),
+                const MapLabel(text: 'Could not load hazards. Pins may be out of date.'),
+              ],
+            ],
+          ),
+        ),
+        Positioned(
+          left: 12,
+          bottom: 24,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const MapLegend(),
+              const SizedBox(height: 8),
+              MapLabel(text: _gpsLabel),
+              const SizedBox(height: 8),
+              MapSquareButton(icon: Icons.my_location, tooltip: 'Recenter on me', onPressed: _recenter),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   Marker _markerFor(Incident incident) {
     return Marker(
       point: LatLng(incident.latitude, incident.longitude),
-      // 44 px tap target around a 26 px dot.
+      // 44 px tap target around a 28 px pin.
       width: 44,
       height: 44,
       child: Semantics(
         button: true,
-        label: '${incident.riskLevel} risk: ${incident.category}',
+        label: '${incident.riskLevel} risk: ${incident.category}, ${incident.status == Incident.statusInProgress ? 'in progress' : 'active'}',
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () => _openIncident(incident),
-
           child: Center(
             child: Container(
-              width: 26,
-              height: 26,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
-                color: riskColor(incident.riskLevel),
+                color: pinColor(incident),
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.cream, width: 3),
+                border: Border.all(color: AppColors.cream, width: 2),
               ),
+              child: Icon(categoryIcon(incident.category), size: 16, color: pinIconColor(incident)),
             ),
           ),
         ),
@@ -206,27 +311,7 @@ class _MapScreenState extends State<MapScreen> {
   }
 }
 
-class _Notice extends StatelessWidget {
-  const _Notice({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(color: AppColors.sage),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Text(
-          text,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.ink),
-        ),
-      ),
-    );
-  }
-}
-
-/// Flat sage block in the top-right corner of the map.
+/// Flat sage block next to the search field.
 class _RadarButton extends StatelessWidget {
   const _RadarButton({required this.onPressed});
 
@@ -239,7 +324,7 @@ class _RadarButton extends StatelessWidget {
       child: InkWell(
         onTap: onPressed,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Text('Ask Radar AI', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.ink)),
         ),
       ),

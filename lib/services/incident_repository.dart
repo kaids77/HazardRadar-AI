@@ -6,7 +6,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/incident.dart';
 
 abstract interface class IncidentRepository {
-  /// Live list of active, public incidents, capped at [limit].
+  /// Live list of public incidents that are ACTIVE or IN_PROGRESS, newest first,
+  /// capped at [limit].
   Stream<List<Incident>> watchActivePublic({int limit = 150});
 
   /// The compressed photo of a report, or null when it is missing or unreadable.
@@ -22,14 +23,16 @@ class FirestoreIncidentRepository implements IncidentRepository {
 
   final FirebaseFirestore _db;
 
-  /// The query includes both equality filters. Firestore rules only allow reads
-  /// of public incidents, so a query without the visibility filter would be denied.
+  /// The visibility filter is required: rules only allow reads of public incidents,
+  /// so a query without it would be denied. Needs a composite index on incidents:
+  /// visibility ASC, status ASC, createdAt DESC. Firestore prints a link to create it.
   @override
   Stream<List<Incident>> watchActivePublic({int limit = defaultLimit}) {
     return _db
         .collection(incidentsCollection)
-        .where('status', isEqualTo: 'ACTIVE')
-        .where('visibility', isEqualTo: 'PUBLIC')
+        .where('visibility', isEqualTo: Incident.visibilityPublic)
+        .where('status', whereIn: const [Incident.statusActive, Incident.statusInProgress])
+        .orderBy('createdAt', descending: true)
         .limit(limit)
         .snapshots()
         .map((snapshot) {

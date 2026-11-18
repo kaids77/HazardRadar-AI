@@ -1,0 +1,122 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
+
+import 'package:hazardradarai/models/incident.dart';
+import 'package:hazardradarai/models/user_profile.dart';
+import 'package:hazardradarai/services/incident_repository.dart';
+import 'package:hazardradarai/services/location_service.dart';
+import 'package:hazardradarai/services/vote_repository.dart';
+import 'package:hazardradarai/theme/app_theme.dart';
+import 'package:hazardradarai/ui/map/map_filter.dart';
+import 'package:hazardradarai/ui/map/map_screen.dart';
+import 'package:hazardradarai/ui/map/risk_style.dart';
+
+Incident _i(String id, String category, String risk, {String status = 'ACTIVE'}) => Incident(
+      id: id,
+      category: category,
+      riskLevel: risk,
+      aiSummary: 's',
+      latitude: 10.3236,
+      longitude: 123.9322,
+      netVotes: 0,
+      status: status,
+    );
+
+final _items = [
+  _i('abc123', 'Electrical', 'High'),
+  _i('def456', 'Pothole', 'Medium'),
+  _i('ghi789', 'Pothole', 'High', status: 'IN_PROGRESS'),
+];
+
+class _Stream implements IncidentRepository {
+  final controller = StreamController<List<Incident>>.broadcast();
+
+  @override
+  Stream<List<Incident>> watchActivePublic({int limit = 150}) => controller.stream;
+
+  @override
+  Future<Uint8List?> loadPhoto(String incidentId) async => null;
+}
+
+class _Votes implements VoteRepository {
+  @override
+  Future<void> cast({required String incidentId, required String uid, required int value}) async {}
+}
+
+class _Location implements LocationProvider {
+  static const fix = LocationFix(GeolocatorLocationService.fallbackCenter, accuracyMeters: 6);
+
+  @override
+  Future<LatLng> currentOrFallback() async => fix.position;
+
+  @override
+  Future<LatLng?> current() async => fix.position;
+
+  @override
+  Future<LocationFix?> currentFix() async => fix;
+}
+
+void main() {
+  test('filters by risk and category', () {
+    expect(applyMapFilter(_items, MapFilter.all, ''), hasLength(3));
+    expect(applyMapFilter(_items, MapFilter.highRisk, '').map((i) => i.id), ['abc123', 'ghi789']);
+    expect(applyMapFilter(_items, MapFilter.category('Pothole'), '').map((i) => i.id), ['def456', 'ghi789']);
+  });
+
+  test('search matches the HZD reference or the category, ignoring case', () {
+    expect(applyMapFilter(_items, MapFilter.all, 'hzd-abc').map((i) => i.id), ['abc123']);
+    expect(applyMapFilter(_items, MapFilter.all, 'electr').map((i) => i.id), ['abc123']);
+    expect(applyMapFilter(_items, MapFilter.all, 'flood'), isEmpty);
+  });
+
+  test('only High reports not seen before raise the banner', () {
+    expect(newHighRisk({'abc123'}, _items).map((i) => i.id), ['ghi789']);
+    expect(newHighRisk({'abc123', 'ghi789'}, _items), isEmpty);
+  });
+
+  test('in-progress pins use the in-progress color', () {
+    expect(pinColor(_items[2]), AppColors.inProgress);
+    expect(pinColor(_items[0]), AppColors.riskHigh);
+  });
+
+  testWidgets('chips show counts, the GPS chip shows accuracy, and a new High report raises a banner',
+      (tester) async {
+    final repo = _Stream();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: MapScreen(
+            incidents: repo,
+            location: _Location(),
+            profile: const UserProfile(uid: 'u', role: 'CITIZEN', tier: 2, accountStatus: 'ACTIVE'),
+            votes: _Votes(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    repo.controller.add(_items.sublist(0, 2));
+    await tester.pump();
+
+    expect(find.text('All 2'), findsOneWidget);
+    expect(find.text('High risk 1'), findsOneWidget);
+    expect(find.text('GPS ±6 m'), findsOneWidget);
+    expect(find.text('New high-risk report'), findsNothing);
+
+    repo.controller.add(_items);
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('New high-risk report'), findsOneWidget);
+    expect(find.textContaining('HZD-GHI789'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Dismiss'));
+    await tester.pump();
+    expect(find.text('New high-risk report'), findsNothing);
+  });
+}
