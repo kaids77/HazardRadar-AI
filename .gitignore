@@ -55,3 +55,8 @@ android/build/
 
 # Secrets: local --dart-define-from-file values (dart_defines.example.json stays tracked)
 dart_defines.json
+
+# Firestore rules tests
+rules-test/node_modules/
+firebase-debug.log
+firestore-debug.log
