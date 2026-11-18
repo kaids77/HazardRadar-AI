@@ -9,6 +9,7 @@ import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
 import '../../services/photo_service.dart';
 import '../../services/report_enricher.dart';
+import '../../services/report_limit_policy.dart';
 import '../../services/report_service.dart';
 import '../../services/session_service.dart';
 import '../../services/vote_repository.dart';
@@ -62,9 +63,9 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   late Future<UserProfile> _profile;
 
-  /// Set after a Google upgrade. Replaces the loaded profile without
-  /// rebuilding the map through a new future.
-  UserProfile? _upgraded;
+  /// The newest copy of the profile after an upgrade or a report. Replaces the
+  /// loaded profile without rebuilding the map through a new future.
+  UserProfile? _latest;
 
   @override
   void initState() {
@@ -82,21 +83,46 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _retry() {
     setState(() {
-      _upgraded = null;
+      _latest = null;
       _profile = _start();
     });
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _openAccount(UserProfile profile) async {
     final upgraded = await showAccountSheet(context, profile: profile, session: widget.session);
     if (upgraded == null || !mounted) return;
-    setState(() => _upgraded = upgraded);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('You are now a ${upgraded.tierTitle}.')),
-    );
+    setState(() => _latest = upgraded);
+    _toast('You are now a ${upgraded.tierTitle}.');
   }
 
+  /// Checks the daily limit with a fresh profile before opening the camera.
   Future<void> _openReport() async {
+    final UserProfile profile;
+    try {
+      profile = await widget.session.start();
+    } catch (_) {
+      if (mounted) _toast('Could not check your account. Try again.');
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _latest = profile);
+
+    final allowance = ReportLimitPolicy.check(profile, DateTime.now());
+    if (allowance.block == ReportBlock.guestLimit) {
+      _toast(ReportLimitPolicy.explain(allowance)!);
+      await _openAccount(profile);
+      return;
+    }
+    final blocked = ReportLimitPolicy.explain(allowance);
+    if (blocked != null) {
+      _toast(blocked);
+      return;
+    }
+
     final sent = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
         builder: (_) => ReportScreen(
@@ -106,11 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-    if (sent == true && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Report sent. Thank you.')));
-    }
+    if (sent == true && mounted) _toast('Report sent. Thank you.');
   }
 
   @override
@@ -141,18 +163,25 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         }
-        final profile = _upgraded ?? snapshot.data!;
+        final profile = _latest ?? snapshot.data!;
         return _Frame(
           tierLabel: profile.tierTitle,
           onAccount: () => _openAccount(profile),
           onReport: _openReport,
-          body: MapScreen(
-            incidents: widget.incidents,
-            location: widget.location,
-            profile: profile,
-            votes: widget.votes,
-            chat: widget.chat,
-            onReport: _openReport,
+          body: Column(
+            children: [
+              if (profile.accountStatus == UserProfile.accountWarned) const _WarnedBanner(),
+              Expanded(
+                child: MapScreen(
+                  incidents: widget.incidents,
+                  location: widget.location,
+                  profile: profile,
+                  votes: widget.votes,
+                  chat: widget.chat,
+                  onReport: _openReport,
+                ),
+              ),
+            ],
           ),
         );
       },
@@ -202,6 +231,23 @@ class _Frame extends StatelessWidget {
               foregroundColor: AppColors.onRedOrange,
               label: const Text('Report hazard'),
             ),
+    );
+  }
+}
+
+class _WarnedBanner extends StatelessWidget {
+  const _WarnedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      color: AppColors.riskMedium,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Text(
+        'Your account has a warning from a moderator. Further false reports can lead to a suspension.',
+        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.ink),
+      ),
     );
   }
 }

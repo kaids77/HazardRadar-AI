@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'package:hazardradarai/geo/philippine_day.dart';
 import 'package:hazardradarai/models/incident.dart';
 import 'package:hazardradarai/models/report.dart';
 import 'package:hazardradarai/models/user_profile.dart';
@@ -30,8 +31,14 @@ class _FailingAuth implements AuthService {
 }
 
 class _ProfileRepo implements ProfileRepository {
+  _ProfileRepo([this.profile]);
+
+  final UserProfile Function(String uid)? profile;
+
   @override
-  Future<UserProfile> getOrCreateProfile(String uid) async => UserProfile(
+  Future<UserProfile> getOrCreateProfile(String uid) async =>
+      profile?.call(uid) ??
+      UserProfile(
         uid: uid,
         role: 'CITIZEN',
         tier: 1,
@@ -116,5 +123,45 @@ void main() {
 
     expect(find.text('Retry'), findsOneWidget);
     expect(find.textContaining('Could not connect'), findsOneWidget);
+  });
+
+  testWidgets('a guest at the daily limit is offered Google sign-in instead of the camera', (tester) async {
+    final session = SessionService(
+      auth: _OkAuth(),
+      profiles: _ProfileRepo(
+        (uid) => UserProfile(
+          uid: uid,
+          role: 'CITIZEN',
+          tier: 1,
+          accountStatus: 'ACTIVE',
+          reportDay: philippineDay(DateTime.now()),
+          reportCount: 3,
+        ),
+      ),
+    );
+    await tester.pumpWidget(_app(session));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    await tester.tap(find.text('Report hazard'));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    expect(find.textContaining('Guests can file 3 reports a day'), findsOneWidget);
+    expect(find.text('Continue with Google'), findsOneWidget);
+    expect(find.text('Send report'), findsNothing);
+  });
+
+  testWidgets('a warned account sees the moderator warning', (tester) async {
+    final session = SessionService(
+      auth: _OkAuth(),
+      profiles: _ProfileRepo((uid) => UserProfile(uid: uid, role: 'CITIZEN', tier: 2, accountStatus: 'WARNED')),
+    );
+    await tester.pumpWidget(_app(session));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('warning from a moderator'), findsOneWidget);
   });
 }

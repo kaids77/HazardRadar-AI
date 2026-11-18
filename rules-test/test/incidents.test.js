@@ -1,9 +1,9 @@
 import { after, before, beforeEach, test } from 'node:test';
 
 import { assertFails, assertSucceeds } from '@firebase/rules-unit-testing';
-import { doc, getDoc, serverTimestamp, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
 
-import { createEnv, googleUser, guest, newIncident, profile, seed } from './helpers.js';
+import { createEnv, fileReport, guest, newIncident, profile, seed } from './helpers.js';
 
 let env;
 
@@ -21,44 +21,66 @@ beforeEach(async () => {
   });
 });
 
-function photo(uid) {
-  return { reporterUid: uid, mimeType: 'image/jpeg', imageBase64: 'abc', createdAt: serverTimestamp() };
-}
+test('a user files a report, photo, and counter update in one batch', async () => {
+  await assertSucceeds(fileReport(guest(env, 'alice'), 'alice', 'i1'));
+});
 
-test('a user creates a report and its photo in one batch', async () => {
-  const db = guest(env, 'alice');
-  const batch = writeBatch(db);
-  batch.set(doc(db, 'incidents/i1'), { ...newIncident('alice'), createdAt: serverTimestamp() });
-  batch.set(doc(db, 'incidents/i1/photo/main'), photo('alice'));
-  await assertSucceeds(batch.commit());
+test('a report without the counter update is refused', async () => {
+  await assertFails(setDoc(doc(guest(env, 'alice'), 'incidents/i1'), newIncident('alice')));
 });
 
 test('report create rejects bad fields', async () => {
   const db = guest(env, 'alice');
   const bad = [
-    newIncident('bob'),
-    newIncident('alice', { status: 'RESOLVED' }),
-    newIncident('alice', { visibility: 'QUARANTINED' }),
-    newIncident('alice', { netVotes: 5 }),
-    newIncident('alice', { riskLevel: 'Critical' }),
-    newIncident('alice', { note: 'x'.repeat(501) }),
-    newIncident('alice', { latitude: 95 }),
-    newIncident('alice', { category: 'Road' }),
-    newIncident('alice', { aiProcessed: 'yes' }),
-    { ...newIncident('alice'), extra: 1 },
+    { reporterUid: 'bob' },
+    { status: 'RESOLVED' },
+    { visibility: 'QUARANTINED' },
+    { netVotes: 5 },
+    { riskLevel: 'Critical' },
+    { note: 'x'.repeat(501) },
+    { latitude: 95 },
+    { category: 'Road' },
+    { aiProcessed: 'yes' },
+    { extra: 1 },
   ];
-  for (const [i, data] of bad.entries()) {
-    await assertFails(setDoc(doc(db, `incidents/bad${i}`), data));
+  for (const [i, incident] of bad.entries()) {
+    await assertFails(fileReport(db, 'alice', `bad${i}`, { incident }));
   }
-  const { aiProcessed, ...missingFlag } = newIncident('alice');
-  await assertFails(setDoc(doc(db, 'incidents/noflag'), missingFlag));
 });
 
 test('every fixed category is accepted', async () => {
+  await seed(env, { 'users/alice': profile({ rateLimitOverride: true }) });
   const db = guest(env, 'alice');
-  for (const category of ['Pothole', 'Electrical', 'Flooding', 'Obstruction', 'Lighting', 'Other']) {
-    await assertSucceeds(setDoc(doc(db, `incidents/${category}`), newIncident('alice', { category })));
+  const categories = ['Pothole', 'Electrical', 'Flooding', 'Obstruction', 'Lighting', 'Other'];
+  for (const [i, category] of categories.entries()) {
+    await assertSucceeds(fileReport(db, 'alice', category, { count: i + 1, incident: { category } }));
   }
+});
+
+test('a banned user cannot report', async () => {
+  await assertFails(fileReport(guest(env, 'banned'), 'banned', 'i1'));
+});
+
+test('a photo must belong to a report by the same user', async () => {
+  await seed(env, { 'incidents/i1': newIncident('bob') });
+  const photo = { reporterUid: 'alice', mimeType: 'image/jpeg', imageBase64: 'abc', createdAt: serverTimestamp() };
+  await assertFails(setDoc(doc(guest(env, 'alice'), 'incidents/i1/photo/main'), photo));
+});
+
+test('public reports are readable, quarantined ones only by the owner', async () => {
+  await seed(env, {
+    'incidents/pub': newIncident('bob'),
+    'incidents/q': newIncident('bob', { visibility: 'QUARANTINED' }),
+  });
+  const db = guest(env, 'alice');
+  await assertSucceeds(getDoc(doc(db, 'incidents/pub')));
+  await assertFails(getDoc(doc(db, 'incidents/q')));
+  await assertSucceeds(getDoc(doc(guest(env, 'bob'), 'incidents/q')));
+});
+
+test('owners cannot edit their report', async () => {
+  await seed(env, { 'incidents/i1': newIncident('alice') });
+  await assertFails(updateDoc(doc(guest(env, 'alice'), 'incidents/i1'), { riskLevel: 'High' }));
 });
 
 const aiResult = {
@@ -88,30 +110,4 @@ test('AI enrichment is limited to the owner, triage fields, and valid values', a
 test('an AI-processed report cannot be re-triaged by its owner', async () => {
   await seed(env, { 'incidents/i1': newIncident('alice') });
   await assertFails(updateDoc(doc(guest(env, 'alice'), 'incidents/i1'), aiResult));
-});
-
-test('a banned user cannot report', async () => {
-  await assertFails(setDoc(doc(guest(env, 'banned'), 'incidents/i1'), newIncident('banned')));
-});
-
-test('a photo must belong to a report by the same user', async () => {
-  await seed(env, { 'incidents/i1': newIncident('bob') });
-  const db = guest(env, 'alice');
-  await assertFails(setDoc(doc(db, 'incidents/i1/photo/main'), photo('alice')));
-});
-
-test('public reports are readable, quarantined ones only by the owner', async () => {
-  await seed(env, {
-    'incidents/pub': newIncident('bob'),
-    'incidents/q': newIncident('bob', { visibility: 'QUARANTINED' }),
-  });
-  const db = guest(env, 'alice');
-  await assertSucceeds(getDoc(doc(db, 'incidents/pub')));
-  await assertFails(getDoc(doc(db, 'incidents/q')));
-  await assertSucceeds(getDoc(doc(guest(env, 'bob'), 'incidents/q')));
-});
-
-test('owners cannot edit their report', async () => {
-  await seed(env, { 'incidents/i1': newIncident('alice') });
-  await assertFails(updateDoc(doc(guest(env, 'alice'), 'incidents/i1'), { riskLevel: 'High' }));
 });

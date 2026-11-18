@@ -4,18 +4,11 @@ import '../geo/geohash.dart';
 import '../geo/philippines.dart';
 import '../models/report.dart';
 import 'auth_service.dart';
+import 'report_rejected.dart';
 import 'report_repository.dart';
 import 'triage_service.dart';
 
-/// A report the app refuses to send. The message is safe to show to the user.
-class ReportRejected implements Exception {
-  const ReportRejected(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
+export 'report_rejected.dart';
 
 /// Validates a draft, triages the note, and stores the report.
 class ReportService {

@@ -1,6 +1,7 @@
 rules_version = '2';
 
 // Deny by default: any path not matched below is refused.
+// Tests: rules-test/ (npm run emulator:test). Every change needs allowed and denied cases.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -12,16 +13,36 @@ service cloud.firestore {
       return /databases/$(database)/documents/users/$(request.auth.uid);
     }
 
+    function me() {
+      return get(userPath()).data;
+    }
+
     function hasRole(role) {
-      return signedIn() && exists(userPath()) && get(userPath()).data.role == role;
+      return signedIn() && exists(userPath()) && me().role == role;
     }
 
     function isStaff() {
       return hasRole('DISPATCHER') || hasRole('ADMIN');
     }
 
-    function isBanned() {
-      return signedIn() && exists(userPath()) && get(userPath()).data.accountStatus == 'BANNED';
+    // BANNED always blocks writes. SUSPENDED blocks until suspendedUntil
+    // (no date means indefinitely). WARNED users can still act.
+    function isBlocked() {
+      return signedIn() && exists(userPath()) && (
+        me().accountStatus == 'BANNED'
+        || (me().accountStatus == 'SUSPENDED'
+            && request.time < me().get('suspendedUntil', request.time + duration.value(36500, 'd')))
+      );
+    }
+
+    // Midnight of the current day in the Philippines (UTC+8), as a timestamp.
+    function today() {
+      return (request.time + duration.value(8, 'h')).date();
+    }
+
+    // Reports per Philippine day: Level 1 three, Level 2 ten, Level 3 and up unlimited.
+    function dailyLimit(tier) {
+      return tier == 1 ? 3 : (tier == 2 ? 10 : 1000000);
     }
 
     // Fixed hazard categories. Must match lib/models/hazard_category.dart and proxy/src/triage.js.
@@ -37,7 +58,6 @@ service cloud.firestore {
     }
 
     // Profiles. Users can create only their own Level 1 profile.
-    // Role and account status can change only through an admin.
     match /users/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isStaff());
 
@@ -48,21 +68,36 @@ service cloud.firestore {
         && request.resource.data.tier == 1
         && request.resource.data.accountStatus == 'ACTIVE';
 
-      // Admins change role and account status. A user may raise only their own
-      // tier, only from 1 to 2, and only after a Google account is linked to
-      // this uid. The linked provider is read from the ID token, not from the client.
-      allow update: if (
-          hasRole('ADMIN')
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'accountStatus'])
-        ) || (
-          signedIn()
+      // A user may raise only their own tier, only from 1 to 2, and only after a
+      // Google account is linked to this uid. The provider is read from the ID token.
+      function isGoogleUpgrade() {
+        return signedIn()
           && request.auth.uid == uid
-          && resource.data.accountStatus == 'ACTIVE'
+          && resource.data.accountStatus in ['ACTIVE', 'WARNED']
           && resource.data.tier == 1
           && request.resource.data.tier == 2
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tier'])
-          && 'google.com' in request.auth.token.firebase.identities
-        );
+          && 'google.com' in request.auth.token.firebase.identities;
+      }
+
+      // The daily counter changes only in the same write that creates the user's new
+      // report (lastReportId). The incident create rule checks the count and the limit.
+      function isReportCounterUpdate() {
+        let after = request.resource.data;
+        return signedIn()
+          && request.auth.uid == uid
+          && after.diff(resource.data).affectedKeys().hasOnly(['reportDay', 'reportCount', 'lastReportId'])
+          && after.lastReportId is string
+          && after.lastReportId.matches('^[A-Za-z0-9]{1,40}$')
+          && !exists(/databases/$(database)/documents/incidents/$(after.lastReportId))
+          && existsAfter(/databases/$(database)/documents/incidents/$(after.lastReportId))
+          && getAfter(/databases/$(database)/documents/incidents/$(after.lastReportId)).data.reporterUid == uid;
+      }
+
+      allow update: if (
+          hasRole('ADMIN')
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'accountStatus'])
+        ) || isGoogleUpgrade() || isReportCounterUpdate();
 
       allow delete: if false;
     }
@@ -75,8 +110,21 @@ service cloud.firestore {
         || isStaff()
       );
 
+      // The reporter's profile must move to today's count + 1 in the same write,
+      // pointing at this report, and stay within the daily limit unless overridden.
+      function reportCounterOk() {
+        let before = me();
+        let after = getAfter(userPath()).data;
+        let previous = before.get('reportDay', null) == today() ? before.get('reportCount', 0) : 0;
+        return after.get('reportDay', null) == today()
+          && after.get('reportCount', -1) == previous + 1
+          && after.get('lastReportId', '') == incidentId
+          && (before.get('rateLimitOverride', false) == true || previous + 1 <= dailyLimit(before.tier));
+      }
+
       allow create: if signedIn()
-        && !isBanned()
+        && exists(userPath())
+        && !isBlocked()
         && request.resource.data.keys().hasOnly([
           'reporterUid', 'category', 'riskLevel', 'aiSummary', 'recommendedAction',
           'note', 'latitude', 'longitude', 'geohash',
@@ -91,7 +139,8 @@ service cloud.firestore {
         && request.resource.data.note is string && request.resource.data.note.size() <= 500
         && request.resource.data.geohash is string && request.resource.data.geohash.size() <= 12
         && request.resource.data.latitude is number && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
-        && request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180;
+        && request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180
+        && reportCounterOk();
 
       function votePath(incidentId) {
         return /databases/$(database)/documents/incidents/$(incidentId)/votes/$(request.auth.uid);
@@ -102,7 +151,7 @@ service cloud.firestore {
       // same batch. A report at -3 or lower must become QUARANTINED in that write.
       function isVoteUpdate(incidentId) {
         return signedIn()
-          && !isBanned()
+          && !isBlocked()
           && resource.data.status == 'ACTIVE'
           && resource.data.visibility == 'PUBLIC'
           && !exists(votePath(incidentId))
@@ -119,7 +168,7 @@ service cloud.firestore {
       // with the AI result. Only the triage fields change, and aiProcessed becomes true.
       function isEnrichment() {
         return signedIn()
-          && !isBanned()
+          && !isBlocked()
           && resource.data.reporterUid == request.auth.uid
           && resource.data.get('aiProcessed', true) == false
           && request.resource.data.aiProcessed == true
@@ -129,8 +178,7 @@ service cloud.firestore {
       }
 
       // Staff change status, visibility, or resolution notes. Voters change only
-      // what isVoteUpdate allows. Owners may only apply a pending AI result. Task 12
-      // enforces the status order.
+      // what isVoteUpdate allows. Owners may only apply a pending AI result.
       allow update: if (
           isStaff()
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'visibility', 'resolutionNote', 'updatedAt'])
@@ -142,7 +190,7 @@ service cloud.firestore {
       // Allowed vote values by tier. Tier 1 cannot vote. Tier 2 votes with weight 1,
       // tier 3 and above with weight 2.
       function voteValues() {
-        let tier = get(userPath()).data.tier;
+        let tier = me().tier;
         return tier == 2 ? [1, -1] : (tier >= 3 ? [2, -2] : []);
       }
 
@@ -152,8 +200,8 @@ service cloud.firestore {
       match /votes/{voterId} {
         allow read: if signedIn();
         allow create: if signedIn()
-          && !isBanned()
           && exists(userPath())
+          && !isBlocked()
           && request.auth.uid == voterId
           && request.resource.data.keys().hasOnly(['value', 'createdAt'])
           && request.resource.data.value in voteValues()
@@ -171,7 +219,7 @@ service cloud.firestore {
           || isStaff()
         );
         allow create: if signedIn()
-          && !isBanned()
+          && !isBlocked()
           && request.resource.data.keys().hasOnly(['reporterUid', 'mimeType', 'imageBase64', 'createdAt'])
           && request.resource.data.reporterUid == request.auth.uid
           && getAfter(/databases/$(database)/documents/incidents/$(incidentId)).data.reporterUid == request.auth.uid

@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { initializeTestEnvironment } from '@firebase/rules-unit-testing';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, serverTimestamp, setDoc, Timestamp, writeBatch } from 'firebase/firestore';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RULES_PATH = path.resolve(here, '..', '..', 'firestore.rules');
@@ -71,4 +71,27 @@ export function newIncident(uid, overrides = {}) {
     aiProcessed: true,
     ...overrides,
   };
+}
+
+/** Midnight of the current Philippine day (UTC+8), as the app writes it. */
+export function phToday(offsetDays = 0) {
+  const ph = new Date(Date.now() + 8 * 3600 * 1000);
+  return Timestamp.fromDate(new Date(Date.UTC(ph.getUTCFullYear(), ph.getUTCMonth(), ph.getUTCDate() + offsetDays)));
+}
+
+/**
+ * Files a report the way the app does: incident, photo, and the reporter's daily
+ * counter in one batch. [count] is the new reportCount the client claims.
+ */
+export function fileReport(db, uid, id, { count = 1, day = phToday(), incident = {}, profileExtra = {} } = {}) {
+  const batch = writeBatch(db);
+  batch.set(doc(db, `incidents/${id}`), { ...newIncident(uid), ...incident, createdAt: serverTimestamp() });
+  batch.set(doc(db, `incidents/${id}/photo/main`), {
+    reporterUid: uid,
+    mimeType: 'image/jpeg',
+    imageBase64: 'abc',
+    createdAt: serverTimestamp(),
+  });
+  batch.update(doc(db, `users/${uid}`), { reportDay: day, reportCount: count, lastReportId: id, ...profileExtra });
+  return batch.commit();
 }
