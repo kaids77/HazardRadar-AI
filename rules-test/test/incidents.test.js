@@ -41,6 +41,9 @@ test('report create rejects bad fields', async () => {
     { latitude: 95 },
     { category: 'Road' },
     { aiProcessed: 'yes' },
+    { reporterTier: 5 },
+    { photoBytes: 200000 },
+    { photoBytes: 0 },
     { extra: 1 },
   ];
   for (const [i, incident] of bad.entries()) {

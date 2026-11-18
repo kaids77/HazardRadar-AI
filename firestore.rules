@@ -94,10 +94,25 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/incidents/$(after.lastReportId)).data.reporterUid == uid;
       }
 
+      // Staff credit the reporter (+10 CTP, +1 resolved) only in the same write that
+      // moves the reporter's own incident (lastResolvedId) from IN_PROGRESS to RESOLVED.
+      function isResolveCredit() {
+        let after = request.resource.data;
+        return isStaff()
+          && after.diff(resource.data).affectedKeys().hasOnly(['ctp', 'reportsResolved', 'lastResolvedId'])
+          && after.lastResolvedId is string
+          && after.lastResolvedId.matches('^[A-Za-z0-9]{1,40}$')
+          && after.ctp == resource.data.get('ctp', 0) + 10
+          && after.reportsResolved == resource.data.get('reportsResolved', 0) + 1
+          && get(/databases/$(database)/documents/incidents/$(after.lastResolvedId)).data.status == 'IN_PROGRESS'
+          && getAfter(/databases/$(database)/documents/incidents/$(after.lastResolvedId)).data.status == 'RESOLVED'
+          && getAfter(/databases/$(database)/documents/incidents/$(after.lastResolvedId)).data.reporterUid == uid;
+      }
+
       allow update: if (
           hasRole('ADMIN')
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'accountStatus'])
-        ) || isGoogleUpgrade() || isReportCounterUpdate();
+        ) || isGoogleUpgrade() || isReportCounterUpdate() || isResolveCredit();
 
       allow delete: if false;
     }
@@ -126,11 +141,14 @@ service cloud.firestore {
         && exists(userPath())
         && !isBlocked()
         && request.resource.data.keys().hasOnly([
-          'reporterUid', 'category', 'riskLevel', 'aiSummary', 'recommendedAction',
-          'note', 'latitude', 'longitude', 'geohash',
+          'reporterUid', 'reporterTier', 'category', 'riskLevel', 'aiSummary', 'recommendedAction',
+          'note', 'latitude', 'longitude', 'geohash', 'photoBytes',
           'status', 'visibility', 'netVotes', 'aiProcessed', 'createdAt'
         ])
         && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.reporterTier == me().tier
+        && request.resource.data.photoBytes is int
+        && request.resource.data.photoBytes > 0 && request.resource.data.photoBytes <= 153600
         && request.resource.data.status == 'ACTIVE'
         && request.resource.data.visibility == 'PUBLIC'
         && request.resource.data.netVotes == 0
@@ -177,13 +195,60 @@ service cloud.firestore {
           && validTriage(request.resource.data);
       }
 
-      // Staff change status, visibility, or resolution notes. Voters change only
-      // what isVoteUpdate allows. Owners may only apply a pending AI result.
-      allow update: if (
-          isStaff()
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'visibility', 'resolutionNote', 'updatedAt'])
-          && request.resource.data.status in ['ACTIVE', 'IN_PROGRESS', 'RESOLVED']
-        ) || isVoteUpdate(incidentId) || isEnrichment();
+      // Staff edits. The status only moves forward one step at a time:
+      // ACTIVE -> IN_PROGRESS (stamps inProgressAt) -> RESOLVED (stamps resolvedAt and
+      // resolvedBy, needs a note, and credits the reporter in the same write).
+      // Staff may also assign a crew, override the AI category or risk, and restore a
+      // quarantined report (netVotes resets to 0).
+      function isStaffUpdate() {
+        let before = resource.data;
+        let after = request.resource.data;
+        let changed = after.diff(before).affectedKeys();
+        let stepped = before.status != after.status;
+        return isStaff()
+          && !isBlocked()
+          && changed.hasOnly([
+               'status', 'inProgressAt', 'resolvedAt', 'resolvedBy', 'resolutionNote',
+               'assignedCrew', 'category', 'riskLevel', 'visibility', 'netVotes', 'updatedAt'
+             ])
+          && (!changed.hasAny(['category']) || after.category in categories())
+          && (!changed.hasAny(['riskLevel']) || after.riskLevel in ['Low', 'Medium', 'High'])
+          && (!changed.hasAny(['assignedCrew']) || (after.assignedCrew is string && after.assignedCrew.size() <= 60))
+          && (!changed.hasAny(['updatedAt']) || after.updatedAt == request.time)
+          && (!stepped || (before.status == 'ACTIVE' && after.status == 'IN_PROGRESS')
+                       || (before.status == 'IN_PROGRESS' && after.status == 'RESOLVED'))
+          && (!changed.hasAny(['inProgressAt']) || (after.status == 'IN_PROGRESS' && stepped && after.inProgressAt == request.time))
+          && (!stepped || after.status != 'IN_PROGRESS' || changed.hasAll(['inProgressAt']))
+          && (!changed.hasAny(['resolvedAt', 'resolvedBy', 'resolutionNote']) || (after.status == 'RESOLVED' && stepped))
+          && (!stepped || after.status != 'RESOLVED' || (
+                after.resolvedAt == request.time
+                && after.resolvedBy == request.auth.uid
+                && after.resolutionNote is string
+                && after.resolutionNote.size() > 0 && after.resolutionNote.size() <= 300
+                && getAfter(/databases/$(database)/documents/users/$(before.reporterUid)).data.get('lastResolvedId', '') == incidentId
+                && getAfter(/databases/$(database)/documents/users/$(before.reporterUid)).data.get('ctp', 0)
+                     == get(/databases/$(database)/documents/users/$(before.reporterUid)).data.get('ctp', 0) + 10
+             ))
+          && (!changed.hasAny(['visibility', 'netVotes']) || (
+                before.visibility == 'QUARANTINED' && after.visibility == 'PUBLIC' && after.netVotes == 0
+             ));
+      }
+
+      // A Neighborhood Sentinel (Level 3, not staff) may send a public report by someone
+      // else straight to quarantine as spam or a duplicate.
+      function isSentinelFlag() {
+        return signedIn()
+          && exists(userPath())
+          && !isBlocked()
+          && me().tier >= 3
+          && resource.data.reporterUid != request.auth.uid
+          && resource.data.visibility == 'PUBLIC'
+          && request.resource.data.visibility == 'QUARANTINED'
+          && request.resource.data.flaggedBy == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['visibility', 'flaggedBy']);
+      }
+
+      allow update: if isStaffUpdate() || isVoteUpdate(incidentId) || isEnrichment() || isSentinelFlag();
 
       allow delete: if hasRole('ADMIN');
 
@@ -206,7 +271,9 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['value', 'createdAt'])
           && request.resource.data.value in voteValues()
           && get(/databases/$(database)/documents/incidents/$(incidentId)).data.reporterUid != request.auth.uid;
-        allow update, delete: if false;
+        allow update: if false;
+        // Admins delete votes when purging a quarantined report.
+        allow delete: if hasRole('ADMIN');
       }
 
       // One compressed photo per report, stored in Firestore instead of Storage.
@@ -226,7 +293,9 @@ service cloud.firestore {
           && request.resource.data.mimeType in ['image/jpeg', 'image/webp']
           && request.resource.data.imageBase64 is string
           && request.resource.data.imageBase64.size() <= 900000;
-        allow update, delete: if false;
+        allow update: if false;
+        // Admins delete the photo when purging a quarantined report.
+        allow delete: if hasRole('ADMIN');
       }
     }
   }

@@ -40,8 +40,14 @@ class FirestoreReportRepository implements ReportRepository {
       await _db.runTransaction((transaction) async {
         final profile = (await transaction.get(user)).data();
         final counter = nextReportCounter(profile, philippineDay(_clock()));
+        final tier = profile?['tier'];
         transaction
-          ..set(incident, {...report.incidentFields(), 'createdAt': FieldValue.serverTimestamp()})
+          ..set(incident, {
+            ...report.incidentFields(),
+            // The rules require the reporter's current tier, shown as a trust badge on the report.
+            'reporterTier': tier is int ? tier : 1,
+            'createdAt': FieldValue.serverTimestamp(),
+          })
           ..set(photo, {...report.photoFields(), 'createdAt': FieldValue.serverTimestamp()})
           ..update(user, {
             'reportDay': Timestamp.fromDate(counter.day),

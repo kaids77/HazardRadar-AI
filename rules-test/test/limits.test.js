@@ -27,13 +27,13 @@ test('a guest files 3 reports a day, not 4', async () => {
 test('a Civic Scout files 10 a day, not 11', async () => {
   await seed(env, { 'users/s': profile({ tier: 2, reportDay: phToday(), reportCount: 9 }) });
   const db = googleUser(env, 's');
-  await assertSucceeds(fileReport(db, 's', 'r10', { count: 10 }));
-  await assertFails(fileReport(db, 's', 'r11', { count: 11 }));
+  await assertSucceeds(fileReport(db, 's', 'r10', { count: 10, tier: 2 }));
+  await assertFails(fileReport(db, 's', 'r11', { count: 11, tier: 2 }));
 });
 
 test('Level 3 and up have no daily limit', async () => {
   await seed(env, { 'users/v': profile({ tier: 3, role: 'VERIFIER', reportDay: phToday(), reportCount: 50 }) });
-  await assertSucceeds(fileReport(googleUser(env, 'v'), 'v', 'r51', { count: 51 }));
+  await assertSucceeds(fileReport(googleUser(env, 'v'), 'v', 'r51', { count: 51, tier: 3 }));
 });
 
 test('the count resets on a new Philippine day', async () => {

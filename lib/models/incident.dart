@@ -17,6 +17,12 @@ class Incident {
     this.visibility = visibilityPublic,
     this.aiProcessed = true,
     this.createdAt,
+    this.reporterTier = 1,
+    this.photoBytes,
+    this.assignedCrew,
+    this.resolutionNote,
+    this.inProgressAt,
+    this.resolvedAt,
   });
 
   static const String statusActive = 'ACTIVE';
@@ -41,6 +47,18 @@ class Incident {
   /// False when the offline keyword classifier was used. Missing in older documents counts as true.
   final bool aiProcessed;
   final DateTime? createdAt;
+
+  /// The reporter's level when the report was filed, shown as a trust badge.
+  final int reporterTier;
+
+  /// Size of the stored photo. Null on reports filed before this field existed.
+  final int? photoBytes;
+  final String? assignedCrew;
+  final String? resolutionNote;
+  final DateTime? inProgressAt;
+  final DateTime? resolvedAt;
+
+  bool get isQuarantined => visibility == visibilityQuarantined;
 
   /// Three net votes make a report a verified hazard.
   static const int verifiedThreshold = 3;
@@ -78,9 +96,17 @@ class Incident {
       status: _string(data['status'], statusActive),
       visibility: _string(data['visibility'], visibilityPublic),
       aiProcessed: data['aiProcessed'] is bool ? data['aiProcessed'] as bool : true,
-      createdAt: createdAt is Timestamp ? createdAt.toDate() : null,
+      createdAt: _date(createdAt),
+      reporterTier: data['reporterTier'] is int ? data['reporterTier'] as int : 1,
+      photoBytes: data['photoBytes'] is int ? data['photoBytes'] as int : null,
+      assignedCrew: data['assignedCrew'] is String ? data['assignedCrew'] as String : null,
+      resolutionNote: data['resolutionNote'] is String ? data['resolutionNote'] as String : null,
+      inProgressAt: _date(data['inProgressAt']),
+      resolvedAt: _date(data['resolvedAt']),
     );
   }
+
+  static DateTime? _date(Object? value) => value is Timestamp ? value.toDate() : null;
 
   static String _string(Object? value, [String fallback = '']) => value is String ? value : fallback;
 }

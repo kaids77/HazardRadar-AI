@@ -53,6 +53,7 @@ class NewReport {
         'visibility': 'PUBLIC',
         'netVotes': 0,
         'aiProcessed': triage.aiProcessed,
+        'photoBytes': photo.bytes.length,
       };
 
   /// Fields of `incidents/{id}/photo/main`, without `createdAt`.

@@ -65,6 +65,8 @@ export function newIncident(uid, overrides = {}) {
     latitude: 10.3236,
     longitude: 123.9322,
     geohash: 'wdu3yz',
+    photoBytes: 90000,
+    reporterTier: 1,
     status: 'ACTIVE',
     visibility: 'PUBLIC',
     netVotes: 0,
@@ -83,9 +85,14 @@ export function phToday(offsetDays = 0) {
  * Files a report the way the app does: incident, photo, and the reporter's daily
  * counter in one batch. [count] is the new reportCount the client claims.
  */
-export function fileReport(db, uid, id, { count = 1, day = phToday(), incident = {}, profileExtra = {} } = {}) {
+export function fileReport(db, uid, id, { count = 1, day = phToday(), tier = 1, incident = {}, profileExtra = {} } = {}) {
   const batch = writeBatch(db);
-  batch.set(doc(db, `incidents/${id}`), { ...newIncident(uid), ...incident, createdAt: serverTimestamp() });
+  batch.set(doc(db, `incidents/${id}`), {
+    ...newIncident(uid),
+    reporterTier: tier,
+    ...incident,
+    createdAt: serverTimestamp(),
+  });
   batch.set(doc(db, `incidents/${id}/photo/main`), {
     reporterUid: uid,
     mimeType: 'image/jpeg',
