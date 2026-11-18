@@ -83,6 +83,9 @@ class _FixedLocation implements LocationProvider {
 
   @override
   Future<LatLng?> current() async => GeolocatorLocationService.fallbackCenter;
+
+  @override
+  Future<LocationFix?> currentFix() async => const LocationFix(GeolocatorLocationService.fallbackCenter);
 }
 
 class _NoPhotos implements PhotoCapture {

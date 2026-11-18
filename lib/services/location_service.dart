@@ -1,14 +1,25 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
+/// A GPS reading with its accuracy radius in meters (null when unknown).
+class LocationFix {
+  const LocationFix(this.position, {this.accuracyMeters});
+
+  final LatLng position;
+  final double? accuracyMeters;
+}
+
 abstract interface class LocationProvider {
-  /// The device position, or [fallbackCenter] when location is unavailable.
-  /// Never throws, so the map always has a center to show.
+  /// The device position, or [GeolocatorLocationService.fallbackCenter] when location
+  /// is unavailable. Never throws, so the map always has a center to show.
   Future<LatLng> currentOrFallback();
 
   /// The device position, or null when it cannot be read. Reports use this,
   /// because filing a hazard at the fallback center would put it in the wrong place.
   Future<LatLng?> current();
+
+  /// Like [current], with the accuracy radius. Used by the report wizard.
+  Future<LocationFix?> currentFix();
 }
 
 class GeolocatorLocationService implements LocationProvider {
@@ -19,7 +30,10 @@ class GeolocatorLocationService implements LocationProvider {
   Future<LatLng> currentOrFallback() async => await current() ?? fallbackCenter;
 
   @override
-  Future<LatLng?> current() async {
+  Future<LatLng?> current() async => (await currentFix())?.position;
+
+  @override
+  Future<LocationFix?> currentFix() async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) return null;
 
@@ -35,7 +49,10 @@ class GeolocatorLocationService implements LocationProvider {
       final position = await Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
       );
-      return LatLng(position.latitude, position.longitude);
+      return LocationFix(
+        LatLng(position.latitude, position.longitude),
+        accuracyMeters: position.accuracy > 0 ? position.accuracy : null,
+      );
     } catch (_) {
       return null;
     }

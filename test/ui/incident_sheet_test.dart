@@ -56,6 +56,9 @@ class _Location implements LocationProvider {
 
   @override
   Future<LatLng?> current() async => position;
+
+  @override
+  Future<LocationFix?> currentFix() async => position == null ? null : LocationFix(position!);
 }
 
 UserProfile _profile(int tier, {String uid = 'me'}) =>

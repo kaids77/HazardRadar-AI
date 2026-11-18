@@ -8,7 +8,7 @@ import '../../services/report_limit_policy.dart';
 import '../../theme/app_theme.dart';
 import '../account/account_sheet.dart';
 import '../map/map_screen.dart';
-import '../report/report_screen.dart';
+import '../report/wizard/report_wizard_screen.dart';
 import '../reports/my_reports_screen.dart';
 import '../settings/settings_screen.dart';
 import 'home_services.dart';
@@ -116,7 +116,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final sent = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => ReportScreen(reports: _s.reports, photos: _s.photos, location: _s.location),
+        builder: (_) => ReportWizardScreen(reports: _s.reports, photos: _s.photos, location: _s.location),
       ),
     );
     if (sent == true && mounted) {
