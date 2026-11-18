@@ -1,23 +1,28 @@
 import express from 'express';
 
-import { requireProxyToken } from './auth.js';
 import { buildChatMessages, parseChatResult, validateChatRequest } from './chat.js';
 import { loopbackCors } from './cors.js';
 import { UpstreamError, ValidationError } from './errors.js';
+import { requireFirebaseUser } from './idToken.js';
+import { perUserRateLimit } from './rateLimit.js';
 import { buildTriageMessages, parseTriageResult, validateNote } from './triage.js';
 
 const JSON_BODY_LIMIT = '16kb';
 
 /**
- * Builds the Express app. Dependencies are passed in so tests can supply a fake Groq client.
+ * Builds the Express app. Dependencies are passed in so tests can supply fakes.
  *
- * @param {{ config: { proxyToken: string }, groq: { complete: Function }, log?: Function }} deps
+ * @param {{
+ *   config: { rateLimitPerMinute: number },
+ *   groq: { complete: Function },
+ *   verifyIdToken: (token: string) => Promise<string>,
+ *   log?: Function,
+ * }} deps
  */
-export function createApp({ config, groq, log = console.log }) {
+export function createApp({ config, groq, verifyIdToken, log = console.log }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(loopbackCors());
-  app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   // Logs method, path, status, and duration only. Bodies and headers are never logged.
   app.use((req, res, next) => {
@@ -29,12 +34,15 @@ export function createApp({ config, groq, log = console.log }) {
     next();
   });
 
-  // Health has no secrets, so it does not need the token.
+  // Health has no secrets, so it does not need a signed-in user.
   app.get('/health', (req, res) => {
     res.json({ status: 'ok' });
   });
 
-  app.use(requireProxyToken(config.proxyToken));
+  // Authenticate and rate-limit before reading the body, so anonymous callers cost nothing.
+  app.use(requireFirebaseUser(verifyIdToken));
+  app.use(perUserRateLimit({ limit: config.rateLimitPerMinute }));
+  app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
   app.post('/triage', async (req, res) => {
     const note = validateNote(req.body?.note);

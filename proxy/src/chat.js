@@ -1,4 +1,5 @@
 import { ValidationError } from './errors.js';
+import { wrapAsData } from './triage.js';
 
 export const MAX_MESSAGE_LENGTH = 500;
 export const MAX_INCIDENTS = 20;
@@ -7,7 +8,7 @@ const RISK_LEVELS = ['Low', 'Medium', 'High'];
 
 const SYSTEM_PROMPT = [
   'You are Radar AI, a street safety assistant inside the HazardRadar AI app.',
-  'Answer only from the incident list in the user message. Do not invent places or incidents.',
+  'The user message has an <incident_list> (JSON) and a <question>. Answer only from the incident list. Do not invent places or incidents.',
   'Keep the reply under 80 words.',
   'Respond only with a JSON object with keys:',
   '"reply" (string) and',
@@ -61,12 +62,11 @@ function clipText(value) {
 }
 
 export function buildChatMessages({ message, incidents }) {
-  const context = JSON.stringify(incidents);
   return [
     { role: 'system', content: SYSTEM_PROMPT },
     {
       role: 'user',
-      content: `Incident list (JSON): ${context}\n\nQuestion: ${message}`,
+      content: `${wrapAsData('incident_list', JSON.stringify(incidents))}\n\n${wrapAsData('question', message)}`,
     },
   ];
 }

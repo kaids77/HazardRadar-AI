@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
-import { after, test } from 'node:test';
+import { after, before, test } from 'node:test';
 
 import { createApp } from '../src/app.js';
 import { isAllowedOrigin } from '../src/cors.js';
+import { createTestTokens } from './tokens.js';
 
-const TOKEN = 'c'.repeat(32);
 const servers = [];
+let tokens;
+
+before(async () => {
+  tokens = await createTestTokens();
+});
 
 function startApp() {
   const groq = {
@@ -13,7 +18,12 @@ function startApp() {
       return JSON.stringify({ reply: 'All clear.', actions: [] });
     },
   };
-  const app = createApp({ config: { proxyToken: TOKEN }, groq, log: () => {} });
+  const app = createApp({
+    config: { rateLimitPerMinute: 30 },
+    groq,
+    verifyIdToken: tokens.verifyIdToken,
+    log: () => {},
+  });
   return new Promise((resolve) => {
     const server = app.listen(0, '127.0.0.1', () => {
       servers.push(server);
@@ -28,7 +38,7 @@ function preflight(base, origin) {
     headers: {
       Origin: origin,
       'Access-Control-Request-Method': 'POST',
-      'Access-Control-Request-Headers': 'content-type,x-proxy-token',
+      'Access-Control-Request-Headers': 'content-type,authorization',
     },
   });
 }
@@ -53,7 +63,7 @@ test('preflight from the Flutter web dev server succeeds without a token', async
 
   assert.equal(response.status, 204);
   assert.equal(response.headers.get('access-control-allow-origin'), 'http://localhost:5000');
-  assert.match(response.headers.get('access-control-allow-headers'), /x-proxy-token/);
+  assert.match(response.headers.get('access-control-allow-headers'), /authorization/);
 });
 
 test('preflight from another site gets no CORS headers and stays unauthorized', async () => {
@@ -64,7 +74,7 @@ test('preflight from another site gets no CORS headers and stays unauthorized', 
   assert.equal(response.headers.get('access-control-allow-origin'), null);
 });
 
-test('a POST from a loopback origin still needs the token', async () => {
+test('a POST from a loopback origin still needs an ID token', async () => {
   const base = await startApp();
   const body = JSON.stringify({ message: 'safe?', incidents: [] });
   const headers = { 'content-type': 'application/json', Origin: 'http://localhost:5000' };
@@ -74,7 +84,7 @@ test('a POST from a loopback origin still needs the token', async () => {
 
   const withToken = await fetch(`${base}/chat`, {
     method: 'POST',
-    headers: { ...headers, 'x-proxy-token': TOKEN },
+    headers: { ...headers, Authorization: `Bearer ${await tokens.sign('alice')}` },
     body,
   });
   assert.equal(withToken.status, 200);

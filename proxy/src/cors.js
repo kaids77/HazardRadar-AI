@@ -1,4 +1,4 @@
-// Browsers send a CORS preflight before the app's POST because of the x-proxy-token
+// Browsers send a CORS preflight before the app's POST because of the Authorization
 // header. The proxy listens on loopback only, so it accepts only pages served from this
 // machine (the Flutter web dev server). Any other site gets no CORS headers, and the
 // browser blocks its request.
@@ -18,7 +18,7 @@ export function loopbackCors() {
       res.set('Access-Control-Allow-Origin', origin);
       if (req.method === 'OPTIONS') {
         res.set('Access-Control-Allow-Methods', 'GET, POST');
-        res.set('Access-Control-Allow-Headers', 'content-type, x-proxy-token');
+        res.set('Access-Control-Allow-Headers', 'content-type, authorization');
         res.set('Access-Control-Max-Age', '600');
         res.status(204).end();
         return;
