@@ -48,16 +48,17 @@ class CameraPhotoCapture implements PhotoCapture {
     );
     if (shot == null) return null;
 
+    // compressWithList works on Android, iOS and web. compressWithFile is not
+    // implemented on web and throws there.
+    final original = await shot.readAsBytes();
     final bytes = await compressToLimit(
-      (quality) async =>
-          await FlutterImageCompress.compressWithFile(
-            shot.path,
-            quality: quality,
-            minWidth: _maxSide,
-            minHeight: _maxSide,
-            format: CompressFormat.jpeg,
-          ) ??
-          Uint8List(0),
+      (quality) => FlutterImageCompress.compressWithList(
+        original,
+        quality: quality,
+        minWidth: _maxSide,
+        minHeight: _maxSide,
+        format: CompressFormat.jpeg,
+      ),
     );
     return CompressedPhoto(bytes: bytes);
   }

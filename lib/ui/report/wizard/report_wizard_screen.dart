@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../services/location_service.dart';
@@ -68,8 +69,8 @@ class _ReportWizardScreenState extends State<ReportWizardScreen> {
       if (photo != null) _draft.setPhoto(photo);
     } on PhotoTooLargeException {
       _fail('That photo is too large to send. Try again.');
-    } catch (_) {
-      _fail('Could not use the camera.');
+    } catch (error) {
+      _fail('Could not use the camera.', error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -111,16 +112,16 @@ class _ReportWizardScreenState extends State<ReportWizardScreen> {
       if (mounted) Navigator.of(context).pop(true);
     } on ReportRejected catch (rejected) {
       _fail(rejected.message);
-    } catch (_) {
-      // Details stay out of the UI. The user can retry.
-      _fail('Could not send the report. Check your connection and try again.');
+    } catch (error) {
+      // Details show only in debug builds. The user can retry.
+      _fail('Could not send the report. Check your connection and try again.', error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
   }
 
-  void _fail(String message) {
-    if (mounted) setState(() => _error = message);
+  void _fail(String message, [Object? error]) {
+    if (mounted) setState(() => _error = kDebugMode && error != null ? '$message\n$error' : message);
   }
 
   @override
