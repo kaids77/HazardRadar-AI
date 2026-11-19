@@ -23,6 +23,7 @@ class Incident {
     this.resolutionNote,
     this.inProgressAt,
     this.resolvedAt,
+    this.geohash = '',
   });
 
   static const String statusActive = 'ACTIVE';
@@ -57,6 +58,9 @@ class Incident {
   final String? resolutionNote;
   final DateTime? inProgressAt;
   final DateTime? resolvedAt;
+
+  /// 6-character geohash cell, used for hotspot rankings.
+  final String geohash;
 
   bool get isQuarantined => visibility == visibilityQuarantined;
 
@@ -103,6 +107,7 @@ class Incident {
       resolutionNote: data['resolutionNote'] is String ? data['resolutionNote'] as String : null,
       inProgressAt: _date(data['inProgressAt']),
       resolvedAt: _date(data['resolvedAt']),
+      geohash: _string(data['geohash']),
     );
   }
 

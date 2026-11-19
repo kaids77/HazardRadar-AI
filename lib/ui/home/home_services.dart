@@ -1,3 +1,4 @@
+import '../../services/analytics.dart';
 import '../../services/app_settings.dart';
 import '../../services/chat_service.dart';
 import '../../services/dispatch_repository.dart';
@@ -26,6 +27,7 @@ class HomeServices {
     this.dispatch,
     this.userAdmin,
     this.moderation,
+    this.analytics,
     this.chat,
     this.enricher,
   });
@@ -47,6 +49,9 @@ class HomeServices {
 
   /// Quarantine review and storage estimate for staff. Null hides the tab.
   final ModerationRepository? moderation;
+
+  /// Admin analytics source. Null hides the tab.
+  final AnalyticsRepository? analytics;
 
   /// Null in builds without a proxy. The Radar AI button is hidden then.
   final ChatService? chat;

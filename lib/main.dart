@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'config/app_config.dart';
 import 'firebase_options.dart';
 import 'services/account_linker.dart';
+import 'services/analytics.dart';
 import 'services/app_settings.dart';
 import 'services/auth_service.dart';
 import 'services/chat_service.dart';
@@ -69,6 +70,7 @@ Future<void> main() async {
         dispatch: FirestoreDispatchRepository(),
         userAdmin: FirestoreUserAdminRepository(),
         moderation: FirestoreModerationRepository(),
+        analytics: FirestoreAnalyticsRepository(),
         chat: proxy == null ? null : ProxyChatService(proxy),
         enricher: proxyTriage == null
             ? null
