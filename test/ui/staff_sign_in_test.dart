@@ -36,6 +36,31 @@ void main() {
     expect(find.textContaining('No staff role on this account yet'), findsOneWidget);
   });
 
+  testWidgets('a Google account can sign out from Settings', (tester) async {
+    var signedOut = false;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: StaffSignInSection(
+              profile: _scout,
+              isEmailSession: false,
+              googleEmail: 'staff@example.com',
+              onCheckAccess: () async => _scout,
+              onSignIn: (_, _) async => _scout,
+              onSignOut: () async => signedOut = true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Sign out'));
+    await tester.pump();
+    expect(signedOut, isTrue);
+  });
+
   testWidgets('checking access after an admin set the role reports that staff access is on', (tester) async {
     await tester.pumpWidget(_app(() async => _admin));
 

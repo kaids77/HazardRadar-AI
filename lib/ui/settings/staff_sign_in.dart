@@ -99,6 +99,21 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
           ),
           child: Text(_busy ? 'Checking...' : 'Check staff access'),
         ),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          onPressed: _busy ? null : widget.onSignOut,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.ink,
+            side: const BorderSide(color: AppColors.ink),
+            shape: const RoundedRectangleBorder(),
+          ),
+          child: const Text('Sign out'),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Your points and reports stay on this Google account. After signing out you browse as a guest.',
+          style: textTheme.bodySmall,
+        ),
       ],
     );
   }

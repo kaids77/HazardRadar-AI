@@ -1,4 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 
 /// A sign-in failure the user can act on. The message is safe to show.
 class StaffSignInFailed implements Exception {
@@ -68,5 +70,16 @@ class FirebaseStaffAuth implements StaffAuth {
   }
 
   @override
-  Future<void> signOut() => _auth.signOut();
+  Future<void> signOut() async {
+    // Also forget the Google account on Android, so the next "Continue with Google"
+    // shows the account chooser instead of silently reusing the same account.
+    if (!kIsWeb && googleEmail != null) {
+      try {
+        await GoogleSignIn.instance.signOut();
+      } on Object {
+        // Not initialized or already signed out. Firebase sign-out below is what matters.
+      }
+    }
+    await _auth.signOut();
+  }
 }
