@@ -15,21 +15,36 @@ class ChatUnavailable implements Exception {
 }
 
 abstract interface class ChatService {
-  /// Asks about the hazards around [around]. Throws [ChatUnavailable] on failure.
-  Future<ChatReply> ask(String message, {required List<Incident> incidents, required LatLng around});
+  /// Asks about the hazards around [around]. [history] is the recent conversation
+  /// (at most [ProxyChatService.maxHistoryTurns]), sent as context.
+  /// Throws [ChatUnavailable] on failure.
+  Future<ChatReply> ask(
+    String message, {
+    required List<Incident> incidents,
+    required LatLng around,
+    List<ChatTurn> history = const [],
+    ChatMode? mode,
+  });
 }
 
 class ProxyChatService implements ChatService {
   const ProxyChatService(this._proxy);
 
-  /// Must match `MAX_MESSAGE_LENGTH` and `MAX_INCIDENTS` in proxy/src/chat.js.
+  /// Must match `MAX_MESSAGE_LENGTH`, `MAX_INCIDENTS`, and `MAX_HISTORY_TURNS` in proxy/src/chat.js.
   static const int maxMessageLength = 500;
   static const int maxIncidents = 20;
+  static const int maxHistoryTurns = 6;
 
   final ProxyClient _proxy;
 
   @override
-  Future<ChatReply> ask(String message, {required List<Incident> incidents, required LatLng around}) async {
+  Future<ChatReply> ask(
+    String message, {
+    required List<Incident> incidents,
+    required LatLng around,
+    List<ChatTurn> history = const [],
+    ChatMode? mode,
+  }) async {
     final trimmed = message.trim();
     if (trimmed.isEmpty) throw const ChatUnavailable('Type a question first.');
     if (trimmed.length > maxMessageLength) {
@@ -37,6 +52,7 @@ class ProxyChatService implements ChatService {
     }
 
     final nearest = nearestIncidents(incidents, around, limit: maxIncidents);
+    final recent = history.length > maxHistoryTurns ? history.sublist(history.length - maxHistoryTurns) : history;
     final Object? json;
     try {
       json = await _proxy.postJson('chat', {
@@ -51,6 +67,15 @@ class ProxyChatService implements ChatService {
               'aiSummary': incident.aiSummary,
             },
         ],
+        'history': [
+          for (final turn in recent)
+            if (turn.text.trim().isNotEmpty)
+              ChatTurn(
+                fromUser: turn.fromUser,
+                text: turn.text.length > maxMessageLength ? turn.text.substring(0, maxMessageLength) : turn.text,
+              ).toJson(),
+        ],
+        'mode': ?mode?.wire,
       });
     } on ProxyException {
       throw const ChatUnavailable('Radar AI is not reachable right now. Try again in a moment.');

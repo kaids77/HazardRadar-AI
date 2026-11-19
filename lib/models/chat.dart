@@ -65,15 +65,40 @@ class ChatReply {
   }
 }
 
-/// One line in the conversation.
+/// One line in the conversation. Interview questions carry [choices] to tap.
 class ChatMessage {
   const ChatMessage.user(this.text)
       : fromUser = true,
-        actions = const [];
+        actions = const [],
+        choices = const [];
 
-  const ChatMessage.assistant(this.text, {this.actions = const []}) : fromUser = false;
+  const ChatMessage.assistant(this.text, {this.actions = const [], this.choices = const []}) : fromUser = false;
 
   final String text;
   final bool fromUser;
   final List<ChatAction> actions;
+  final List<String> choices;
+}
+
+/// A chat mode. [wire] must match MODE_HINTS in proxy/src/chat.js.
+enum ChatMode {
+  analysis('analysis', 'Risk analysis'),
+  recommendations('recommendations', 'Recommendations'),
+  commuter('commuter', 'Ask commuter'),
+  detour('detour', 'Safe detour');
+
+  const ChatMode(this.wire, this.label);
+
+  final String wire;
+  final String label;
+}
+
+/// One earlier turn sent to the proxy as context.
+class ChatTurn {
+  const ChatTurn({required this.fromUser, required this.text});
+
+  final bool fromUser;
+  final String text;
+
+  Map<String, String> toJson() => {'role': fromUser ? 'user' : 'assistant', 'content': text};
 }

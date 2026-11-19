@@ -20,7 +20,13 @@ const _wire = Incident(
 
 class _Chat implements ChatService {
   @override
-  Future<ChatReply> ask(String message, {required List<Incident> incidents, required LatLng around}) async =>
+  Future<ChatReply> ask(
+    String message, {
+    required List<Incident> incidents,
+    required LatLng around,
+    List<ChatTurn> history = const [],
+    ChatMode? mode,
+  }) async =>
       const ChatReply(
         reply: 'Avoid the sparking wire ahead.',
         actions: [ShowOnMap('wire-1'), OpenReport()],

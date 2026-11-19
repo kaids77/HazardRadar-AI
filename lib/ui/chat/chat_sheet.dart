@@ -110,11 +110,37 @@ class _ChatSheetState extends State<ChatSheet> {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Start over',
+                    onPressed: widget.controller.reset,
+                    icon: const Icon(Icons.restart_alt, color: AppColors.ink),
+                  ),
+                  IconButton(
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
                     icon: const Icon(Icons.close, color: AppColors.ink),
                   ),
                 ],
+              ),
+            ),
+            ListenableBuilder(
+              listenable: widget.controller,
+              builder: (context, _) => SizedBox(
+                height: 44,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  children: [
+                    for (final mode in ChatMode.values)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: ChoiceChip(
+                          label: Text(mode.label),
+                          selected: widget.controller.mode == mode,
+                          onSelected: (selected) => widget.controller.setMode(selected ? mode : null),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             const Divider(),
@@ -127,8 +153,32 @@ class _ChatSheetState extends State<ChatSheet> {
                     controller: _scroll,
                     padding: const EdgeInsets.all(20),
                     children: [
-                      for (final message in messages) ...[
+                      for (final (index, message) in messages.indexed) ...[
                         _Bubble(message: message),
+                        // Only the newest interview question takes answers.
+                        if (message.choices.isNotEmpty && index == messages.length - 1 && widget.controller.interviewing)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: [
+                                for (final choice in message.choices)
+                                  OutlinedButton(
+                                    onPressed: widget.controller.waiting
+                                        ? null
+                                        : () => widget.controller
+                                            .answer(choice, incidents: widget.incidents(), around: widget.around()),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: AppColors.ink,
+                                      side: const BorderSide(color: AppColors.ink),
+                                      shape: const RoundedRectangleBorder(),
+                                    ),
+                                    child: Text(choice),
+                                  ),
+                              ],
+                            ),
+                          ),
                         for (final action in message.actions)
                           Padding(
                             padding: const EdgeInsets.only(top: 8),
@@ -157,6 +207,24 @@ class _ChatSheetState extends State<ChatSheet> {
               ),
             ),
             const Divider(),
+            SizedBox(
+              height: 44,
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                children: [
+                  for (final prompt in QuickPrompt.all)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: ActionChip(
+                        label: Text(prompt.label),
+                        onPressed: () => widget.controller
+                            .sendPrompt(prompt, incidents: widget.incidents(), around: widget.around()),
+                      ),
+                    ),
+                ],
+              ),
+            ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
               child: Row(
