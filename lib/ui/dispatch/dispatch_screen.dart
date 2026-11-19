@@ -5,18 +5,22 @@ import '../../services/dispatch_repository.dart';
 import '../../theme/app_theme.dart';
 import 'dispatch_queue_screen.dart';
 
-/// The staff tab. Dispatchers (Level 4) see the queue. Admin sub-tabs
-/// (users, quarantine, analytics) are added as [adminTabs].
+/// The staff tab. Dispatchers (Level 4) see the queue and [staffTabs]; admins also
+/// see [adminTabs] (users, analytics).
 class DispatchScreen extends StatelessWidget {
   const DispatchScreen({
     super.key,
     required this.profile,
     required this.dispatch,
+    this.staffTabs = const [],
     this.adminTabs = const [],
   });
 
   final UserProfile profile;
   final DispatchRepository dispatch;
+
+  /// Extra (label, page) pairs shown to every staff member.
+  final List<(String, Widget)> staffTabs;
 
   /// Extra (label, page) pairs shown only to admins.
   final List<(String, Widget)> adminTabs;
@@ -25,6 +29,7 @@ class DispatchScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final tabs = <(String, Widget)>[
       ('Queue', DispatchQueueScreen(profile: profile, dispatch: dispatch)),
+      ...staffTabs,
       if (profile.isAdmin) ...adminTabs,
     ];
     if (tabs.length == 1) return tabs.single.$2;

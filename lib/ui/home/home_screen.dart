@@ -8,6 +8,7 @@ import '../../services/report_limit_policy.dart';
 import '../../theme/app_theme.dart';
 import '../account/account_sheet.dart';
 import '../dispatch/dispatch_screen.dart';
+import '../dispatch/quarantine_screen.dart';
 import '../dispatch/user_manager_screen.dart';
 import '../map/map_screen.dart';
 import '../report/wizard/report_wizard_screen.dart';
@@ -189,6 +190,10 @@ class _HomeScreenState extends State<HomeScreen> {
           key: ValueKey(profile.uid),
           profile: profile,
           dispatch: dispatch,
+          staffTabs: [
+            if (_s.moderation case final moderation?)
+              ('Quarantine', QuarantineScreen(profile: profile, moderation: moderation)),
+          ],
           adminTabs: [
             if (_s.userAdmin case final users?) ('Users', UserManagerScreen(admin: profile, users: users)),
           ],

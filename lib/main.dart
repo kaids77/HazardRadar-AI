@@ -11,6 +11,7 @@ import 'services/chat_service.dart';
 import 'services/dispatch_repository.dart';
 import 'services/incident_repository.dart';
 import 'services/location_service.dart';
+import 'services/moderation_repository.dart';
 import 'services/my_reports_repository.dart';
 import 'services/photo_service.dart';
 import 'services/profile_repository.dart';
@@ -67,6 +68,7 @@ Future<void> main() async {
         settings: AppSettings(SharedPreferencesSettingsStore()),
         dispatch: FirestoreDispatchRepository(),
         userAdmin: FirestoreUserAdminRepository(),
+        moderation: FirestoreModerationRepository(),
         chat: proxy == null ? null : ProxyChatService(proxy),
         enricher: proxyTriage == null
             ? null

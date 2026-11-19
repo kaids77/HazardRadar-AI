@@ -3,6 +3,7 @@ import '../../services/chat_service.dart';
 import '../../services/dispatch_repository.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
+import '../../services/moderation_repository.dart';
 import '../../services/my_reports_repository.dart';
 import '../../services/photo_service.dart';
 import '../../services/report_enricher.dart';
@@ -24,6 +25,7 @@ class HomeServices {
     required this.settings,
     this.dispatch,
     this.userAdmin,
+    this.moderation,
     this.chat,
     this.enricher,
   });
@@ -42,6 +44,9 @@ class HomeServices {
 
   /// Admin user management. Null in tests that do not cover it; the tab is hidden then.
   final UserAdminRepository? userAdmin;
+
+  /// Quarantine review and storage estimate for staff. Null hides the tab.
+  final ModerationRepository? moderation;
 
   /// Null in builds without a proxy. The Radar AI button is hidden then.
   final ChatService? chat;
