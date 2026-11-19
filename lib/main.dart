@@ -8,6 +8,7 @@ import 'services/account_linker.dart';
 import 'services/app_settings.dart';
 import 'services/auth_service.dart';
 import 'services/chat_service.dart';
+import 'services/dispatch_repository.dart';
 import 'services/incident_repository.dart';
 import 'services/location_service.dart';
 import 'services/my_reports_repository.dart';
@@ -18,6 +19,7 @@ import 'services/report_enricher.dart';
 import 'services/report_repository.dart';
 import 'services/report_service.dart';
 import 'services/session_service.dart';
+import 'services/staff_auth.dart';
 import 'services/triage_service.dart';
 import 'services/vote_repository.dart';
 import 'theme/app_theme.dart';
@@ -34,6 +36,7 @@ Future<void> main() async {
     auth: auth,
     profiles: FirestoreProfileRepository(),
     linker: FirebaseGoogleLinker(serverClientId: AppConfig.googleServerClientId),
+    staffAuth: FirebaseStaffAuth(),
   );
 
   final proxyUrl = AppConfig.parseProxyUrl(AppConfig.proxyUrl);
@@ -61,6 +64,7 @@ Future<void> main() async {
         votes: FirestoreVoteRepository(),
         myReports: FirestoreMyReportsRepository(),
         settings: AppSettings(SharedPreferencesSettingsStore()),
+        dispatch: FirestoreDispatchRepository(),
         chat: proxy == null ? null : ProxyChatService(proxy),
         enricher: proxyTriage == null
             ? null

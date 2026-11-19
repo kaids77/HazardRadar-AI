@@ -7,10 +7,12 @@ import '../../models/user_profile.dart';
 import '../../services/report_limit_policy.dart';
 import '../../theme/app_theme.dart';
 import '../account/account_sheet.dart';
+import '../dispatch/dispatch_screen.dart';
 import '../map/map_screen.dart';
 import '../report/wizard/report_wizard_screen.dart';
 import '../reports/my_reports_screen.dart';
 import '../settings/settings_screen.dart';
+import '../settings/staff_sign_in.dart';
 import 'home_services.dart';
 
 /// Waits for sign-in and the profile, then shows the three tabs:
@@ -170,36 +172,78 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ],
     );
+    final staffAuth = _s.session.staffAuth;
+    final dispatch = _s.dispatch;
+    final showDispatch = profile.isStaff && dispatch != null;
+    final pages = <Widget>[
+      radar,
+      MyReportsScreen(
+        profile: profile,
+        reports: _s.myReports,
+        onSignIn: () => _openAccount(profile),
+        onPickBadge: (badge) => _pickBadge(profile, badge),
+      ),
+      if (showDispatch) DispatchScreen(key: ValueKey(profile.uid), profile: profile, dispatch: dispatch),
+      SettingsScreen(
+        profile: profile,
+        settings: _s.settings,
+        onAccount: () => _openAccount(profile),
+        staffSection: staffAuth == null
+            ? null
+            : StaffSignInSection(
+                profile: profile,
+                isEmailSession: staffAuth.isEmailSession,
+                onSignIn: _signInStaff,
+                onSignOut: _signOutStaff,
+              ),
+      ),
+    ];
+    final tab = _tab.clamp(0, pages.length - 1);
     return _Frame(
       tierLabel: profile.tierTitle,
       onAccount: () => _openAccount(profile),
-      onReport: _tab == 0 ? _openReport : null,
-      body: IndexedStack(
-        index: _tab,
-        children: [
-          radar,
-          MyReportsScreen(
-            profile: profile,
-            reports: _s.myReports,
-            onSignIn: () => _openAccount(profile),
-            onPickBadge: (badge) => _pickBadge(profile, badge),
-          ),
-          SettingsScreen(profile: profile, settings: _s.settings, onAccount: () => _openAccount(profile)),
-        ],
-      ),
+      onReport: tab == 0 ? _openReport : null,
+      body: IndexedStack(index: tab, children: pages),
       bottom: NavigationBar(
-        selectedIndex: _tab,
+        selectedIndex: tab,
         onDestinationSelected: (index) {
           setState(() => _tab = index);
           if (index == 1) unawaited(_refresh());
         },
-        destinations: const [
-          NavigationDestination(icon: Icon(Icons.radar), label: 'Radar'),
-          NavigationDestination(icon: Icon(Icons.list_alt), label: 'My Reports'),
-          NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings'),
+        destinations: [
+          const NavigationDestination(icon: Icon(Icons.radar), label: 'Radar'),
+          const NavigationDestination(icon: Icon(Icons.list_alt), label: 'My Reports'),
+          if (showDispatch) const NavigationDestination(icon: Icon(Icons.engineering_outlined), label: 'Dispatch'),
+          const NavigationDestination(icon: Icon(Icons.settings_outlined), label: 'Settings'),
         ],
       ),
     );
+  }
+
+  Future<UserProfile> _signInStaff(String email, String password) async {
+    final profile = await _s.session.signInStaff(email: email, password: password);
+    if (mounted) {
+      setState(() {
+        _latest = profile;
+        _tab = 0;
+      });
+      _toast(profile.isStaff ? 'Signed in as ${profile.tierTitle}.' : 'Signed in.');
+    }
+    return profile;
+  }
+
+  Future<void> _signOutStaff() async {
+    try {
+      final profile = await _s.session.signOutStaff();
+      if (!mounted) return;
+      setState(() {
+        _latest = profile;
+        _tab = 0;
+      });
+      _toast('Signed out. You are browsing as a guest.');
+    } catch (_) {
+      if (mounted) _toast('Could not sign out. Try again.');
+    }
   }
 }
 

@@ -5,6 +5,7 @@ import 'package:hazardradarai/services/account_linker.dart';
 import 'package:hazardradarai/services/auth_service.dart';
 import 'package:hazardradarai/services/profile_repository.dart';
 import 'package:hazardradarai/services/session_service.dart';
+import 'package:hazardradarai/services/staff_auth.dart';
 
 class FakeAuthService implements AuthService {
   FakeAuthService(this.uid);
@@ -76,6 +77,7 @@ class FakeLinker implements AccountLinker {
 }
 
 void main() {
+  staffTests();
   test('start signs in first, then loads the profile for that uid', () async {
     final auth = FakeAuthService('uid-123');
     final profiles = FakeProfileRepository();
@@ -146,5 +148,63 @@ void main() {
       final missing = SessionService(auth: FakeAuthService('guest'), profiles: FakeProfileRepository());
       expect(missing.upgradeWithGoogle(), throwsA(isA<LinkFailed>()));
     });
+  });
+}
+
+class FakeStaffAuth implements StaffAuth {
+  FakeStaffAuth({this.fail = false});
+
+  final bool fail;
+  bool signedIn = false;
+  bool signedOut = false;
+
+  @override
+  bool get isEmailSession => signedIn;
+
+  @override
+  Future<String> signIn({required String email, required String password}) async {
+    if (fail) throw const StaffSignInFailed('Wrong email or password.');
+    signedIn = true;
+    return 'staff-uid';
+  }
+
+  @override
+  Future<void> signOut() async {
+    signedIn = false;
+    signedOut = true;
+  }
+}
+
+void staffTests() {
+  test('staff sign-in signs in, then loads the profile', () async {
+    final staff = FakeStaffAuth();
+    final session = SessionService(auth: FakeAuthService('staff-uid'), profiles: FakeProfileRepository(), staffAuth: staff);
+
+    final profile = await session.signInStaff(email: 'a@city.gov.ph', password: 'pw');
+
+    expect(staff.signedIn, isTrue);
+    expect(profile.uid, 'staff-uid');
+  });
+
+  test('a failed staff sign-in reports the message; without staff auth it fails clearly', () async {
+    final failing = SessionService(
+      auth: FakeAuthService('x'),
+      profiles: FakeProfileRepository(),
+      staffAuth: FakeStaffAuth(fail: true),
+    );
+    expect(failing.signInStaff(email: 'a', password: 'b'), throwsA(isA<StaffSignInFailed>()));
+
+    final none = SessionService(auth: FakeAuthService('x'), profiles: FakeProfileRepository());
+    expect(none.signInStaff(email: 'a', password: 'b'), throwsA(isA<StaffSignInFailed>()));
+  });
+
+  test('staff sign-out starts a new session', () async {
+    final staff = FakeStaffAuth()..signedIn = true;
+    final session = SessionService(auth: FakeAuthService('guest'), profiles: FakeProfileRepository(), staffAuth: staff);
+
+    final profile = await session.signOutStaff();
+
+    expect(staff.signedOut, isTrue);
+    expect(profile.uid, 'guest');
   });
 }

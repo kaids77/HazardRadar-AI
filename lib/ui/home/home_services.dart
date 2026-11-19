@@ -1,5 +1,6 @@
 import '../../services/app_settings.dart';
 import '../../services/chat_service.dart';
+import '../../services/dispatch_repository.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
 import '../../services/my_reports_repository.dart';
@@ -20,6 +21,7 @@ class HomeServices {
     required this.votes,
     required this.myReports,
     required this.settings,
+    this.dispatch,
     this.chat,
     this.enricher,
   });
@@ -32,6 +34,9 @@ class HomeServices {
   final VoteRepository votes;
   final MyReportsRepository myReports;
   final AppSettings settings;
+
+  /// Staff queue actions. Null in tests that do not cover dispatch; the tab is hidden then.
+  final DispatchRepository? dispatch;
 
   /// Null in builds without a proxy. The Radar AI button is hidden then.
   final ChatService? chat;
