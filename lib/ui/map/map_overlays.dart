@@ -139,13 +139,27 @@ class MapLabel extends StatelessWidget {
   }
 }
 
-/// Shown once when a new High-risk report appears after the map loaded.
+/// Flat red-orange alert for a High-risk hazard. Used for a new report after the map
+/// loaded, and for a High hazard within 100 m of the commuter.
 class NewHighRiskBanner extends StatelessWidget {
-  const NewHighRiskBanner({super.key, required this.incident, required this.onOpen, required this.onDismiss});
+  const NewHighRiskBanner({
+    super.key,
+    required this.incident,
+    required this.onOpen,
+    required this.onDismiss,
+    this.title = 'New high-risk report',
+    this.detail,
+    this.dismissTooltip = 'Dismiss',
+  });
 
   final Incident incident;
   final VoidCallback onOpen;
   final VoidCallback onDismiss;
+  final String title;
+
+  /// Defaults to "category · reference. Tap to open."
+  final String? detail;
+  final String dismissTooltip;
 
   @override
   Widget build(BuildContext context) {
@@ -162,16 +176,16 @@ class NewHighRiskBanner extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('New high-risk report', style: textTheme.labelLarge?.copyWith(color: AppColors.onRedOrange)),
+                    Text(title, style: textTheme.labelLarge?.copyWith(color: AppColors.onRedOrange)),
                     Text(
-                      '${incident.category} · ${incident.reference}. Tap to open.',
+                      detail ?? '${incident.category} · ${incident.reference}. Tap to open.',
                       style: textTheme.bodySmall?.copyWith(color: AppColors.onRedOrange),
                     ),
                   ],
                 ),
               ),
               IconButton(
-                tooltip: 'Dismiss',
+                tooltip: dismissTooltip,
                 onPressed: onDismiss,
                 icon: const Icon(Icons.close, color: AppColors.onRedOrange),
               ),

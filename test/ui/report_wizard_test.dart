@@ -59,6 +59,9 @@ class _Location implements LocationProvider {
 
   @override
   Future<LocationFix?> currentFix() async => fix;
+
+  @override
+  Stream<LocationFix> watchFix() => const Stream.empty();
 }
 
 Future<_Repo> _open(WidgetTester tester, {LocationFix? fix = const LocationFix(_cebu, accuracyMeters: 4)}) async {

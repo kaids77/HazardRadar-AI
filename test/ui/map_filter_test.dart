@@ -52,20 +52,29 @@ class _Votes implements VoteRepository {
 }
 
 class _Location implements LocationProvider {
+  _Location([this.start = fix]);
+
   static const fix = LocationFix(GeolocatorLocationService.fallbackCenter, accuracyMeters: 6);
 
-  @override
-  Future<LatLng> currentOrFallback() async => fix.position;
+  final LocationFix start;
+  final moves = StreamController<LocationFix>.broadcast();
 
   @override
-  Future<LatLng?> current() async => fix.position;
+  Future<LatLng> currentOrFallback() async => start.position;
 
   @override
-  Future<LocationFix?> currentFix() async => fix;
+  Future<LatLng?> current() async => start.position;
+
+  @override
+  Future<LocationFix?> currentFix() async => start;
+
+  @override
+  Stream<LocationFix> watchFix() => moves.stream;
 }
 
 void main() {
   detourTests();
+  nearbyTests();
 
   test('filters by risk and category', () {
     expect(applyMapFilter(_items, MapFilter.all, ''), hasLength(3));
@@ -171,5 +180,51 @@ void detourTests() {
     await tester.tap(find.text('Clear route'));
     await tester.pump();
     expect(find.textContaining('min walk'), findsNothing);
+  });
+}
+
+void nearbyTests() {
+  testWidgets('Nearby alert: walking within 100 m of a High hazard warns once per session', (tester) async {
+    final repo = _Stream();
+    // Start about 2.5 km away from the pins.
+    final location = _Location(const LocationFix(LatLng(10.3400, 123.9500), accuracyMeters: 6));
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: MapScreen(
+            incidents: repo,
+            location: location,
+            profile: const UserProfile(uid: 'u', role: 'CITIZEN', tier: 2, accountStatus: 'ACTIVE'),
+            votes: _Votes(),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    repo.controller.add(_items.sublist(0, 2));
+    await tester.pump();
+    expect(find.text('High-risk hazard nearby'), findsNothing);
+
+    location.moves.add(_Location.fix);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('High-risk hazard nearby'), findsOneWidget);
+    expect(find.text('Electrical about 0 m from you. Tap to open.'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Dismiss nearby alert'));
+    await tester.pump();
+    expect(find.text('High-risk hazard nearby'), findsNothing);
+
+    // Walking away and back does not repeat the alert for the same hazard.
+    location.moves.add(const LocationFix(LatLng(10.3400, 123.9500)));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('GPS on'), findsOneWidget);
+    location.moves.add(_Location.fix);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('GPS ±6 m'), findsOneWidget);
+    expect(find.text('High-risk hazard nearby'), findsNothing);
   });
 }

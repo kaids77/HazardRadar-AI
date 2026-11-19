@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -21,6 +23,9 @@ import 'incident_sheet.dart';
 import 'map_filter.dart';
 import 'map_overlays.dart';
 import 'map_style.dart';
+import 'map_tiles.dart';
+import 'pin_clusters.dart';
+import 'proximity_alert.dart';
 import 'risk_style.dart';
 
 /// Live map of public hazards (active and in progress), centered on the commuter.
@@ -62,11 +67,22 @@ class MapScreen extends StatefulWidget {
 
 class _MapScreenState extends State<MapScreen> {
   final MapController _map = MapController();
+  late final TileProvider _tiles = cachedTileProvider();
   StreamSubscription<List<Incident>>? _subscription;
+  StreamSubscription<LocationFix>? _moves;
   ChatController? _chat;
 
   LatLng? _center;
   LocationFix? _fix;
+
+  /// Whole-number zoom used for clustering. Pins regroup only when it changes.
+  double _clusterZoom = _initialZoom;
+  static const double _initialZoom = 15;
+
+  /// High hazards already announced as nearby. The map stays alive in the home
+  /// IndexedStack, so this lasts for the session and each hazard alerts once.
+  final Set<String> _warned = {};
+  NearbyHazard? _nearby;
 
   /// Latest pins from the stream. Radar AI reads these when a question is sent.
   List<Incident> _latest = const [];
@@ -129,15 +145,55 @@ class _MapScreenState extends State<MapScreen> {
     _subscription = widget.incidents.watchActivePublic().listen(_onIncidents, onError: (_) {
       if (mounted) setState(() => _loadError = true);
     });
-    _locate();
+    // Start following the commuter only after the first fix, so the two permission
+    // requests never overlap, and only when location is actually available.
+    _locate().then((_) {
+      if (mounted && _fix != null) _moves = widget.location.watchFix().listen(_onMove);
+    });
   }
 
   @override
   void dispose() {
     _subscription?.cancel();
+    _moves?.cancel();
     _chat?.dispose();
     _map.dispose();
     super.dispose();
+  }
+
+  void _onMove(LocationFix fix) {
+    if (!mounted) return;
+    setState(() {
+      _fix = fix;
+      _updateNearby();
+    });
+  }
+
+  /// Call inside setState. Shows the closest unannounced High hazard within 100 m,
+  /// and drops the alert when that hazard leaves the map (resolved or quarantined).
+  void _updateNearby() {
+    final current = _nearby;
+    if (current != null && !_latest.any((i) => i.id == current.incident.id)) _nearby = null;
+    final me = _fix?.position;
+    if (me == null || _nearby != null) return;
+    final hit = nearestUnwarnedHigh(me, _latest, _warned);
+    if (hit == null) return;
+    _warned.add(hit.incident.id);
+    _nearby = hit;
+  }
+
+  void _onCamera(MapCamera camera, bool hasGesture) {
+    final zoom = camera.zoom.floorToDouble();
+    if (zoom == _clusterZoom) return;
+    _clusterZoom = zoom;
+    // The camera can settle during layout; never call setState in the middle of a build.
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    } else {
+      setState(() {});
+    }
   }
 
   Future<void> _locate() async {
@@ -149,6 +205,7 @@ class _MapScreenState extends State<MapScreen> {
       _center ??= position != null && philippinesBounds.contains(position)
           ? position
           : GeolocatorLocationService.fallbackCenter;
+      _updateNearby();
     });
   }
 
@@ -157,12 +214,14 @@ class _MapScreenState extends State<MapScreen> {
     setState(() {
       _loadError = false;
       final seen = _seen;
+      _latest = incidents;
+      _updateNearby();
       if (seen != null) {
         final fresh = newHighRisk(seen, incidents);
-        if (fresh.isNotEmpty) _alert = fresh.first;
+        // A new report that is already announced as nearby needs no second banner.
+        if (fresh.isNotEmpty && fresh.first.id != _nearby?.incident.id) _alert = fresh.first;
       }
       _seen = {...?seen, for (final incident in incidents) incident.id};
-      _latest = incidents;
     });
   }
 
@@ -235,15 +294,17 @@ class _MapScreenState extends State<MapScreen> {
       _query,
     );
     final alert = _alert;
+    final nearby = _nearby;
     return Stack(
       children: [
         FlutterMap(
           mapController: _map,
           options: MapOptions(
             initialCenter: center,
-            initialZoom: 15,
+            initialZoom: _initialZoom,
             minZoom: 5,
             cameraConstraint: CameraConstraint.contain(bounds: philippinesBounds),
+            onPositionChanged: _onCamera,
             onTap: (_, point) {
               if (_pickingDestination) _planDetour(point);
             },
@@ -252,6 +313,7 @@ class _MapScreenState extends State<MapScreen> {
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
               userAgentPackageName: 'com.example.hazardradarai',
+              tileProvider: _tiles,
               tileBuilder: tintedTileBuilder,
             ),
             if (_route case final route?)
@@ -283,7 +345,12 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ],
               ),
-            MarkerLayer(markers: [for (final incident in shown) _markerFor(incident)]),
+            MarkerLayer(
+              markers: [
+                for (final cluster in clusterPins(shown, zoom: _clusterZoom))
+                  cluster.isSingle ? _markerFor(cluster.members.single) : _clusterMarker(cluster),
+              ],
+            ),
             RichAttributionWidget(attributions: [TextSourceAttribution('OpenStreetMap contributors')]),
           ],
         ),
@@ -309,6 +376,20 @@ class _MapScreenState extends State<MapScreen> {
                 selected: _filter,
                 onSelected: (filter) => setState(() => _filter = filter),
               ),
+              if (nearby != null) ...[
+                const SizedBox(height: 8),
+                NewHighRiskBanner(
+                  incident: nearby.incident,
+                  title: 'High-risk hazard nearby',
+                  detail: '${nearby.incident.category} about ${nearby.meters.round()} m from you. Tap to open.',
+                  dismissTooltip: 'Dismiss nearby alert',
+                  onOpen: () {
+                    setState(() => _nearby = null);
+                    _focus(nearby.incident);
+                  },
+                  onDismiss: () => setState(() => _nearby = null),
+                ),
+              ],
               if (alert != null) ...[
                 const SizedBox(height: 8),
                 NewHighRiskBanner(
@@ -364,6 +445,43 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
       ],
+    );
+  }
+
+  /// A flat square block with the pin count, in the color of the most severe member.
+  /// Square, unlike the round single pins, so the two never get confused.
+  Marker _clusterMarker(PinCluster cluster) {
+    final count = cluster.members.length;
+    final risk = cluster.topRisk;
+    return Marker(
+      point: cluster.center,
+      width: 48,
+      height: 48,
+      child: Semantics(
+        button: true,
+        label: '$count hazards here, highest risk $risk. Tap to zoom in.',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => _map.move(cluster.center, math.min(_map.camera.zoom + 2, clusterMaxZoom)),
+          child: Center(
+            child: Container(
+              width: 36,
+              height: 36,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: riskColor(risk),
+                border: Border.all(color: AppColors.cream, width: 2),
+              ),
+              child: Text(
+                count > 99 ? '99+' : '$count',
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: risk == 'High' ? AppColors.onRedOrange : AppColors.cream,
+                    ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 

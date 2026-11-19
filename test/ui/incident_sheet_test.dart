@@ -66,6 +66,9 @@ class _Location implements LocationProvider {
 
   @override
   Future<LocationFix?> currentFix() async => position == null ? null : LocationFix(position!);
+
+  @override
+  Stream<LocationFix> watchFix() => const Stream.empty();
 }
 
 UserProfile _profile(int tier, {String uid = 'me'}) =>

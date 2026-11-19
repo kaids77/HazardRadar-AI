@@ -92,6 +92,9 @@ class _FixedLocation implements LocationProvider {
 
   @override
   Future<LocationFix?> currentFix() async => const LocationFix(GeolocatorLocationService.fallbackCenter);
+
+  @override
+  Stream<LocationFix> watchFix() => const Stream.empty();
 }
 
 class _NoPhotos implements PhotoCapture {
