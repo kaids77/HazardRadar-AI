@@ -6,6 +6,7 @@ import '../../models/incident.dart';
 import '../../models/user_profile.dart';
 import '../../services/dispatch_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/pull_to_refresh.dart';
 import 'dispatch_dialogs.dart';
 import 'ticket_card.dart';
 
@@ -21,7 +22,7 @@ class DispatchQueueScreen extends StatefulWidget {
 }
 
 class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
-  late final Stream<List<Incident>> _queue = widget.dispatch.watchQueue();
+  late Stream<List<Incident>> _queue = widget.dispatch.watchQueue();
   ({int resolved, int quarantined})? _closed;
   String? _risk;
   final Set<String> _busy = {};
@@ -30,6 +31,12 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
   void initState() {
     super.initState();
     _loadCounts();
+  }
+
+  /// Pull-to-refresh: re-subscribes the queue (revives it after an error) and reloads the counts.
+  Future<void> _reload() async {
+    setState(() => _queue = widget.dispatch.watchQueue());
+    await _loadCounts();
   }
 
   Future<void> _loadCounts() async {
@@ -100,7 +107,10 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
         final open = [for (final i in snapshot.data ?? const <Incident>[]) if (!i.isQuarantined) i];
         final shown = DispatchPolicy.sortQueue(_risk == null ? open : open.where((i) => i.riskLevel == _risk));
         final closed = _closed;
-        return ListView(
+        return PullToRefresh(
+          onRefresh: _reload,
+          child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
             Row(
@@ -125,7 +135,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
             ),
             const SizedBox(height: 12),
             if (snapshot.hasError)
-              const Text('Could not load the queue. Check your connection.')
+              const Text('Could not load the queue. Pull down to try again.')
             else if (!snapshot.hasData)
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (shown.isEmpty)
@@ -143,6 +153,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
                 const SizedBox(height: 10),
               ],
           ],
+          ),
         );
       },
     );

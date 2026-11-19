@@ -27,6 +27,7 @@ import 'services/triage_service.dart';
 import 'services/user_admin_repository.dart';
 import 'services/vote_repository.dart';
 import 'theme/app_theme.dart';
+import 'ui/common/pull_to_refresh.dart';
 import 'ui/home/home_screen.dart';
 import 'ui/home/home_services.dart';
 import 'ui/splash/splash_screen.dart';
@@ -93,6 +94,7 @@ class HazardRadarApp extends StatelessWidget {
       title: 'HazardRadar AI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
+      scrollBehavior: const AppScrollBehavior(),
       home: SplashScreen(nextBuilder: (_) => HomeScreen(services: services)),
     );
   }

@@ -7,6 +7,7 @@ import '../../models/user_profile.dart';
 import '../../services/dispatch_repository.dart';
 import '../../services/moderation_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/incident_evidence.dart';
 import 'storage_meter.dart';
@@ -23,7 +24,7 @@ class QuarantineScreen extends StatefulWidget {
 }
 
 class _QuarantineScreenState extends State<QuarantineScreen> {
-  late final Stream<List<Incident>> _queue = widget.moderation.watchQuarantined();
+  late Stream<List<Incident>> _queue = widget.moderation.watchQuarantined();
   StorageEstimate? _storage;
   final Set<String> _busy = {};
 
@@ -85,7 +86,13 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
       stream: _queue,
       builder: (context, snapshot) {
         final items = snapshot.data ?? const <Incident>[];
-        return ListView(
+        return PullToRefresh(
+          onRefresh: () async {
+            setState(() => _queue = widget.moderation.watchQuarantined());
+            await _loadStorage();
+          },
+          child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
             StorageMeter(estimate: _storage),
@@ -93,7 +100,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
             Text('Quarantined reports (${items.length})', style: textTheme.titleMedium),
             const SizedBox(height: 8),
             if (snapshot.hasError)
-              const Text('Could not load the quarantine queue.')
+              const Text('Could not load the quarantine queue. Pull down to try again.')
             else if (!snapshot.hasData)
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (items.isEmpty)
@@ -148,6 +155,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
                 const SizedBox(height: 10),
               ],
           ],
+          ),
         );
       },
     );

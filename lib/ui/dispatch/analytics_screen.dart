@@ -4,6 +4,7 @@ import '../../models/hazard_category.dart';
 import '../../services/analytics.dart';
 import '../../services/moderation_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/pull_to_refresh.dart';
 import 'storage_meter.dart';
 
 /// Dispatch tab C (admins): city performance from the newest 500 reports.
@@ -50,22 +51,25 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     final data = _data;
     final textTheme = Theme.of(context).textTheme;
     if (_error) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      return PullToRefresh(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(32),
           children: [
-            const Text('Could not load analytics.'),
+            const Text('Could not load analytics. Pull down to try again.', textAlign: TextAlign.center),
             const SizedBox(height: 8),
-            OutlinedButton(onPressed: _load, child: const Text('Try again')),
+            Center(child: OutlinedButton(onPressed: _load, child: const Text('Try again'))),
           ],
         ),
       );
     }
     if (data == null) return const Center(child: CircularProgressIndicator());
     final mttr = data.meanTimeToResolve;
-    return RefreshIndicator(
+    return PullToRefresh(
       onRefresh: _load,
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           Row(

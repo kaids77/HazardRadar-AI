@@ -142,13 +142,22 @@ class _MapScreenState extends State<MapScreen> {
     super.initState();
     final chat = widget.chat;
     if (chat != null) _chat = ChatController(chat);
-    _subscription = widget.incidents.watchActivePublic().listen(_onIncidents, onError: (_) {
-      if (mounted) setState(() => _loadError = true);
-    });
+    _subscribe();
     // Start following the commuter only after the first fix, so the two permission
     // requests never overlap, and only when location is actually available.
     _locate().then((_) {
       if (mounted && _fix != null) _moves = widget.location.watchFix().listen(_onMove);
+    });
+  }
+
+  /// (Re)subscribes to the live pins. A Firestore stream stops after an error, so the
+  /// load-error label calls this to start a fresh one. Seen ids are kept, so the
+  /// re-sent snapshot never raises a false "new high-risk report" banner.
+  void _subscribe() {
+    _subscription?.cancel();
+    if (_loadError) setState(() => _loadError = false);
+    _subscription = widget.incidents.watchActivePublic().listen(_onIncidents, onError: (_) {
+      if (mounted) setState(() => _loadError = true);
     });
   }
 
@@ -403,7 +412,13 @@ class _MapScreenState extends State<MapScreen> {
               ],
               if (_loadError) ...[
                 const SizedBox(height: 8),
-                const MapLabel(text: 'Could not load hazards. Pins may be out of date.'),
+                Material(
+                  color: AppColors.sage,
+                  child: InkWell(
+                    onTap: _subscribe,
+                    child: const MapLabel(text: 'Could not load hazards. Tap to try again.'),
+                  ),
+                ),
               ],
             ],
           ),

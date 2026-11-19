@@ -4,6 +4,7 @@ import '../../models/user_profile.dart';
 import '../../services/dispatch_repository.dart';
 import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 
 /// Dispatch tab B (admins): search users, change role and level, account status,
@@ -20,7 +21,7 @@ class UserManagerScreen extends StatefulWidget {
 }
 
 class _UserManagerScreenState extends State<UserManagerScreen> {
-  late final Stream<List<UserProfile>> _users = widget.users.watchUsers();
+  late Stream<List<UserProfile>> _users = widget.users.watchUsers();
   String _query = '';
   final Set<String> _busy = {};
 
@@ -71,20 +72,23 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
       stream: _users,
       builder: (context, snapshot) {
         final shown = searchUsers(snapshot.data ?? const [], _query);
-        return ListView(
+        return PullToRefresh(
+          onRefresh: () async => setState(() => _users = widget.users.watchUsers()),
+          child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
             TextField(
               onChanged: (value) => setState(() => _query = value),
               decoration: const InputDecoration(
-                hintText: 'Search by name or UID',
+                hintText: 'Search by name',
                 prefixIcon: Icon(Icons.search, color: AppColors.ink),
                 border: OutlineInputBorder(borderRadius: BorderRadius.zero),
               ),
             ),
             const SizedBox(height: 12),
             if (snapshot.hasError)
-              const Text('Could not load users.')
+              const Text('Could not load users. Pull down to try again.')
             else if (!snapshot.hasData)
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (shown.isEmpty)
@@ -104,6 +108,7 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
                 const SizedBox(height: 10),
               ],
           ],
+          ),
         );
       },
     );
@@ -151,7 +156,11 @@ class _UserCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(user.displayName ?? 'Unnamed user${isSelf ? ' (you)' : ''}', style: textTheme.titleMedium),
+                child: Text(
+                  '${user.displayName ?? (user.tier == UserProfile.tierCommuterObserver ? 'Guest' : 'Unnamed user')}'
+                  '${isSelf ? ' (you)' : ''}',
+                  style: textTheme.titleMedium,
+                ),
               ),
               FlatBadge(
                 label: user.accountStatus,
@@ -160,7 +169,7 @@ class _UserCard extends StatelessWidget {
               ),
             ],
           ),
-          Text('${user.tierTitle} · UID ${user.uid}', style: textTheme.bodySmall?.copyWith(fontFamily: 'monospace')),
+          Text(user.tierTitle, style: textTheme.bodySmall),
           Text(
             'CTP ${user.ctp} · Reports ${user.reportsTotal} · Accuracy ${(user.accuracy * 100).round()}%'
             '${until != null && user.accountStatus == UserProfile.accountSuspended ? ' · Suspended until ${until.toLocal().toString().substring(0, 16)}' : ''}',

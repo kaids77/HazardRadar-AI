@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/user_profile.dart';
 import '../../services/app_settings.dart';
 import '../../theme/app_theme.dart';
+import '../common/pull_to_refresh.dart';
 
 /// Tab 3 for citizens: account and data preferences.
 class SettingsScreen extends StatelessWidget {
@@ -12,6 +13,7 @@ class SettingsScreen extends StatelessWidget {
     required this.settings,
     this.onAccount,
     this.staffSection,
+    this.onRefresh,
   });
 
   final UserProfile profile;
@@ -21,12 +23,18 @@ class SettingsScreen extends StatelessWidget {
   /// Extra section for staff sign-in or tools, added by later screens.
   final Widget? staffSection;
 
+  /// Reloads the profile (level, role) on pull-to-refresh.
+  final Future<void> Function()? onRefresh;
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return ListenableBuilder(
       listenable: settings,
-      builder: (context, _) => ListView(
+      builder: (context, _) => PullToRefresh(
+        onRefresh: onRefresh ?? () async {},
+        child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: [
           Text('Account', style: _heading),
@@ -62,6 +70,7 @@ class SettingsScreen extends StatelessWidget {
             staffSection!,
           ],
         ],
+        ),
       ),
     );
   }

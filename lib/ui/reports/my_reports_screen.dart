@@ -5,6 +5,7 @@ import '../../models/user_profile.dart';
 import '../../services/level_policy.dart';
 import '../../services/my_reports_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/risk_style.dart';
 
@@ -34,6 +35,7 @@ class MyReportsScreen extends StatefulWidget {
     required this.reports,
     this.onSignIn,
     this.onPickBadge,
+    this.onRefresh,
   });
 
   final UserProfile profile;
@@ -44,6 +46,9 @@ class MyReportsScreen extends StatefulWidget {
 
   /// Saves a focus badge. Offered to Neighborhood Sentinels without one.
   final ValueChanged<String>? onPickBadge;
+
+  /// Reloads the profile (level, points) on pull-to-refresh.
+  final Future<void> Function()? onRefresh;
 
   @override
   State<MyReportsScreen> createState() => _MyReportsScreenState();
@@ -68,6 +73,12 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     }
   }
 
+  /// Re-subscribes the list (revives it after an error) and reloads the profile.
+  Future<void> _reload() async {
+    setState(() => _mine = widget.reports.watchMine(widget.profile.uid));
+    await widget.onRefresh?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<Incident>>(
@@ -75,7 +86,10 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
       builder: (context, snapshot) {
         final all = snapshot.data ?? const <Incident>[];
         final shown = all.where(_filter.matches).toList();
-        return ListView(
+        return PullToRefresh(
+          onRefresh: _reload,
+          child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
             if (widget.profile.tier == UserProfile.tierCommuterObserver) ...[
@@ -106,7 +120,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
             ),
             const SizedBox(height: 12),
             if (snapshot.hasError)
-              const Text('Could not load your reports. Pull down later to try again.')
+              const Text('Could not load your reports. Pull down to try again.')
             else if (!snapshot.hasData)
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (shown.isEmpty)
@@ -120,6 +134,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                 const SizedBox(height: 8),
               ],
           ],
+          ),
         );
       },
     );

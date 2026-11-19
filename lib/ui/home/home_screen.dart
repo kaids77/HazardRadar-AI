@@ -7,6 +7,7 @@ import '../../models/user_profile.dart';
 import '../../services/report_limit_policy.dart';
 import '../../theme/app_theme.dart';
 import '../account/account_sheet.dart';
+import '../common/pull_to_refresh.dart';
 import '../dispatch/analytics_screen.dart';
 import '../dispatch/dispatch_screen.dart';
 import '../dispatch/quarantine_screen.dart';
@@ -140,14 +141,21 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         if (snapshot.hasError || !snapshot.hasData) {
           return _Frame(
-            body: Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: _ErrorState(
-                  onRetry: _retry,
-                  // Shows the real cause in debug builds only. Release builds show the generic message.
-                  detail: kDebugMode ? '${snapshot.error}' : null,
-                ),
+            body: PullToRefresh(
+              onRefresh: () async {
+                _retry();
+                await _profile.then((_) {}, onError: (_) {});
+              },
+              child: ListView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(24, 96, 24, 24),
+                children: [
+                  _ErrorState(
+                    onRetry: _retry,
+                    // Shows the real cause in debug builds only. Release builds show the generic message.
+                    detail: kDebugMode ? '${snapshot.error}' : null,
+                  ),
+                ],
               ),
             ),
           );
@@ -186,6 +194,7 @@ class _HomeScreenState extends State<HomeScreen> {
         reports: _s.myReports,
         onSignIn: () => _openAccount(profile),
         onPickBadge: (badge) => _pickBadge(profile, badge),
+        onRefresh: _refresh,
       ),
       if (showDispatch)
         DispatchScreen(
@@ -206,6 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
         profile: profile,
         settings: _s.settings,
         onAccount: () => _openAccount(profile),
+        onRefresh: _refresh,
         staffSection: staffAuth == null
             ? null
             : StaffSignInSection(

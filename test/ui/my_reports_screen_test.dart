@@ -31,6 +31,16 @@ class _Repo implements MyReportsRepository {
   Stream<List<Incident>> watchMine(String uid, {int limit = 50}) => Stream.value(items);
 }
 
+class _CountingRepo implements MyReportsRepository {
+  int subscriptions = 0;
+
+  @override
+  Stream<List<Incident>> watchMine(String uid, {int limit = 50}) {
+    subscriptions++;
+    return Stream.value(const []);
+  }
+}
+
 UserProfile _profile({int tier = 2, int ctp = 120, int total = 10, int resolved = 9}) => UserProfile(
       uid: 'u',
       role: 'CITIZEN',
@@ -104,6 +114,38 @@ void main() {
     expect(find.text('Choose your focus badge'), findsOneWidget);
     await tester.tap(find.textContaining('Grid Guardian'));
     expect(picked, 'Grid Guardian');
+  });
+
+  testWidgets('pulling down reloads the profile and the list', (tester) async {
+    var refreshed = 0;
+    final repo = _CountingRepo();
+    await _pump(
+      tester,
+      MyReportsScreen(profile: _profile(), reports: repo, onRefresh: () async => refreshed++),
+    );
+    expect(repo.subscriptions, 1);
+
+    await tester.fling(find.text('My reports'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+
+    expect(refreshed, 1);
+    expect(repo.subscriptions, 2);
+  });
+
+  testWidgets('pulling down in Settings reloads the profile', (tester) async {
+    var refreshed = 0;
+    await _pump(
+      tester,
+      SettingsScreen(
+        profile: _profile(),
+        settings: AppSettings(MemorySettingsStore()),
+        onRefresh: () async => refreshed++,
+      ),
+    );
+
+    await tester.fling(find.text('Account'), const Offset(0, 400), 1000);
+    await tester.pumpAndSettle();
+    expect(refreshed, 1);
   });
 
   testWidgets('the data saver switch is saved', (tester) async {
