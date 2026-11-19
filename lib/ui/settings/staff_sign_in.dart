@@ -4,7 +4,11 @@ import '../../models/user_profile.dart';
 import '../../services/staff_auth.dart';
 import '../../theme/app_theme.dart';
 
-/// Settings section for city staff: email sign-in, or sign-out when signed in with email.
+/// Settings section for city staff.
+///
+/// Email accounts sign in with a password. Google-linked accounts already have a
+/// session, so staff access comes only from the role on their profile; this section
+/// shows the account ID an admin needs and a button to reload the role.
 class StaffSignInSection extends StatefulWidget {
   const StaffSignInSection({
     super.key,
@@ -12,10 +16,18 @@ class StaffSignInSection extends StatefulWidget {
     required this.isEmailSession,
     required this.onSignIn,
     required this.onSignOut,
+    this.googleEmail,
+    this.onCheckAccess,
   });
 
   final UserProfile profile;
   final bool isEmailSession;
+
+  /// Set when the account is linked to Google.
+  final String? googleEmail;
+
+  /// Reloads the profile. Resolves to the fresh copy, or null when it could not load.
+  final Future<UserProfile?> Function()? onCheckAccess;
 
   /// Resolves to the signed-in profile. Throws [StaffSignInFailed].
   final Future<UserProfile> Function(String email, String password) onSignIn;
@@ -36,6 +48,59 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
     _email.dispose();
     _password.dispose();
     super.dispose();
+  }
+
+  Future<void> _checkAccess() async {
+    final check = widget.onCheckAccess;
+    if (check == null) return;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    final profile = await check();
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      _message = profile == null
+          ? 'Could not load your account. Check your connection and try again.'
+          : profile.isStaff
+              ? 'Staff access is on. Open the Dispatch tab.'
+              : 'No staff role on this account yet. An admin must set role to ADMIN or DISPATCHER '
+                  'on the profile with the account ID above.';
+    });
+  }
+
+  Widget _googleBlock(TextTheme textTheme, String email) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text('City staff', style: _heading),
+        const SizedBox(height: 4),
+        Text(
+          widget.profile.isStaff
+              ? 'Signed in with Google${email.isEmpty ? '' : ' as $email'} · ${widget.profile.tierTitle}.'
+              : 'You are signed in with Google${email.isEmpty ? '' : ' as $email'}. Staff access comes from '
+                  'the role on your profile, so no password is needed.',
+          style: textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        Container(
+          color: AppColors.sage,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: SelectableText('Account ID: ${widget.profile.uid}', style: textTheme.bodySmall),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          onPressed: _busy ? null : _checkAccess,
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.ink,
+            side: const BorderSide(color: AppColors.ink),
+            shape: const RoundedRectangleBorder(),
+          ),
+          child: Text(_busy ? 'Checking...' : 'Check staff access'),
+        ),
+      ],
+    );
   }
 
   Future<void> _signIn() async {
@@ -61,6 +126,19 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final googleEmail = widget.googleEmail;
+    if (googleEmail != null && !widget.isEmailSession) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _googleBlock(textTheme, googleEmail),
+          if (_message != null) ...[
+            const SizedBox(height: 8),
+            Text(_message!, style: textTheme.bodyMedium),
+          ],
+        ],
+      );
+    }
     if (widget.isEmailSession) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

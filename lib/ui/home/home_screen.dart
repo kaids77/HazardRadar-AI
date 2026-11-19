@@ -211,6 +211,8 @@ class _HomeScreenState extends State<HomeScreen> {
             : StaffSignInSection(
                 profile: profile,
                 isEmailSession: staffAuth.isEmailSession,
+                googleEmail: staffAuth.googleEmail,
+                onCheckAccess: _refresh,
                 onSignIn: _signInStaff,
                 onSignOut: _signOutStaff,
               ),
@@ -226,7 +228,9 @@ class _HomeScreenState extends State<HomeScreen> {
         selectedIndex: tab,
         onDestinationSelected: (index) {
           setState(() => _tab = index);
-          if (index == 1) unawaited(_refresh());
+          // Reload the profile on every tab switch, so a role an admin changed in the
+          // console (for example ADMIN) shows up without restarting the app.
+          unawaited(_refresh());
         },
         destinations: [
           const NavigationDestination(icon: Icon(Icons.radar), label: 'Radar'),

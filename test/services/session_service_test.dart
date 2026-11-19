@@ -183,6 +183,9 @@ class FakeStaffAuth implements StaffAuth {
   bool get isEmailSession => signedIn;
 
   @override
+  String? get googleEmail => null;
+
+  @override
   Future<String> signIn({required String email, required String password}) async {
     if (fail) throw const StaffSignInFailed('Wrong email or password.');
     signedIn = true;

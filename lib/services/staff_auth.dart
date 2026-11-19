@@ -21,6 +21,10 @@ abstract interface class StaffAuth {
 
   /// True when the current account signed in with email and password.
   bool get isEmailSession;
+
+  /// The Google email when the current account is linked to Google, otherwise null.
+  /// Google-linked staff get their access from the role on their profile, not a password.
+  String? get googleEmail;
 }
 
 class FirebaseStaffAuth implements StaffAuth {
@@ -31,6 +35,15 @@ class FirebaseStaffAuth implements StaffAuth {
   @override
   bool get isEmailSession =>
       _auth.currentUser?.providerData.any((info) => info.providerId == EmailAuthProvider.PROVIDER_ID) ?? false;
+
+  @override
+  String? get googleEmail {
+    final google = _auth.currentUser?.providerData
+        .where((info) => info.providerId == GoogleAuthProvider.PROVIDER_ID)
+        .firstOrNull;
+    if (google == null) return null;
+    return google.email ?? _auth.currentUser?.email ?? '';
+  }
 
   @override
   Future<String> signIn({required String email, required String password}) async {
