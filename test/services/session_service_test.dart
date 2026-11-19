@@ -56,6 +56,11 @@ class FakeProfileRepository implements ProfileRepository {
 
   @override
   Future<void> setFocusBadge(String uid, String badge) async {}
+
+  final Map<String, String> displayNames = {};
+
+  @override
+  Future<void> setDisplayName(String uid, String name) async => displayNames[uid] = name;
 }
 
 /// A repository whose stored profile has earned a level.
@@ -68,9 +73,12 @@ class EarnedLevelRepository extends FakeProfileRepository {
 }
 
 class FakeLinker implements AccountLinker {
-  FakeLinker(this.result);
+  FakeLinker(this.result, {this.displayName});
 
   final Future<String?> Function() result;
+
+  @override
+  final String? displayName;
 
   @override
   Future<String?> linkGoogle() => result();
@@ -109,6 +117,19 @@ void main() {
   });
 
   group('upgradeWithGoogle', () {
+    test('stores the Google display name on the profile', () async {
+      final profiles = FakeProfileRepository();
+      final session = SessionService(
+        auth: FakeAuthService('guest'),
+        profiles: profiles,
+        linker: FakeLinker(() async => 'guest', displayName: 'Maria Santos'),
+      );
+
+      await session.upgradeWithGoogle();
+
+      expect(profiles.displayNames, {'guest': 'Maria Santos'});
+    });
+
     test('loads and upgrades the profile of the linked uid', () async {
       final profiles = FakeProfileRepository();
       final session = SessionService(

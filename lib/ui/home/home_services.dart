@@ -8,6 +8,7 @@ import '../../services/photo_service.dart';
 import '../../services/report_enricher.dart';
 import '../../services/report_service.dart';
 import '../../services/session_service.dart';
+import '../../services/user_admin_repository.dart';
 import '../../services/vote_repository.dart';
 
 /// Everything the home screen needs, wired once in main.dart. Tests pass fakes.
@@ -22,6 +23,7 @@ class HomeServices {
     required this.myReports,
     required this.settings,
     this.dispatch,
+    this.userAdmin,
     this.chat,
     this.enricher,
   });
@@ -37,6 +39,9 @@ class HomeServices {
 
   /// Staff queue actions. Null in tests that do not cover dispatch; the tab is hidden then.
   final DispatchRepository? dispatch;
+
+  /// Admin user management. Null in tests that do not cover it; the tab is hidden then.
+  final UserAdminRepository? userAdmin;
 
   /// Null in builds without a proxy. The Radar AI button is hidden then.
   final ChatService? chat;

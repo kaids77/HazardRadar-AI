@@ -61,6 +61,9 @@ class _ProfileRepo implements ProfileRepository {
 
   @override
   Future<void> setFocusBadge(String uid, String badge) async {}
+
+  @override
+  Future<void> setDisplayName(String uid, String name) async {}
 }
 
 class _NoIncidents implements IncidentRepository {

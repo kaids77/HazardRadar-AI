@@ -17,6 +17,9 @@ abstract interface class ProfileRepository {
 
   /// Saves a Neighborhood Sentinel's focus badge (one of LevelPolicy.focusBadges).
   Future<void> setFocusBadge(String uid, String badge);
+
+  /// Saves the user's own display name (1 to 40 characters).
+  Future<void> setDisplayName(String uid, String name);
 }
 
 class FirestoreProfileRepository implements ProfileRepository {
@@ -88,5 +91,12 @@ class FirestoreProfileRepository implements ProfileRepository {
   Future<void> setFocusBadge(String uid, String badge) {
     if (!LevelPolicy.focusBadges.contains(badge)) throw ArgumentError.value(badge, 'badge');
     return _db.collection(usersCollection).doc(uid).update({'focusBadge': badge});
+  }
+
+  @override
+  Future<void> setDisplayName(String uid, String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || trimmed.length > 40) throw ArgumentError.value(name, 'name');
+    return _db.collection(usersCollection).doc(uid).update({'displayName': trimmed});
   }
 }

@@ -8,6 +8,7 @@ import '../../services/report_limit_policy.dart';
 import '../../theme/app_theme.dart';
 import '../account/account_sheet.dart';
 import '../dispatch/dispatch_screen.dart';
+import '../dispatch/user_manager_screen.dart';
 import '../map/map_screen.dart';
 import '../report/wizard/report_wizard_screen.dart';
 import '../reports/my_reports_screen.dart';
@@ -183,7 +184,15 @@ class _HomeScreenState extends State<HomeScreen> {
         onSignIn: () => _openAccount(profile),
         onPickBadge: (badge) => _pickBadge(profile, badge),
       ),
-      if (showDispatch) DispatchScreen(key: ValueKey(profile.uid), profile: profile, dispatch: dispatch),
+      if (showDispatch)
+        DispatchScreen(
+          key: ValueKey(profile.uid),
+          profile: profile,
+          dispatch: dispatch,
+          adminTabs: [
+            if (_s.userAdmin case final users?) ('Users', UserManagerScreen(admin: profile, users: users)),
+          ],
+        ),
       SettingsScreen(
         profile: profile,
         settings: _s.settings,

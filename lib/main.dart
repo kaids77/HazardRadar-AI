@@ -21,6 +21,7 @@ import 'services/report_service.dart';
 import 'services/session_service.dart';
 import 'services/staff_auth.dart';
 import 'services/triage_service.dart';
+import 'services/user_admin_repository.dart';
 import 'services/vote_repository.dart';
 import 'theme/app_theme.dart';
 import 'ui/home/home_screen.dart';
@@ -65,6 +66,7 @@ Future<void> main() async {
         myReports: FirestoreMyReportsRepository(),
         settings: AppSettings(SharedPreferencesSettingsStore()),
         dispatch: FirestoreDispatchRepository(),
+        userAdmin: FirestoreUserAdminRepository(),
         chat: proxy == null ? null : ProxyChatService(proxy),
         enricher: proxyTriage == null
             ? null

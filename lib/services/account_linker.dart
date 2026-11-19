@@ -19,6 +19,10 @@ abstract interface class AccountLinker {
   /// the app signs in to that profile instead, so the uid can change.
   /// Returns null when the user cancels. Throws [LinkFailed] otherwise.
   Future<String?> linkGoogle();
+
+  /// The Google display name of the current account, if any. Stored on the profile
+  /// so admins can recognise users.
+  String? get displayName;
 }
 
 class FirebaseGoogleLinker implements AccountLinker {
@@ -37,6 +41,13 @@ class FirebaseGoogleLinker implements AccountLinker {
   final String? serverClientId;
 
   Future<void>? _initialized;
+
+  @override
+  String? get displayName {
+    final name = _auth.currentUser?.displayName?.trim();
+    if (name == null || name.isEmpty) return null;
+    return name.length > 40 ? name.substring(0, 40) : name;
+  }
 
   @override
   Future<String?> linkGoogle() async {

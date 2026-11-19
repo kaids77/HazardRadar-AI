@@ -143,10 +143,36 @@ service cloud.firestore {
           && getAfter(/databases/$(database)/documents/incidents/$(after.lastResolvedId)).data.reporterUid == uid;
       }
 
-      allow update: if (
-          hasRole('ADMIN')
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['role', 'accountStatus'])
-        ) || isGoogleUpgrade() || isReportCounterUpdate() || isResolveCredit()
+      // Admins manage other users (never themselves): role and level together, account
+      // status, suspension end, and the emergency rate-limit override.
+      function isAdminUserUpdate() {
+        let after = request.resource.data;
+        return hasRole('ADMIN')
+          && !isBlocked()
+          && request.auth.uid != uid
+          && after.diff(resource.data).affectedKeys()
+               .hasOnly(['role', 'tier', 'accountStatus', 'suspendedUntil', 'rateLimitOverride'])
+          && ((after.role == 'CITIZEN' && after.tier in [1, 2])
+              || (after.role == 'VERIFIER' && after.tier == 3)
+              || (after.role == 'DISPATCHER' && after.tier == 4)
+              || (after.role == 'ADMIN' && after.tier == 5))
+          && after.accountStatus in ['ACTIVE', 'WARNED', 'SUSPENDED', 'BANNED']
+          && (after.get('suspendedUntil', null) == null || after.suspendedUntil is timestamp)
+          && after.get('rateLimitOverride', false) is bool;
+      }
+
+      // Users set their own public display name (taken from Google when they link).
+      function isDisplayNameUpdate() {
+        return signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName'])
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() > 0
+          && request.resource.data.displayName.size() <= 40;
+      }
+
+      allow update: if isAdminUserUpdate() || isDisplayNameUpdate()
+          || isGoogleUpgrade() || isReportCounterUpdate() || isResolveCredit()
           || isMeritUpgrade() || isFocusBadgeChoice();
 
       allow delete: if false;

@@ -63,7 +63,15 @@ class SessionService {
     if (uid == null) return null;
 
     // The uid changes when the Google account already had a profile, so load it first.
-    await profiles.getOrCreateProfile(uid);
+    final existing = await profiles.getOrCreateProfile(uid);
+    final name = linker.displayName;
+    if (name != null && name != existing.displayName) {
+      try {
+        await profiles.setDisplayName(uid, name);
+      } on Object {
+        // A missing name is cosmetic; the upgrade still goes ahead.
+      }
+    }
     return profiles.upgradeToCivicScout(uid);
   }
 }
