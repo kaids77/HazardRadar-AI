@@ -8,7 +8,7 @@ import '../../theme/app_theme.dart';
 ///
 /// Email accounts sign in with a password. Google-linked accounts already have a
 /// session, so staff access comes only from the role on their profile; this section
-/// shows the account ID an admin needs and a button to reload the role.
+/// shows the Google name and email and a button to reload the role.
 class StaffSignInSection extends StatefulWidget {
   const StaffSignInSection({
     super.key,
@@ -65,31 +65,46 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
           ? 'Could not load your account. Check your connection and try again.'
           : profile.isStaff
               ? 'Staff access is on. Open the Dispatch tab.'
-              : 'No staff role on this account yet. An admin must set role to ADMIN or DISPATCHER '
-                  'on the profile with the account ID above.';
+              : 'No staff role on this account yet. Ask an admin to give $_who the ADMIN or DISPATCHER role.';
     });
   }
 
+  /// The user's Google name, then their email, for messages and the account block.
+  String get _who {
+    final name = widget.profile.displayName;
+    if (name != null && name.isNotEmpty) return name;
+    final email = widget.googleEmail;
+    return email == null || email.isEmpty ? 'this account' : email;
+  }
+
   Widget _googleBlock(TextTheme textTheme, String email) {
+    final name = widget.profile.displayName;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text('City staff', style: _heading),
         const SizedBox(height: 4),
-        Text(
-          widget.profile.isStaff
-              ? 'Signed in with Google${email.isEmpty ? '' : ' as $email'} · ${widget.profile.tierTitle}.'
-              : 'You are signed in with Google${email.isEmpty ? '' : ' as $email'}. Staff access comes from '
-                  'the role on your profile, so no password is needed.',
-          style: textTheme.bodySmall,
-        ),
-        const SizedBox(height: 8),
         Container(
           color: AppColors.sage,
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: SelectableText('Account ID: ${widget.profile.uid}', style: textTheme.bodySmall),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (name != null && name.isNotEmpty) Text(name, style: textTheme.titleSmall),
+              if (email.isNotEmpty) Text(email, style: textTheme.bodySmall),
+              Text('Google account · ${widget.profile.tierTitle}', style: textTheme.bodySmall),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
+        if (!widget.profile.isStaff)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Staff access comes from the role on your profile, so no password is needed.',
+              style: textTheme.bodySmall,
+            ),
+          ),
         OutlinedButton(
           onPressed: _busy ? null : _checkAccess,
           style: OutlinedButton.styleFrom(
