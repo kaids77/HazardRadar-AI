@@ -79,6 +79,7 @@ class _ChatSheetState extends State<ChatSheet> {
   String _labelFor(ChatAction action) {
     return switch (action) {
       OpenReport() => 'Report a hazard',
+      PlanDetour() => 'Pick a destination for a safe route',
       ShowOnMap(:final incidentId) => 'Show ${_categoryOf(incidentId)} on map',
     };
   }

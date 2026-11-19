@@ -10,6 +10,7 @@ import '../../models/incident.dart';
 import '../../models/user_profile.dart';
 import '../../services/app_settings.dart';
 import '../../services/chat_service.dart';
+import '../../services/detour_service.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
 import '../../services/vote_repository.dart';
@@ -34,6 +35,7 @@ class MapScreen extends StatefulWidget {
     this.onUpgrade,
     this.chat,
     this.onReport,
+    this.detour,
   });
 
   final IncidentRepository incidents;
@@ -50,6 +52,9 @@ class MapScreen extends StatefulWidget {
   /// Null when the build has no proxy. The Radar AI button is hidden then.
   final ChatService? chat;
   final VoidCallback? onReport;
+
+  /// Null when the build has no proxy. The Safe route button is hidden then.
+  final DetourService? detour;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -73,6 +78,48 @@ class _MapScreenState extends State<MapScreen> {
 
   MapFilter _filter = MapFilter.all;
   String _query = '';
+
+  /// True while waiting for the user to tap a destination for a safe route.
+  bool _pickingDestination = false;
+  bool _routing = false;
+  DetourRoute? _route;
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  void _startDetour() {
+    if (_fix == null) {
+      _toast('Turn on location to get a walking route from where you are.');
+      return;
+    }
+    setState(() {
+      _pickingDestination = true;
+      _route = null;
+    });
+  }
+
+  Future<void> _planDetour(LatLng destination) async {
+    final detour = widget.detour;
+    final from = _fix?.position;
+    if (detour == null || from == null) return;
+    setState(() {
+      _pickingDestination = false;
+      _routing = true;
+    });
+    try {
+      final route = await detour.route(from: from, to: destination, hazards: _latest);
+      if (!mounted) return;
+      setState(() => _route = route);
+      _map.fitCamera(CameraFit.coordinates(coordinates: route.path, padding: const EdgeInsets.all(60)));
+    } on DetourUnavailable catch (failure) {
+      if (mounted) _toast(failure.message);
+    } catch (_) {
+      if (mounted) _toast('Could not plan a route. Avoid the red pins and stay on main roads.');
+    } finally {
+      if (mounted) setState(() => _routing = false);
+    }
+  }
 
   @override
   void initState() {
@@ -143,6 +190,8 @@ class _MapScreenState extends State<MapScreen> {
     switch (action) {
       case OpenReport():
         widget.onReport?.call();
+      case PlanDetour():
+        _startDetour();
       case ShowOnMap(:final incidentId):
         final incident = _latest.where((i) => i.id == incidentId).firstOrNull;
         if (incident != null) _focus(incident);
@@ -195,6 +244,9 @@ class _MapScreenState extends State<MapScreen> {
             initialZoom: 15,
             minZoom: 5,
             cameraConstraint: CameraConstraint.contain(bounds: philippinesBounds),
+            onTap: (_, point) {
+              if (_pickingDestination) _planDetour(point);
+            },
           ),
           children: [
             TileLayer(
@@ -202,6 +254,18 @@ class _MapScreenState extends State<MapScreen> {
               userAgentPackageName: 'com.example.hazardradarai',
               tileBuilder: tintedTileBuilder,
             ),
+            if (_route case final route?)
+              PolylineLayer(
+                polylines: [
+                  Polyline(
+                    points: route.path,
+                    strokeWidth: 6,
+                    color: AppColors.sage,
+                    borderColor: AppColors.ink,
+                    borderStrokeWidth: 1.5,
+                  ),
+                ],
+              ),
             if (_fix != null)
               MarkerLayer(
                 markers: [
@@ -274,9 +338,31 @@ class _MapScreenState extends State<MapScreen> {
               MapLabel(text: _gpsLabel),
               const SizedBox(height: 8),
               MapSquareButton(icon: Icons.my_location, tooltip: 'Recenter on me', onPressed: _recenter),
+              if (widget.detour != null) ...[
+                const SizedBox(height: 8),
+                MapSquareButton(icon: Icons.alt_route, tooltip: 'Safe walking route', onPressed: _startDetour),
+              ],
             ],
           ),
         ),
+        if (_pickingDestination || _routing || _route != null)
+          Positioned(
+            left: 76,
+            right: 12,
+            bottom: 96,
+            child: _RoutePanel(
+              text: _routing
+                  ? 'Finding a safe walking route...'
+                  : _pickingDestination
+                      ? 'Tap your destination on the map.'
+                      : _route!.summary,
+              actionLabel: _routing ? null : (_pickingDestination ? 'Cancel' : 'Clear route'),
+              onAction: () => setState(() {
+                _pickingDestination = false;
+                _route = null;
+              }),
+            ),
+          ),
       ],
     );
   }
@@ -306,6 +392,35 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Flat route status block with one action (Cancel or Clear route).
+class _RoutePanel extends StatelessWidget {
+  const _RoutePanel({required this.text, required this.actionLabel, required this.onAction});
+
+  final String text;
+  final String? actionLabel;
+  final VoidCallback onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.cream,
+      padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+      child: Row(
+        children: [
+          Container(width: 12, height: 12, color: AppColors.sage, margin: const EdgeInsets.only(right: 8)),
+          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
+          if (actionLabel != null)
+            TextButton(
+              onPressed: onAction,
+              style: TextButton.styleFrom(foregroundColor: AppColors.ink, shape: const RoundedRectangleBorder()),
+              child: Text(actionLabel!),
+            ),
+        ],
       ),
     );
   }

@@ -1,6 +1,7 @@
 import '../../services/analytics.dart';
 import '../../services/app_settings.dart';
 import '../../services/chat_service.dart';
+import '../../services/detour_service.dart';
 import '../../services/dispatch_repository.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
@@ -29,6 +30,7 @@ class HomeServices {
     this.moderation,
     this.analytics,
     this.chat,
+    this.detour,
     this.enricher,
   });
 
@@ -55,6 +57,9 @@ class HomeServices {
 
   /// Null in builds without a proxy. The Radar AI button is hidden then.
   final ChatService? chat;
+
+  /// Null in builds without a proxy. The Safe route button is hidden then.
+  final DetourService? detour;
 
   /// Null in builds without a proxy. Re-checks the user's offline-triaged reports.
   final ReportEnricher? enricher;

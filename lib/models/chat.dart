@@ -26,6 +26,17 @@ class OpenReport extends ChatAction {
   int get hashCode => 0;
 }
 
+/// Added by the app (never by the model) in Safe detour mode: pick a destination on the map.
+class PlanDetour extends ChatAction {
+  const PlanDetour();
+
+  @override
+  bool operator ==(Object other) => other is PlanDetour;
+
+  @override
+  int get hashCode => 1;
+}
+
 class ChatReply {
   const ChatReply({required this.reply, required this.actions});
 

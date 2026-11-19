@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import 'package:hazardradarai/models/incident.dart';
 import 'package:hazardradarai/models/user_profile.dart';
+import 'package:hazardradarai/services/detour_service.dart';
 import 'package:hazardradarai/services/incident_repository.dart';
 import 'package:hazardradarai/services/location_service.dart';
 import 'package:hazardradarai/services/vote_repository.dart';
@@ -64,6 +65,8 @@ class _Location implements LocationProvider {
 }
 
 void main() {
+  detourTests();
+
   test('filters by risk and category', () {
     expect(applyMapFilter(_items, MapFilter.all, ''), hasLength(3));
     expect(applyMapFilter(_items, MapFilter.highRisk, '').map((i) => i.id), ['abc123', 'ghi789']);
@@ -121,5 +124,52 @@ void main() {
     await tester.tap(find.byTooltip('Dismiss'));
     await tester.pump();
     expect(find.text('New high-risk report'), findsNothing);
+  });
+}
+
+class _Detour implements DetourService {
+  LatLng? to;
+
+  @override
+  Future<DetourRoute> route({required LatLng from, required LatLng to, required List<Incident> hazards}) async {
+    this.to = to;
+    return DetourRoute(path: [from, to], distanceMeters: 800, durationSeconds: 600, clearanceMeters: 120);
+  }
+}
+
+void detourTests() {
+  testWidgets('Safe route: tap the button, tap a destination, and the route summary appears', (tester) async {
+    final detour = _Detour();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(
+          body: MapScreen(
+            incidents: _Stream(),
+            location: _Location(),
+            profile: const UserProfile(uid: 'u', role: 'CITIZEN', tier: 2, accountStatus: 'ACTIVE'),
+            votes: _Votes(),
+            detour: detour,
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    await tester.tap(find.byTooltip('Safe walking route'));
+    await tester.pump();
+    expect(find.text('Tap your destination on the map.'), findsOneWidget);
+
+    await tester.tapAt(const Offset(400, 300));
+    // flutter_map waits for the double-tap timeout before reporting a single tap.
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump();
+
+    expect(detour.to, isNotNull);
+    expect(find.text('800 m · 10 min walk · stays 120 m from High and Medium hazards'), findsOneWidget);
+    await tester.tap(find.text('Clear route'));
+    await tester.pump();
+    expect(find.textContaining('min walk'), findsNothing);
   });
 }

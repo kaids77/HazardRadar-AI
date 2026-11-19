@@ -9,6 +9,7 @@ import 'services/analytics.dart';
 import 'services/app_settings.dart';
 import 'services/auth_service.dart';
 import 'services/chat_service.dart';
+import 'services/detour_service.dart';
 import 'services/dispatch_repository.dart';
 import 'services/incident_repository.dart';
 import 'services/location_service.dart';
@@ -72,6 +73,7 @@ Future<void> main() async {
         moderation: FirestoreModerationRepository(),
         analytics: FirestoreAnalyticsRepository(),
         chat: proxy == null ? null : ProxyChatService(proxy),
+        detour: proxy == null ? null : ProxyDetourService(proxy),
         enricher: proxyTriage == null
             ? null
             : ReportEnricher(repository: FirestorePendingReportRepository(), proxy: proxyTriage),

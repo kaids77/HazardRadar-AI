@@ -6,6 +6,7 @@ import dotenv from 'dotenv';
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { createGroqClient } from './groqClient.js';
+import { createOsrmClient } from './detour.js';
 import { createIdTokenVerifier } from './idToken.js';
 
 // .env lives at the Flutter project root, one level above proxy/.
@@ -21,8 +22,9 @@ const groq = createGroqClient({
 });
 
 const verifyIdToken = createIdTokenVerifier({ projectId: config.firebaseProjectId });
+const osrm = createOsrmClient({ baseUrl: config.osrmBaseUrl });
 
-const app = createApp({ config, groq, verifyIdToken });
+const app = createApp({ config, groq, osrm, verifyIdToken });
 
 // Bound to loopback only. adb reverse, the Android emulator alias, and Chrome all reach this address.
 const server = app.listen(config.port, '127.0.0.1', () => {

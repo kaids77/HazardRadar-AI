@@ -151,7 +151,14 @@ class ChatController extends ChangeNotifier {
         history: history.length > 6 ? history.sublist(history.length - 6) : history,
         mode: _mode,
       );
-      _messages.add(ChatMessage.assistant(reply.reply, actions: reply.actions));
+      _messages.add(ChatMessage.assistant(
+        reply.reply,
+        actions: [
+          ...reply.actions,
+          // The route itself is drawn by the app after the user picks a destination.
+          if (_mode == ChatMode.detour) const PlanDetour(),
+        ],
+      ));
     } on ChatUnavailable catch (failure) {
       _error = failure.message;
     } catch (_) {

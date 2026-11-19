@@ -1,5 +1,7 @@
 const DEFAULT_MODEL = 'openai/gpt-oss-120b';
 const DEFAULT_PROJECT_ID = 'hazardradarai';
+// Free public OSRM foot profile run by FOSSGIS. Fine for a demo, not for heavy production use.
+const DEFAULT_OSRM_URL = 'https://routing.openstreetmap.de/routed-foot';
 const PROJECT_ID_PATTERN = /^[a-z][a-z0-9-]{4,29}$/;
 
 /**
@@ -25,6 +27,8 @@ export function loadConfig(env) {
     groqTimeoutMs: parseInteger(env.GROQ_TIMEOUT_MS, 8000, 'GROQ_TIMEOUT_MS'),
     firebaseProjectId,
     rateLimitPerMinute: parseInteger(env.RATE_LIMIT_PER_MINUTE, 30, 'RATE_LIMIT_PER_MINUTE'),
+    detourPerMinute: parseInteger(env.DETOUR_PER_MINUTE, 6, 'DETOUR_PER_MINUTE'),
+    osrmBaseUrl: env.OSRM_BASE_URL?.trim() || DEFAULT_OSRM_URL,
     port: parseInteger(env.PORT, 3000, 'PORT'),
   });
 }

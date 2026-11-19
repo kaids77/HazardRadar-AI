@@ -2,6 +2,7 @@ import express from 'express';
 
 import { buildChatMessages, parseChatResult, validateChatRequest } from './chat.js';
 import { loopbackCors } from './cors.js';
+import { pickSafest, toDetourResponse, validateDetourRequest } from './detour.js';
 import { UpstreamError, ValidationError } from './errors.js';
 import { requireFirebaseUser } from './idToken.js';
 import { perUserRateLimit } from './rateLimit.js';
@@ -13,13 +14,14 @@ const JSON_BODY_LIMIT = '16kb';
  * Builds the Express app. Dependencies are passed in so tests can supply fakes.
  *
  * @param {{
- *   config: { rateLimitPerMinute: number },
+ *   config: { rateLimitPerMinute: number, detourPerMinute?: number },
  *   groq: { complete: Function },
+ *   osrm?: { routes: Function },
  *   verifyIdToken: (token: string) => Promise<string>,
  *   log?: Function,
  * }} deps
  */
-export function createApp({ config, groq, verifyIdToken, log = console.log }) {
+export function createApp({ config, groq, osrm, verifyIdToken, log = console.log }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(loopbackCors());
@@ -63,6 +65,18 @@ export function createApp({ config, groq, verifyIdToken, log = console.log }) {
     });
     res.json(parseChatResult(raw, request.incidents.map((incident) => incident.id)));
   });
+
+  // Walking routes from the free public OSRM service, with a tighter per-user limit.
+  if (osrm) {
+    const detourLimit = perUserRateLimit({ limit: config.detourPerMinute ?? 6 });
+    app.post('/detour', detourLimit, async (req, res) => {
+      const { from, to, hazards } = validateDetourRequest(req.body);
+      const routes = await osrm.routes(from, to);
+      const choice = pickSafest(routes, hazards);
+      if (!choice) throw new UpstreamError('no walking route found', 502);
+      res.json(toDetourResponse(choice, routes.length));
+    });
+  }
 
   app.use((req, res) => {
     res.status(404).json({ error: 'not found' });
