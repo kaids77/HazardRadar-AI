@@ -36,7 +36,8 @@ class ProxyClient {
   final Duration timeout;
 
   /// POSTs [body] as JSON to [path] and returns the decoded JSON response.
-  Future<Object?> postJson(String path, Map<String, Object?> body) async {
+  /// [timeout] overrides the client default for slow endpoints such as /detour.
+  Future<Object?> postJson(String path, Map<String, Object?> body, {Duration? timeout}) async {
     final String? token;
     try {
       token = await _idToken();
@@ -53,7 +54,7 @@ class ProxyClient {
             headers: {'content-type': 'application/json', 'authorization': 'Bearer $token'},
             body: jsonEncode(body),
           )
-          .timeout(timeout);
+          .timeout(timeout ?? this.timeout);
     } on TimeoutException {
       throw const ProxyException('timeout');
     } on Object catch (error) {

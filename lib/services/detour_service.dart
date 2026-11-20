@@ -84,6 +84,10 @@ class ProxyDetourService implements DetourService {
   /// Must match MAX_HAZARDS in proxy/src/detour.js.
   static const int maxHazards = 50;
 
+  /// The proxy may ask the router up to three times (direct, then two rounds of
+  /// detours around a hazard), each with an 8 s limit, so the default 8 s is too short.
+  static const Duration timeout = Duration(seconds: 30);
+
   final ProxyClient _proxy;
 
   @override
@@ -100,13 +104,14 @@ class ProxyDetourService implements DetourService {
         'hazards': [
           for (final h in nearest) {'lat': h.latitude, 'lon': h.longitude, 'riskLevel': h.riskLevel},
         ],
-      });
+      }, timeout: timeout);
     } on ProxyException catch (error) {
-      throw DetourUnavailable(
-        error.reason == 'status 400'
-            ? 'Pick a destination within 10 km.'
-            : 'The route service is not reachable. Avoid the red pins and stay on main roads.',
-      );
+      throw DetourUnavailable(switch (error.reason) {
+        'status 400' => 'Pick a destination within 10 km.',
+        'status 429' => 'Too many route requests. Wait a minute and try again.',
+        'timeout' => 'The route took too long to plan. Try a closer destination.',
+        _ => 'The route service is not reachable. Avoid the red pins and stay on main roads.',
+      });
     }
     final route = DetourRoute.tryFromJson(json);
     if (route == null) throw const DetourUnavailable('No walking route was found.');
