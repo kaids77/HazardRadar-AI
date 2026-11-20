@@ -79,4 +79,33 @@ void main() {
     expect(find.text('Civic Scout'), findsOneWidget);
     expect(find.text('Continue with Google'), findsNothing);
   });
+
+  testWidgets('Level details shows points, progress, and what the level can do', (tester) async {
+    const admin = UserProfile(
+      uid: 'a',
+      role: 'ADMIN',
+      tier: 5,
+      accountStatus: 'ACTIVE',
+      ctp: 40,
+      reportsTotal: 4,
+      reportsResolved: 3,
+    );
+    await _open(tester, admin, _session(() async => 'a'));
+
+    expect(find.text('System Administrator'), findsOneWidget);
+    expect(find.text('40'), findsOneWidget);
+    expect(find.text('75%'), findsOneWidget);
+    expect(find.text('What you can do'), findsOneWidget);
+    expect(find.textContaining('Manage users'), findsOneWidget);
+    expect(find.text('City staff level. Set by an admin.'), findsOneWidget);
+  });
+
+  test('privileges follow the level', () {
+    expect(levelPrivileges(_profile(2)), contains(contains('10 reports a day')));
+    expect(levelPrivileges(_profile(3)), contains(contains('Flag spam')));
+    const dispatcher = UserProfile(uid: 'd', role: 'DISPATCHER', tier: 4, accountStatus: 'ACTIVE');
+    expect(levelPrivileges(dispatcher).any((l) => l.contains('Manage users')), isFalse);
+    const override = UserProfile(uid: 'o', role: 'CITIZEN', tier: 2, accountStatus: 'ACTIVE', rateLimitOverride: true);
+    expect(levelPrivileges(override), contains('An admin turned off your daily report limit.'));
+  });
 }

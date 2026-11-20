@@ -3,12 +3,48 @@ import 'package:flutter/material.dart';
 
 import '../../models/user_profile.dart';
 import '../../services/account_linker.dart';
+import '../../services/level_policy.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
 
 /// Why the upgrade prompt opened. Changes only the first line of text.
 enum UpgradeReason { manual, vote, reportLimit }
+
+/// What each level allows, in plain words. Matches the limits and rules in
+/// report_limit_policy.dart, vote_policy.dart, and firestore.rules.
+List<String> levelPrivileges(UserProfile profile) {
+  final override = profile.rateLimitOverride && profile.tier <= UserProfile.tierCivicScout;
+  return [
+    ...switch (profile.tier) {
+      1 => const [
+          'Browse the hazard map and ask Radar AI.',
+          'File up to 3 reports a day.',
+          'Sign in with Google to vote on hazards.',
+        ],
+      2 => const [
+          'File up to 10 reports a day.',
+          'Vote Still here or Fixed or fake on hazards within 200 m. Your vote counts 1.',
+        ],
+      3 => const [
+          'File as many reports as you need.',
+          'Vote on hazards within 200 m. Your vote counts 2.',
+          'Flag spam or duplicate reports. They leave the map until a moderator checks them.',
+          'Pick a focus badge in My Reports.',
+        ],
+      _ => [
+          'File as many reports as you need. Your votes count 2.',
+          'Dispatch tab: start work, assign crews, resolve tickets, and correct AI ratings.',
+          'Review quarantined reports and restore them to the map.',
+          if (profile.isAdmin) ...[
+            'Manage users: role, account status, and the emergency daily-limit override.',
+            'See city analytics and permanently purge spam.',
+          ],
+        ],
+    },
+    if (override) 'An admin turned off your daily report limit.',
+  ];
+}
 
 /// Opens the account sheet. For guests it is the Google upgrade prompt.
 /// Resolves to the upgraded profile, or null if nothing changed.
@@ -99,13 +135,60 @@ class _AccountSheetState extends State<AccountSheet> {
     );
   }
 
-  List<Widget> _linked(TextTheme textTheme) => [
-        Text('Level ${widget.profile.tier}', style: textTheme.labelLarge),
-        const SizedBox(height: 4),
-        Text(widget.profile.tierTitle, style: _title),
-        const SizedBox(height: 12),
-        Text('Your account is linked. You can vote on hazards within 200 m.', style: textTheme.bodyLarge),
-      ];
+  List<Widget> _linked(TextTheme textTheme) {
+    final profile = widget.profile;
+    final progress = LevelPolicy.progress(profile);
+    final target = progress.target;
+    return [
+      Text('Level ${profile.tier}', style: textTheme.labelLarge),
+      const SizedBox(height: 4),
+      Text(profile.tierTitle, style: _title),
+      const SizedBox(height: 16),
+      Row(
+        children: [
+          _Stat(label: 'Trust points', value: '${profile.ctp}'),
+          _Stat(label: 'Reports', value: '${profile.reportsTotal}'),
+          _Stat(label: 'Resolved', value: '${profile.reportsResolved}'),
+          _Stat(label: 'Accuracy', value: '${(profile.accuracy * 100).round()}%'),
+        ],
+      ),
+      const SizedBox(height: 16),
+      if (target != null) ...[
+        SizedBox(
+          height: 8,
+          child: LinearProgressIndicator(
+            value: progress.fraction,
+            backgroundColor: context.palette.sage,
+            color: AppColors.redOrange,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text('${profile.ctp} / $target points to ${progress.nextTitle}', style: textTheme.bodyMedium),
+        if (progress.hint != null) Text(progress.hint!, style: textTheme.bodySmall),
+      ] else
+        Text(
+          profile.isStaff ? 'City staff level. Set by an admin.' : 'Highest citizen level.',
+          style: textTheme.bodyMedium,
+        ),
+      const SizedBox(height: 16),
+      Text('What you can do', style: textTheme.titleMedium),
+      const SizedBox(height: 8),
+      for (final line in levelPrivileges(profile)) _bullet(line, textTheme),
+      const SizedBox(height: 8),
+      Text('You earn 10 points for each report, and 10 more when the city resolves it.', style: textTheme.bodySmall),
+    ];
+  }
+
+  Widget _bullet(String text, TextTheme textTheme) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 7, right: 10), color: context.palette.ink),
+            Expanded(child: Text(text, style: textTheme.bodyMedium)),
+          ],
+        ),
+      );
 
   List<Widget> _guest(TextTheme textTheme) => [
         Text('Level 1 · ${widget.profile.tierTitle}', style: textTheme.labelLarge),
@@ -114,17 +197,7 @@ class _AccountSheetState extends State<AccountSheet> {
         const SizedBox(height: 12),
         Text(_reasonText, style: textTheme.bodyLarge),
         const SizedBox(height: 12),
-        for (final benefit in _benefits)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 6),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 7, right: 10), color: context.palette.ink),
-                Expanded(child: Text(benefit, style: textTheme.bodyMedium)),
-              ],
-            ),
-          ),
+        for (final benefit in _benefits) _bullet(benefit, textTheme),
         const SizedBox(height: 16),
         ElevatedButton(
           onPressed: _busy ? null : _continueWithGoogle,
@@ -154,4 +227,24 @@ class _AccountSheetState extends State<AccountSheet> {
       ];
 
   static const _title = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28);
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Expanded(
+      child: Column(
+        children: [
+          Text(value, style: textTheme.titleMedium),
+          Text(label, textAlign: TextAlign.center, style: textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
 }
