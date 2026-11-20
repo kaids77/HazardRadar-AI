@@ -32,12 +32,29 @@ class MapFilter {
   int get hashCode => key.hashCode;
 }
 
-/// True when [incident] matches the search text: its HZD reference or its category.
+/// True when every word of the search text starts a word of the report: its HZD
+/// reference, category, risk level ("high", "high risk"), status ("active",
+/// "in progress"), "verified", or its AI summary. Case does not matter, and word order
+/// does not matter, so "pothole high" and "high risk pothole" both work.
 bool matchesSearch(Incident incident, String query) {
-  final q = query.trim().toLowerCase();
-  if (q.isEmpty) return true;
-  return incident.reference.toLowerCase().contains(q) || incident.category.toLowerCase().contains(q);
+  final wanted = _words(query);
+  if (wanted.isEmpty) return true;
+  final words = _searchWords(incident);
+  return wanted.every((w) => words.any((word) => word.startsWith(w)));
 }
+
+final RegExp _separators = RegExp(r'[^a-z0-9]+');
+
+List<String> _words(String text) => [for (final w in text.toLowerCase().split(_separators)) if (w.isNotEmpty) w];
+
+List<String> _searchWords(Incident incident) => _words([
+      incident.reference,
+      incident.category,
+      '${incident.riskLevel} risk',
+      incident.status == Incident.statusInProgress ? 'in progress' : 'active',
+      if (incident.isVerified) 'verified',
+      incident.aiSummary,
+    ].join(' '));
 
 List<Incident> applyMapFilter(List<Incident> incidents, MapFilter filter, String query) =>
     [for (final incident in incidents) if (filter.matches(incident) && matchesSearch(incident, query)) incident];

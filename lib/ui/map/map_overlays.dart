@@ -18,7 +18,7 @@ class MapSearchField extends StatelessWidget {
         onChanged: onChanged,
         textInputAction: TextInputAction.search,
         decoration: const InputDecoration(
-          hintText: 'Search HZD id or category',
+          hintText: 'Search: high risk, pothole, HZD id',
           prefixIcon: Icon(Icons.search, color: AppColors.ink),
           isDense: true,
           border: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: AppColors.ink)),

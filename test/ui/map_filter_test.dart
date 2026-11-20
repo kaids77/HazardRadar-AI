@@ -88,6 +88,15 @@ void main() {
     expect(applyMapFilter(_items, MapFilter.all, 'flood'), isEmpty);
   });
 
+  test('search matches risk level and status words in any case and order', () {
+    expect(applyMapFilter(_items, MapFilter.all, 'High Risk').map((i) => i.id), ['abc123', 'ghi789']);
+    expect(applyMapFilter(_items, MapFilter.all, 'high').map((i) => i.id), ['abc123', 'ghi789']);
+    expect(applyMapFilter(_items, MapFilter.all, 'medium').map((i) => i.id), ['def456']);
+    expect(applyMapFilter(_items, MapFilter.all, 'pothole high').map((i) => i.id), ['ghi789']);
+    expect(applyMapFilter(_items, MapFilter.all, 'in progress').map((i) => i.id), ['ghi789']);
+    expect(applyMapFilter(_items, MapFilter.all, 'low'), isEmpty);
+  });
+
   test('only High reports not seen before raise the banner', () {
     expect(newHighRisk({'abc123'}, _items).map((i) => i.id), ['ghi789']);
     expect(newHighRisk({'abc123', 'ghi789'}, _items), isEmpty);
