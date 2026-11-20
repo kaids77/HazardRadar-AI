@@ -2,7 +2,7 @@ import express from 'express';
 
 import { buildChatMessages, parseChatResult, validateChatRequest } from './chat.js';
 import { loopbackCors } from './cors.js';
-import { pickSafest, toDetourResponse, validateDetourRequest } from './detour.js';
+import { findSafeRoute, toDetourResponse, validateDetourRequest } from './detour.js';
 import { UpstreamError, ValidationError } from './errors.js';
 import { requireFirebaseUser } from './idToken.js';
 import { perUserRateLimit } from './rateLimit.js';
@@ -71,10 +71,9 @@ export function createApp({ config, groq, osrm, verifyIdToken, log = console.log
     const detourLimit = perUserRateLimit({ limit: config.detourPerMinute ?? 6 });
     app.post('/detour', detourLimit, async (req, res) => {
       const { from, to, hazards } = validateDetourRequest(req.body);
-      const routes = await osrm.routes(from, to);
-      const choice = pickSafest(routes, hazards);
+      const choice = await findSafeRoute({ osrm, from, to, hazards });
       if (!choice) throw new UpstreamError('no walking route found', 502);
-      res.json(toDetourResponse(choice, routes.length));
+      res.json(toDetourResponse(choice, choice.alternatives));
     });
   }
 

@@ -23,6 +23,9 @@ class DetourRoute {
 
   static const int maxPoints = 5000;
 
+  /// Must match SAFE_METERS in proxy/src/detour.js.
+  static const int unsafeBelowMeters = 40;
+
   /// Parses the proxy `/detour` response. Returns null for anything malformed or outside the Philippines.
   static DetourRoute? tryFromJson(Object? json) {
     if (json is! Map) return null;
@@ -46,13 +49,17 @@ class DetourRoute {
     );
   }
 
-  /// "1.3 km · 18 min walk · stays 140 m from High and Medium hazards".
+  /// "1.3 km · 18 min walk · stays 140 m from High and Medium hazards". When the route
+  /// still passes close to a hazard (no way around it was found), it says so plainly.
   String get summary {
     final km = distanceMeters >= 1000 ? '${(distanceMeters / 1000).toStringAsFixed(1)} km' : '$distanceMeters m';
     final minutes = (durationSeconds / 60).ceil();
-    final away = clearanceMeters == null
+    final clearance = clearanceMeters;
+    final away = clearance == null
         ? 'no High or Medium hazards nearby'
-        : 'stays $clearanceMeters m from High and Medium hazards';
+        : clearance < unsafeBelowMeters
+            ? 'Warning: passes within $clearance m of a hazard. No safer route found.'
+            : 'stays $clearance m from High and Medium hazards';
     return '$km · $minutes min walk · $away';
   }
 }
@@ -82,7 +89,9 @@ class ProxyDetourService implements DetourService {
   @override
   Future<DetourRoute> route({required LatLng from, required LatLng to, required List<Incident> hazards}) async {
     final relevant = [for (final h in hazards) if (h.riskLevel == 'High' || h.riskLevel == 'Medium') h];
-    final nearest = nearestIncidents(relevant, from, limit: maxHazards);
+    // Nearest to the middle of the trip, so hazards near the destination are not crowded out.
+    final middle = LatLng((from.latitude + to.latitude) / 2, (from.longitude + to.longitude) / 2);
+    final nearest = nearestIncidents(relevant, middle, limit: maxHazards);
     final Object? json;
     try {
       json = await _proxy.postJson('detour', {

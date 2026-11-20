@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -88,12 +89,16 @@ class _MapScreenState extends State<MapScreen> {
   List<Incident> _latest = const [];
   bool _loadError = false;
 
+  /// The real error text, shown only in debug builds.
+  String? _loadErrorDetail;
+
   /// Ids seen so far. Null until the first snapshot, so the first load never raises the banner.
   Set<String>? _seen;
   Incident? _alert;
 
   MapFilter _filter = MapFilter.all;
   String _query = '';
+  Timer? _searchDebounce;
 
   /// True while waiting for the user to tap a destination for a safe route.
   bool _pickingDestination = false;
@@ -156,13 +161,56 @@ class _MapScreenState extends State<MapScreen> {
   void _subscribe() {
     _subscription?.cancel();
     if (_loadError) setState(() => _loadError = false);
-    _subscription = widget.incidents.watchActivePublic().listen(_onIncidents, onError: (_) {
-      if (mounted) setState(() => _loadError = true);
+    _subscription = widget.incidents.watchActivePublic().listen(_onIncidents, onError: (Object error) {
+      if (mounted) {
+        setState(() {
+          _loadError = true;
+          _loadErrorDetail = '$error';
+        });
+      }
+    });
+  }
+
+  /// Moves the camera to the pins that match the search text and filter chip. A single
+  /// match is centered at street zoom. Nothing happens for "All" with an empty search.
+  void _flyToMatches() {
+    if (_filter == MapFilter.all && _query.trim().isEmpty) return;
+    final matches = applyMapFilter(
+      [for (final i in _latest) if (philippinesBounds.contains(LatLng(i.latitude, i.longitude))) i],
+      _filter,
+      _query,
+    );
+    if (matches.isEmpty) {
+      _toast('No matching hazards on the map.');
+      return;
+    }
+    final points = [for (final i in matches) LatLng(i.latitude, i.longitude)];
+    if (points.length == 1) {
+      _map.move(points.single, 17);
+      return;
+    }
+    _map.fitCamera(
+      CameraFit.coordinates(
+        coordinates: points,
+        // Extra room at the top for the search box and chips, and at the bottom for the legend.
+        padding: const EdgeInsets.fromLTRB(40, 170, 40, 120),
+        maxZoom: 17,
+      ),
+    );
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() => _query = value);
+    // Wait until typing pauses, so the map does not jump on every letter.
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 600), () {
+      if (mounted) _flyToMatches();
     });
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _subscription?.cancel();
     _moves?.cancel();
     _chat?.dispose();
@@ -372,7 +420,7 @@ class _MapScreenState extends State<MapScreen> {
             children: [
               Row(
                 children: [
-                  Expanded(child: MapSearchField(onChanged: (value) => setState(() => _query = value))),
+                  Expanded(child: MapSearchField(onChanged: _onSearchChanged)),
                   if (_chat != null) ...[
                     const SizedBox(width: 8),
                     _RadarButton(onPressed: _openChat),
@@ -383,7 +431,10 @@ class _MapScreenState extends State<MapScreen> {
               MapFilterChips(
                 incidents: _latest,
                 selected: _filter,
-                onSelected: (filter) => setState(() => _filter = filter),
+                onSelected: (filter) {
+                  setState(() => _filter = filter);
+                  _flyToMatches();
+                },
               ),
               if (nearby != null) ...[
                 const SizedBox(height: 8),
@@ -416,7 +467,11 @@ class _MapScreenState extends State<MapScreen> {
                   color: AppColors.sage,
                   child: InkWell(
                     onTap: _subscribe,
-                    child: const MapLabel(text: 'Could not load hazards. Tap to try again.'),
+                    child: MapLabel(
+                      text: kDebugMode && _loadErrorDetail != null
+                          ? 'Could not load hazards. Tap to try again.\n$_loadErrorDetail'
+                          : 'Could not load hazards. Tap to try again.',
+                    ),
                   ),
                 ),
               ],

@@ -2,7 +2,14 @@ import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
 
 import { createApp } from '../src/app.js';
-import { clearanceMeters, createOsrmClient, pickSafest, validateDetourRequest } from '../src/detour.js';
+import {
+  clearanceMeters,
+  createOsrmClient,
+  findSafeRoute,
+  pickSafest,
+  SAFE_METERS,
+  validateDetourRequest,
+} from '../src/detour.js';
 import { createTestTokens } from './tokens.js';
 
 const FROM = { lat: 10.3236, lon: 123.9322 };
@@ -53,6 +60,48 @@ test('the safest route keeps farthest from High and Medium hazards', () => {
   assert.equal(clearanceMeters(routes[0].path, [HAZARD]), 0);
   assert.equal(pickSafest(routes, [HAZARD]).route.distanceMeters, 900);
   assert.equal(pickSafest(routes, []).route.distanceMeters, 710);
+});
+
+test('findSafeRoute asks for a waypoint detour when every route passes the hazard', async () => {
+  const toPath = (coords) => coords.map(([lon, lat]) => ({ lat, lon }));
+  const calls = [];
+  const osrm = {
+    // Without a waypoint the router only offers the straight street, right through the hazard.
+    // Through a waypoint on the east side it returns a route that swings around.
+    routes: async (from, to, via = []) => {
+      calls.push(via.length);
+      if (via.length === 0) return [{ path: toPath(straight), distanceMeters: 710, durationSeconds: 500 }];
+      const east = via[0].lon > HAZARD.lon + 0.0004;
+      return [{ path: toPath(east ? around : straight), distanceMeters: east ? 900 : 710, durationSeconds: 600 }];
+    },
+  };
+  const choice = await findSafeRoute({ osrm, from: FROM, to: TO, hazards: [HAZARD] });
+  assert.equal(choice.route.distanceMeters, 900);
+  assert.ok(choice.clearance >= SAFE_METERS);
+  assert.deepEqual(calls.slice(0, 2), [0, 1]);
+});
+
+test('findSafeRoute keeps the best route when no detour is safe, and skips a hazard at the destination', async () => {
+  const toPath = (coords) => coords.map(([lon, lat]) => ({ lat, lon }));
+  const osrm = { routes: async () => [{ path: toPath(straight), distanceMeters: 710, durationSeconds: 500 }] };
+  const stuck = await findSafeRoute({ osrm, from: FROM, to: TO, hazards: [HAZARD] });
+  assert.equal(stuck.route.distanceMeters, 710);
+  assert.ok(stuck.clearance < SAFE_METERS);
+
+  let asked = 0;
+  const counting = {
+    routes: async (...args) => {
+      asked++;
+      return osrm.routes(...args);
+    },
+  };
+  await findSafeRoute({ osrm: counting, from: FROM, to: TO, hazards: [{ ...TO, riskLevel: 'High' }] });
+  assert.equal(asked, 1);
+});
+
+test('the clearance of a path uses its segments, not only its vertices', () => {
+  const path = [{ lat: 10.3236, lon: 123.9322 }, { lat: 10.33, lon: 123.9322 }];
+  assert.ok(clearanceMeters(path, [{ lat: 10.3268, lon: 123.9323 }]) < 15);
 });
 
 test('the OSRM client sends a User-Agent, caches for 5 minutes, and maps failures', async () => {
@@ -115,7 +164,7 @@ test('POST /detour returns the safest path and has its own per-user limit', asyn
   assert.equal(response.status, 200);
   assert.equal(body.distanceMeters, 900);
   assert.equal(body.alternatives, 2);
-  assert.ok(body.clearanceMeters > 250);
+  assert.ok(body.clearanceMeters > 200);
   assert.deepEqual(body.path[0], [10.3236, 123.9322]);
 
   assert.equal((await postDetour(base, { from: FROM, to: TO })).status, 200);
