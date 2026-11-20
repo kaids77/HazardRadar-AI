@@ -7,9 +7,9 @@ import '../common/feedback.dart';
 
 /// Settings section for city staff.
 ///
-/// - Guests see "Sign in with Google" (for staff who use a Google account) and the
-///   email and password form (for city-issued email accounts, or a Google admin who
-///   set a staff password).
+/// - Guests see the email and password form (for city-issued email accounts, or a
+///   Google admin who set a staff password). Google sign-in lives in the Account
+///   section, not here.
 /// - Google accounts see their name and email, "Check staff access", and, for staff,
 ///   "Set staff password" so the email form also works with their Google email.
 /// - Email staff accounts see who is signed in and Sign out.
@@ -23,7 +23,6 @@ class StaffSignInSection extends StatefulWidget {
     this.googleEmail,
     this.hasPassword = false,
     this.onCheckAccess,
-    this.onGoogleSignIn,
     this.onSetPassword,
   });
 
@@ -41,9 +40,6 @@ class StaffSignInSection extends StatefulWidget {
 
   /// Resolves to the signed-in profile. Throws [StaffSignInFailed].
   final Future<UserProfile> Function(String email, String password) onSignIn;
-
-  /// Signs in with Google. Null hides the button.
-  final Future<void> Function()? onGoogleSignIn;
 
   /// Adds or changes the staff password. Throws [StaffSignInFailed]. Null hides the button.
   final Future<void> Function(String password)? onSetPassword;
@@ -118,20 +114,6 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
       if (mounted) _say(failure.message, FeedbackTone.error);
     } catch (_) {
       if (mounted) _say('Sign-in failed. Try again.', FeedbackTone.error);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _google() async {
-    final signIn = widget.onGoogleSignIn;
-    if (signIn == null) return;
-    setState(() {
-      _busy = true;
-      _message = null;
-    });
-    try {
-      await signIn();
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -241,18 +223,8 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
     return [
       const Text('City staff', style: _heading),
       const SizedBox(height: 4),
-      if (widget.onGoogleSignIn != null) ...[
-        Text('Admins and dispatchers with a Google account:', style: textTheme.bodySmall),
-        const SizedBox(height: 8),
-        ElevatedButton(
-          onPressed: _busy ? null : _google,
-          style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), shape: const RoundedRectangleBorder()),
-          child: const Text('Sign in with Google'),
-        ),
-        const SizedBox(height: 16),
-      ],
       Text(
-        'Or sign in with the email account the city gave you. A Google admin can use their Google email '
+        'Sign in with the email account the city gave you. A Google admin can use their Google email '
         'here after setting a staff password in Settings. This replaces the guest session on this phone.',
         style: textTheme.bodySmall,
       ),

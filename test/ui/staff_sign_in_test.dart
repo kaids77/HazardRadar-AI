@@ -84,8 +84,7 @@ void main() {
     expect(tester.widget<FeedbackMessage>(find.byType(FeedbackMessage)).tone, FeedbackTone.success);
   });
 
-  testWidgets('a guest sees Sign in with Google as well as the staff email form', (tester) async {
-    var google = false;
+  testWidgets('a guest sees only the staff email form, with no Google button', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.light(),
@@ -95,7 +94,6 @@ void main() {
               profile: const UserProfile(uid: 'g', role: 'CITIZEN', tier: 1, accountStatus: 'ACTIVE'),
               isEmailSession: false,
               onSignIn: (_, _) async => throw const StaffSignInFailed('Wrong email or password.'),
-              onGoogleSignIn: () async => google = true,
               onSignOut: () async {},
             ),
           ),
@@ -103,9 +101,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Sign in with Google'));
-    await tester.pump();
-    expect(google, isTrue);
+    expect(find.text('Sign in with Google'), findsNothing);
 
     await tester.tap(find.text('Sign in as staff'));
     await tester.pump();

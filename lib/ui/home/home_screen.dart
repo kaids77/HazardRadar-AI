@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/user_profile.dart';
-import '../../services/account_linker.dart';
 import '../../services/photo_service.dart';
 import '../../services/report_limit_policy.dart';
 import '../../services/staff_auth.dart';
@@ -226,30 +225,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return _latest ?? upgraded;
   }
 
-  /// The Settings staff button for admins and dispatchers who use Google.
-  Future<void> _signInWithGoogle() async {
-    try {
-      final profile = await _s.session.upgradeWithGoogle();
-      if (profile == null || !mounted) return;
-      setState(() {
-        _latest = profile;
-        _tab = 0;
-      });
-      if (profile.isStaff) {
-        _success('Signed in as ${profile.tierTitle}.');
-      } else {
-        _error('Signed in with Google, but this account has no staff role yet. Ask an admin.');
-      }
-      unawaited(_syncAvatar(profile));
-      if (_needsName(profile)) await _promptName(profile, required: true);
-    } on LinkFailed catch (failure) {
-      _error(failure.message);
-    } catch (error) {
-      const message = 'Google sign-in failed. Try again.';
-      _error(kDebugMode ? '$message\n$error' : message);
-    }
-  }
-
   /// Checks the daily limit with a fresh profile before opening the camera.
   Future<void> _openReport() async {
     final profile = await _refresh();
@@ -383,7 +358,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 hasPassword: staffAuth.hasPassword,
                 onCheckAccess: _refresh,
                 onSignIn: _signInStaff,
-                onGoogleSignIn: _s.session.linker == null ? null : _signInWithGoogle,
                 onSetPassword: (password) async {
                   await staffAuth.setPassword(password);
                   if (mounted) setState(() {});
