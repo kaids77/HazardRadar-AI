@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show debugPrint, kDebugMode;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -163,6 +164,9 @@ class _MapScreenState extends State<MapScreen> {
     if (_loadError) setState(() => _loadError = false);
     _subscription = widget.incidents.watchActivePublic().listen(_onIncidents, onError: (Object error) {
       if (mounted) {
+        // Debug only: the full text (with any Firebase index link) also goes to the
+        // flutter run terminal, where the link can be clicked.
+        if (kDebugMode) debugPrint('Radar map load error: $error');
         setState(() {
           _loadError = true;
           _loadErrorDetail = '$error';
@@ -467,13 +471,10 @@ class _MapScreenState extends State<MapScreen> {
                   color: AppColors.sage,
                   child: InkWell(
                     onTap: _subscribe,
-                    child: MapLabel(
-                      text: kDebugMode && _loadErrorDetail != null
-                          ? 'Could not load hazards. Tap to try again.\n$_loadErrorDetail'
-                          : 'Could not load hazards. Tap to try again.',
-                    ),
+                    child: const MapLabel(text: 'Could not load hazards. Tap to try again.'),
                   ),
                 ),
+                if (kDebugMode && _loadErrorDetail != null) _DebugError(text: _loadErrorDetail!),
               ],
             ],
           ),
@@ -580,6 +581,40 @@ class _MapScreenState extends State<MapScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Debug builds only: the full map load error, selectable, with a copy button.
+/// Limited in height so a long Firebase link never covers the map.
+class _DebugError extends StatelessWidget {
+  const _DebugError({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace', color: AppColors.ink);
+    return Container(
+      color: AppColors.cream,
+      padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
+      constraints: const BoxConstraints(maxHeight: 140),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: SingleChildScrollView(child: SelectableText(text, style: style))),
+          IconButton(
+            tooltip: 'Copy error',
+            icon: const Icon(Icons.copy, color: AppColors.ink, size: 20),
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text));
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error copied.')));
+              }
+            },
+          ),
+        ],
       ),
     );
   }
