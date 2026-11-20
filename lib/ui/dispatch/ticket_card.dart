@@ -28,17 +28,17 @@ class TicketCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final status = statusStyle(incident);
+    final status = statusStyle(context, incident);
     final created = incident.createdAt;
     final active = incident.status == Incident.statusActive;
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.cream,
+        color: context.palette.paper,
         border: Border(
           left: BorderSide(color: riskColor(incident.riskLevel), width: 5),
-          top: const BorderSide(color: AppColors.sage),
-          right: const BorderSide(color: AppColors.sage),
-          bottom: const BorderSide(color: AppColors.sage),
+          top: BorderSide(color: context.palette.sage),
+          right: BorderSide(color: context.palette.sage),
+          bottom: BorderSide(color: context.palette.sage),
         ),
       ),
       padding: const EdgeInsets.all(12),
@@ -55,9 +55,9 @@ class TicketCard extends StatelessWidget {
                 foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
               ),
               FlatBadge(label: status.label, background: status.background, foreground: status.foreground),
-              FlatBadge(label: incident.reference, background: AppColors.sage, foreground: AppColors.ink),
+              FlatBadge(label: incident.reference, background: context.palette.sage, foreground: context.palette.ink),
               if (!incident.aiProcessed)
-                const FlatBadge(label: 'Offline triage', background: AppColors.sage, foreground: AppColors.ink),
+                FlatBadge(label: 'Offline triage', background: context.palette.sage, foreground: context.palette.ink),
             ],
           ),
           const SizedBox(height: 8),
@@ -101,8 +101,8 @@ class _Outline extends StatelessWidget {
     return OutlinedButton(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.ink,
-        side: const BorderSide(color: AppColors.ink),
+        foregroundColor: context.palette.ink,
+        side: BorderSide(color: context.palette.ink),
         shape: const RoundedRectangleBorder(),
       ),
       child: Text(label),

@@ -1,5 +1,7 @@
 import '../../services/analytics.dart';
 import '../../services/app_settings.dart';
+import '../../services/avatar_picker.dart';
+import '../../services/avatar_repository.dart';
 import '../../services/chat_service.dart';
 import '../../services/detour_service.dart';
 import '../../services/dispatch_repository.dart';
@@ -32,6 +34,8 @@ class HomeServices {
     this.chat,
     this.detour,
     this.enricher,
+    this.avatars,
+    this.avatarPicker,
   });
 
   final SessionService session;
@@ -63,4 +67,10 @@ class HomeServices {
 
   /// Null in builds without a proxy. Re-checks the user's offline-triaged reports.
   final ReportEnricher? enricher;
+
+  /// Profile photos. Null in tests that do not cover them; initials show instead.
+  final AvatarRepository? avatars;
+
+  /// Camera or gallery for a new profile photo. Null hides "Change photo".
+  final AvatarPicker? avatarPicker;
 }

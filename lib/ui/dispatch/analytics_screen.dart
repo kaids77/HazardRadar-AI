@@ -4,6 +4,7 @@ import '../../models/hazard_category.dart';
 import '../../services/analytics.dart';
 import '../../services/moderation_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/feedback.dart';
 import '../common/pull_to_refresh.dart';
 import 'storage_meter.dart';
 
@@ -57,7 +58,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(32),
           children: [
-            const Text('Could not load analytics. Pull down to try again.', textAlign: TextAlign.center),
+            const FeedbackMessage.error('Could not load analytics. Pull down to try again.'),
             const SizedBox(height: 8),
             Center(child: OutlinedButton(onPressed: _load, child: const Text('Try again'))),
           ],
@@ -92,7 +93,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
             children: [
               _Block(label: 'In progress', value: '${data.inProgress}', color: AppColors.inProgress, foreground: AppColors.onInProgress),
               _Block(label: 'Resolved today', value: '${data.resolvedToday}'),
-              _Block(label: 'Quarantined', value: '${data.quarantined}', color: AppColors.ink, foreground: AppColors.cream),
+              _Block(label: 'Quarantined', value: '${data.quarantined}', color: context.palette.ink, foreground: context.palette.paper),
             ],
           ),
           const SizedBox(height: 16),
@@ -115,7 +116,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 6),
           SizedBox(
             height: 10,
-            child: LinearProgressIndicator(value: data.aiProcessedShare, backgroundColor: AppColors.sage, color: AppColors.ink),
+            child: LinearProgressIndicator(value: data.aiProcessedShare, backgroundColor: context.palette.sage, color: context.palette.ink),
           ),
           const SizedBox(height: 4),
           Text(
@@ -133,18 +134,21 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
 }
 
 class _Block extends StatelessWidget {
-  const _Block({required this.label, required this.value, this.color = AppColors.sage, this.foreground = AppColors.ink});
+  const _Block({required this.label, required this.value, this.color, this.foreground});
 
   final String label;
   final String value;
-  final Color color;
-  final Color foreground;
+
+  /// Null means the palette's panel color and text color.
+  final Color? color;
+  final Color? foreground;
 
   @override
   Widget build(BuildContext context) {
+    final foreground = this.foreground ?? context.palette.ink;
     return Expanded(
       child: Container(
-        color: color,
+        color: color ?? context.palette.sage,
         margin: const EdgeInsets.only(right: 6),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         child: Column(
@@ -164,13 +168,15 @@ class _CategoryBar extends StatelessWidget {
 
   final Map<String, int> counts;
 
-  static const _colors = {
+  /// Fixed fills, so the legend reads the same in light and dark mode. "Other" uses the
+  /// text color, so it stays visible on either background.
+  static Map<String, Color> _colors(BuildContext context) => {
     HazardCategory.pothole: AppColors.riskMedium,
     HazardCategory.electrical: AppColors.redOrange,
     HazardCategory.flooding: AppColors.inProgress,
     HazardCategory.obstruction: AppColors.riskLow,
     HazardCategory.lighting: AppColors.sage,
-    HazardCategory.other: AppColors.ink,
+    HazardCategory.other: context.palette.ink,
   };
 
   @override
@@ -186,7 +192,7 @@ class _CategoryBar extends StatelessWidget {
           child: Row(
             children: [
               for (final entry in counts.entries)
-                if (entry.value > 0) Expanded(flex: entry.value, child: ColoredBox(color: _colors[entry.key]!)),
+                if (entry.value > 0) Expanded(flex: entry.value, child: ColoredBox(color: _colors(context)[entry.key]!)),
             ],
           ),
         ),
@@ -199,7 +205,7 @@ class _CategoryBar extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(width: 12, height: 12, color: _colors[entry.key]),
+                  Container(width: 12, height: 12, color: _colors(context)[entry.key]),
                   const SizedBox(width: 4),
                   Text('${entry.key} ${(entry.value * 100 / total).round()}%', style: textTheme.bodySmall),
                 ],

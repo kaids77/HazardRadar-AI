@@ -21,6 +21,7 @@ import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_sheet.dart';
+import '../common/feedback.dart';
 import 'incident_sheet.dart';
 import 'map_filter.dart';
 import 'map_overlays.dart';
@@ -106,9 +107,8 @@ class _MapScreenState extends State<MapScreen> {
   bool _routing = false;
   DetourRoute? _route;
 
-  void _toast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
+  /// Every map notice is a problem the user can fix (location off, no route, no match).
+  void _toast(String message) => showError(context, message);
 
   void _startDetour() {
     if (_fix == null) {
@@ -291,7 +291,7 @@ class _MapScreenState extends State<MapScreen> {
     final position = _fix?.position;
     if (!mounted) return;
     if (position == null || !philippinesBounds.contains(position)) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location is off.')));
+      showError(context, 'Location is off.');
       return;
     }
     _map.move(position, 16);
@@ -383,8 +383,8 @@ class _MapScreenState extends State<MapScreen> {
                   Polyline(
                     points: route.path,
                     strokeWidth: 6,
-                    color: AppColors.sage,
-                    borderColor: AppColors.ink,
+                    color: context.palette.sage,
+                    borderColor: context.palette.ink,
                     borderStrokeWidth: 1.5,
                   ),
                 ],
@@ -398,9 +398,9 @@ class _MapScreenState extends State<MapScreen> {
                     height: 14,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: AppColors.ink,
+                        color: context.palette.ink,
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.cream, width: 2),
+                        border: Border.all(color: context.palette.paper, width: 2),
                       ),
                     ),
                   ),
@@ -468,10 +468,14 @@ class _MapScreenState extends State<MapScreen> {
               if (_loadError) ...[
                 const SizedBox(height: 8),
                 Material(
-                  color: AppColors.sage,
+                  color: AppColors.error,
                   child: InkWell(
                     onTap: _subscribe,
-                    child: const MapLabel(text: 'Could not load hazards. Tap to try again.'),
+                    child: const MapLabel(
+                      text: 'Could not load hazards. Tap to try again.',
+                      color: AppColors.error,
+                      textColor: AppColors.onError,
+                    ),
                   ),
                 ),
                 if (kDebugMode && _loadErrorDetail != null) _DebugError(text: _loadErrorDetail!),
@@ -541,7 +545,7 @@ class _MapScreenState extends State<MapScreen> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: riskColor(risk),
-                border: Border.all(color: AppColors.cream, width: 2),
+                border: Border.all(color: context.palette.paper, width: 2),
               ),
               child: Text(
                 count > 99 ? '99+' : '$count',
@@ -575,7 +579,7 @@ class _MapScreenState extends State<MapScreen> {
               decoration: BoxDecoration(
                 color: pinColor(incident),
                 shape: BoxShape.circle,
-                border: Border.all(color: AppColors.cream, width: 2),
+                border: Border.all(color: context.palette.paper, width: 2),
               ),
               child: Icon(categoryIcon(incident.category), size: 16, color: pinIconColor(incident)),
             ),
@@ -595,9 +599,9 @@ class _DebugError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace', color: AppColors.ink);
+    final style = Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace', color: context.palette.ink);
     return Container(
-      color: AppColors.cream,
+      color: context.palette.paper,
       padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
       constraints: const BoxConstraints(maxHeight: 140),
       child: Row(
@@ -606,11 +610,11 @@ class _DebugError extends StatelessWidget {
           Expanded(child: SingleChildScrollView(child: SelectableText(text, style: style))),
           IconButton(
             tooltip: 'Copy error',
-            icon: const Icon(Icons.copy, color: AppColors.ink, size: 20),
+            icon: Icon(Icons.copy, color: context.palette.ink, size: 20),
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: text));
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Error copied.')));
+                showSuccess(context, 'Error copied.');
               }
             },
           ),
@@ -631,16 +635,16 @@ class _RoutePanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.cream,
+      color: context.palette.paper,
       padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
       child: Row(
         children: [
-          Container(width: 12, height: 12, color: AppColors.sage, margin: const EdgeInsets.only(right: 8)),
+          Container(width: 12, height: 12, color: context.palette.sage, margin: const EdgeInsets.only(right: 8)),
           Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
           if (actionLabel != null)
             TextButton(
               onPressed: onAction,
-              style: TextButton.styleFrom(foregroundColor: AppColors.ink, shape: const RoundedRectangleBorder()),
+              style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
               child: Text(actionLabel!),
             ),
         ],
@@ -658,12 +662,12 @@ class _RadarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.sage,
+      color: context.palette.sage,
       child: InkWell(
         onTap: onPressed,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          child: Text('Ask Radar AI', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.ink)),
+          child: Text('Ask Radar AI', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: context.palette.ink)),
         ),
       ),
     );

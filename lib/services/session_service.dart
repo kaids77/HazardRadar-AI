@@ -23,6 +23,19 @@ class SessionService {
   /// Null in builds or tests without staff email sign-in.
   final StaffAuth? staffAuth;
 
+  /// True when this session belongs to a real account (Google or a staff email),
+  /// not a throwaway guest. Only those accounts get a name and a photo.
+  bool get hasAccount => staffAuth?.googleEmail != null || (staffAuth?.isEmailSession ?? false);
+
+  /// The name on the linked Google account, offered when the user picks a display name.
+  String? get googleName => linker?.displayName;
+
+  /// Saves the user's display name and returns the reloaded profile.
+  Future<UserProfile> saveDisplayName(String uid, String name) async {
+    await profiles.setDisplayName(uid, name);
+    return start();
+  }
+
   /// Signs in a staff member with email and password, then loads their profile.
   /// Throws [StaffSignInFailed] with a user-facing message.
   Future<UserProfile> signInStaff({required String email, required String password}) async {
@@ -63,9 +76,10 @@ class SessionService {
     if (uid == null) return null;
 
     // The uid changes when the Google account already had a profile, so load it first.
+    // The Google name is only a starting point: a name the user chose is never replaced.
     final existing = await profiles.getOrCreateProfile(uid);
     final name = linker.displayName;
-    if (name != null && name != existing.displayName) {
+    if (name != null && existing.displayName == null) {
       try {
         await profiles.setDisplayName(uid, name);
       } on Object {

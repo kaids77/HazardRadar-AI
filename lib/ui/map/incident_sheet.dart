@@ -10,6 +10,7 @@ import '../../services/location_service.dart';
 import '../../services/vote_policy.dart';
 import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/feedback.dart';
 import '../common/status_style.dart';
 import 'incident_evidence.dart';
 import 'risk_style.dart';
@@ -42,7 +43,7 @@ Future<void> showIncidentSheet(
       snap: true,
       snapSizes: const [0.42, 0.94],
       builder: (context, scrollController) => ColoredBox(
-        color: AppColors.cream,
+        color: context.palette.paper,
         child: IncidentSheet(
           incident: incident,
           profile: profile,
@@ -104,7 +105,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
   bool _busy = false;
   bool _voted = false;
   bool _flagged = false;
-  String? _message;
+  ({String text, FeedbackTone tone})? _message;
 
   @override
   void initState() {
@@ -154,7 +155,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
 
     final blocked = VotePolicy.explain(eligibility);
     if (blocked != null) {
-      setState(() => _message = blocked);
+      setState(() => _message = (text: blocked, tone: FeedbackTone.error));
       return;
     }
 
@@ -172,18 +173,18 @@ class _IncidentSheetState extends State<IncidentSheet> {
       if (mounted) {
         setState(() {
           _voted = true;
-          _message = 'Vote recorded.';
+          _message = (text: 'Vote recorded.', tone: FeedbackTone.success);
         });
       }
     } on AlreadyVotedException {
       if (mounted) {
         setState(() {
           _voted = true;
-          _message = 'You already voted on this report.';
+          _message = (text: 'You already voted on this report.', tone: FeedbackTone.error);
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _message = 'Could not record your vote. Try again.');
+      if (mounted) setState(() => _message = (text: 'Could not record your vote. Try again.', tone: FeedbackTone.error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -216,11 +217,11 @@ class _IncidentSheetState extends State<IncidentSheet> {
       if (mounted) {
         setState(() {
           _flagged = true;
-          _message = 'Report flagged. It is hidden from the map.';
+          _message = (text: 'Report flagged. It is hidden from the map.', tone: FeedbackTone.success);
         });
       }
     } catch (_) {
-      if (mounted) setState(() => _message = 'Could not flag the report. Try again.');
+      if (mounted) setState(() => _message = (text: 'Could not flag the report. Try again.', tone: FeedbackTone.error));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -230,13 +231,13 @@ class _IncidentSheetState extends State<IncidentSheet> {
   Widget build(BuildContext context) {
     final incident = widget.incident;
     final textTheme = Theme.of(context).textTheme;
-    final status = statusStyle(incident);
+    final status = statusStyle(context, incident);
     return SafeArea(
       child: ListView(
         controller: widget.scrollController,
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
         children: [
-          Center(child: Container(width: 40, height: 4, color: AppColors.ink)),
+          Center(child: Container(width: 40, height: 4, color: context.palette.ink)),
           const SizedBox(height: 14),
           Wrap(
             spacing: 6,
@@ -249,14 +250,14 @@ class _IncidentSheetState extends State<IncidentSheet> {
               ),
               FlatBadge(label: '${incident.reference} · ${status.label}', background: status.background, foreground: status.foreground),
               if (incident.isVerified)
-                const FlatBadge(label: 'Verified hazard', background: AppColors.ink, foreground: AppColors.cream),
+                FlatBadge(label: 'Verified hazard', background: context.palette.ink, foreground: context.palette.paper),
             ],
           ),
           if (incident.isQuarantined) ...[const SizedBox(height: 12), const DisputedWarning()],
           const SizedBox(height: 10),
           Text(
             incident.category,
-            style: const TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28, color: AppColors.ink),
+            style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28, color: context.palette.ink),
           ),
           FutureBuilder<double?>(
             future: _distance,
@@ -264,7 +265,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
           ),
           const SizedBox(height: 10),
           Container(
-            color: AppColors.sage,
+            color: context.palette.sage,
             padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,7 +280,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
             const SizedBox(height: 4),
             TextButton(
               onPressed: widget.onExpand,
-              style: TextButton.styleFrom(foregroundColor: AppColors.ink, shape: const RoundedRectangleBorder()),
+              style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
               child: const Text('Swipe up for photo proof and voting'),
             ),
           ],
@@ -306,8 +307,8 @@ class _IncidentSheetState extends State<IncidentSheet> {
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                     shape: const RoundedRectangleBorder(),
-                    foregroundColor: AppColors.ink,
-                    side: const BorderSide(color: AppColors.ink),
+                    foregroundColor: context.palette.ink,
+                    side: BorderSide(color: context.palette.ink),
                   ),
                   child: const Text('Fixed or fake'),
                 ),
@@ -318,13 +319,13 @@ class _IncidentSheetState extends State<IncidentSheet> {
             const SizedBox(height: 8),
             TextButton(
               onPressed: _busy ? null : _flag,
-              style: TextButton.styleFrom(foregroundColor: AppColors.ink, shape: const RoundedRectangleBorder()),
+              style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
               child: const Text('Flag as spam or duplicate (Sentinel)'),
             ),
           ],
           if (_message != null) ...[
             const SizedBox(height: 8),
-            Text(_message!, style: textTheme.bodyMedium),
+            FeedbackMessage(_message!.text, tone: _message!.tone),
           ],
         ],
       ),

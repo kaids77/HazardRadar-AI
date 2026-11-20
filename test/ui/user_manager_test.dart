@@ -64,15 +64,34 @@ void main() {
     expect(RoleOption.all.map((o) => '${o.role}${o.tier}'), ['CITIZEN1', 'CITIZEN2', 'VERIFIER3', 'DISPATCHER4', 'ADMIN5']);
   });
 
-  testWidgets('shows stats and locks the admin\'s own card', (tester) async {
+  testWidgets('the list shows only names and roles; a row opens the details', (tester) async {
     await _pump(tester);
     expect(find.text('Bob Santos'), findsOneWidget);
-    expect(find.textContaining('CTP 120 · Reports 10 · Accuracy 90%'), findsOneWidget);
+    expect(find.text('Ana Admin (you)'), findsOneWidget);
+    expect(find.text('Civic Scout'), findsOneWidget);
+    expect(find.text('Civic Scout (L2)'), findsNothing);
+
+    await _openBob(tester);
+    expect(find.text('120'), findsOneWidget);
+    expect(find.text('90%'), findsOneWidget);
+    expect(find.text('Civic Scout (L2)'), findsOneWidget);
+  });
+
+  testWidgets('a user without a name is never shown as Unnamed user', (tester) async {
+    expect(userLabel(const UserProfile(uid: 'x', role: 'CITIZEN', tier: 2, accountStatus: 'ACTIVE')), 'Name not set yet');
+    expect(userLabel(const UserProfile(uid: 'x', role: 'CITIZEN', tier: 1, accountStatus: 'ACTIVE')), 'Guest');
+  });
+
+  testWidgets('the admin cannot change their own account', (tester) async {
+    await _pump(tester);
+    await tester.tap(find.text('Ana Admin (you)'));
+    await tester.pumpAndSettle();
     expect(find.text('You cannot change your own account.'), findsOneWidget);
   });
 
   testWidgets('promotes Bob to dispatcher', (tester) async {
     final repo = await _pump(tester);
+    await _openBob(tester);
 
     await tester.tap(find.text('Civic Scout (L2)'));
     await tester.pumpAndSettle();
@@ -84,6 +103,7 @@ void main() {
 
   testWidgets('suspending asks for a duration', (tester) async {
     final repo = await _pump(tester);
+    await _openBob(tester);
 
     await tester.tap(find.text('ACTIVE').last);
     await tester.pumpAndSettle();
@@ -97,8 +117,14 @@ void main() {
 
   testWidgets('toggles the emergency rate-limit override', (tester) async {
     final repo = await _pump(tester);
+    await _openBob(tester);
     await tester.tap(find.byType(Switch).last);
     await tester.pumpAndSettle();
     expect(repo.calls, ['override bob-uid true']);
   });
+}
+
+Future<void> _openBob(WidgetTester tester) async {
+  await tester.tap(find.text('Bob Santos'));
+  await tester.pumpAndSettle();
 }

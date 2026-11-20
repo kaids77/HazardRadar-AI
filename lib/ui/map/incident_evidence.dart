@@ -14,17 +14,17 @@ class DisputedWarning extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      color: AppColors.ink,
+      color: context.palette.ink,
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Community disputed report', style: textTheme.titleSmall?.copyWith(color: AppColors.cream)),
+          Text('Community disputed report', style: textTheme.titleSmall?.copyWith(color: context.palette.paper)),
           const SizedBox(height: 4),
           Text(
             'Commuters voted this report down to -3 or lower, or a Sentinel flagged it. '
             'It is hidden from the public map until a moderator reviews it.',
-            style: textTheme.bodySmall?.copyWith(color: AppColors.cream),
+            style: textTheme.bodySmall?.copyWith(color: context.palette.paper),
           ),
         ],
       ),
@@ -47,12 +47,12 @@ class EvidencePhoto extends StatelessWidget {
   Widget build(BuildContext context) {
     final photo = this.photo;
     if (photo == null) {
-      return _panel(
+      return _panel(context, 
         OutlinedButton(
           onPressed: onLoad,
           style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.ink,
-            side: const BorderSide(color: AppColors.ink),
+            foregroundColor: context.palette.ink,
+            side: BorderSide(color: context.palette.ink),
             shape: const RoundedRectangleBorder(),
           ),
           child: const Text('Load photo'),
@@ -64,7 +64,7 @@ class EvidencePhoto extends StatelessWidget {
       builder: (context, snapshot) {
         final bytes = snapshot.data;
         if (bytes == null) {
-          return _panel(
+          return _panel(context, 
             snapshot.connectionState == ConnectionState.done
                 ? const Text('Visual evidence unavailable')
                 : const CircularProgressIndicator(),
@@ -76,17 +76,17 @@ class EvidencePhoto extends StatelessWidget {
           child: Image.memory(
             bytes,
             fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => _panel(const Text('Visual evidence unavailable')),
+            errorBuilder: (_, _, _) => _panel(context, const Text('Visual evidence unavailable')),
           ),
         );
       },
     );
   }
 
-  Widget _panel(Widget child) => SizedBox(
+  Widget _panel(BuildContext context, Widget child) => SizedBox(
         height: _height,
         width: double.infinity,
-        child: ColoredBox(color: AppColors.sage, child: Center(child: child)),
+        child: ColoredBox(color: context.palette.sage, child: Center(child: child)),
       );
 }
 

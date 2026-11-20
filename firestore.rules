@@ -178,6 +178,24 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Profile photos, one small JPEG per user, kept out of users/{uid} so the admin user
+    // list does not download every photo. Owners and staff can read; only the owner writes.
+    // 40,000 Base64 characters is about 29 KB of JPEG (the app sends at most 29 KB).
+    match /avatars/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && !isBlocked()
+        && request.resource.data.keys().hasOnly(['imageBase64', 'updatedAt'])
+        && request.resource.data.imageBase64 is string
+        && request.resource.data.imageBase64.size() > 0
+        && request.resource.data.imageBase64.size() <= 40000
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
     // Hazard reports.
     match /incidents/{incidentId} {
       allow read: if signedIn() && (

@@ -5,6 +5,7 @@ import '../../models/user_profile.dart';
 import '../../services/account_linker.dart';
 import '../../services/session_service.dart';
 import '../../theme/app_theme.dart';
+import '../common/feedback.dart';
 
 /// Why the upgrade prompt opened. Changes only the first line of text.
 enum UpgradeReason { manual, vote, reportLimit }
@@ -19,7 +20,7 @@ Future<UserProfile?> showAccountSheet(
 }) {
   return showModalBottomSheet<UserProfile>(
     context: context,
-    backgroundColor: AppColors.cream,
+    backgroundColor: context.palette.paper,
     elevation: 0,
     shape: const RoundedRectangleBorder(),
     isScrollControlled: true,
@@ -109,7 +110,7 @@ class _AccountSheetState extends State<AccountSheet> {
   List<Widget> _guest(TextTheme textTheme) => [
         Text('Level 1 · ${widget.profile.tierTitle}', style: textTheme.labelLarge),
         const SizedBox(height: 4),
-        const Text('Become a Civic Scout', style: _title),
+        Text('Become a Civic Scout', style: _title),
         const SizedBox(height: 12),
         Text(_reasonText, style: textTheme.bodyLarge),
         const SizedBox(height: 12),
@@ -119,7 +120,7 @@ class _AccountSheetState extends State<AccountSheet> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 7, right: 10), color: AppColors.ink),
+                Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 7, right: 10), color: context.palette.ink),
                 Expanded(child: Text(benefit, style: textTheme.bodyMedium)),
               ],
             ),
@@ -140,7 +141,7 @@ class _AccountSheetState extends State<AccountSheet> {
         TextButton(
           onPressed: _busy ? null : () => Navigator.of(context).pop(),
           style: TextButton.styleFrom(
-            foregroundColor: AppColors.ink,
+            foregroundColor: context.palette.ink,
             minimumSize: const Size.fromHeight(44),
             shape: const RoundedRectangleBorder(),
           ),
@@ -148,9 +149,9 @@ class _AccountSheetState extends State<AccountSheet> {
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
-          Text(_error!, style: textTheme.bodyMedium),
+          FeedbackMessage.error(_error!),
         ],
       ];
 
-  static const _title = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28, color: AppColors.ink);
+  static const _title = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28);
 }

@@ -6,6 +6,7 @@ import '../../models/incident.dart';
 import '../../models/user_profile.dart';
 import '../../services/dispatch_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/feedback.dart';
 import '../common/pull_to_refresh.dart';
 import 'dispatch_dialogs.dart';
 import 'ticket_card.dart';
@@ -55,16 +56,16 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
       _toast(done);
       unawaited(_loadCounts());
     } on DispatchFailed catch (failure) {
-      _toast(failure.message);
+      _toast(failure.message, error: true);
     } catch (_) {
-      _toast('Could not save the change. Try again.');
+      _toast('Could not save the change. Try again.', error: true);
     } finally {
       if (mounted) setState(() => _busy.remove(incident.id));
     }
   }
 
-  void _toast(String message) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _toast(String message, {bool error = false}) {
+    if (mounted) showFeedback(context, message, tone: error ? FeedbackTone.error : FeedbackTone.success);
   }
 
   Future<void> _start(Incident incident) async {
@@ -117,8 +118,8 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
               children: [
                 _Kpi(label: 'Active high', value: '${open.where((i) => i.status == Incident.statusActive && i.riskLevel == 'High').length}', color: AppColors.redOrange, foreground: AppColors.onRedOrange),
                 _Kpi(label: 'In progress', value: '${open.where((i) => i.status == Incident.statusInProgress).length}', color: AppColors.inProgress, foreground: AppColors.onInProgress),
-                _Kpi(label: 'Resolved', value: closed == null ? '-' : '${closed.resolved}', color: AppColors.sage, foreground: AppColors.ink),
-                _Kpi(label: 'Quarantined', value: closed == null ? '-' : '${closed.quarantined}', color: AppColors.ink, foreground: AppColors.cream),
+                _Kpi(label: 'Resolved', value: closed == null ? '-' : '${closed.resolved}', color: context.palette.sage, foreground: context.palette.ink),
+                _Kpi(label: 'Quarantined', value: closed == null ? '-' : '${closed.quarantined}', color: context.palette.ink, foreground: context.palette.paper),
               ],
             ),
             const SizedBox(height: 16),
@@ -135,7 +136,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
             ),
             const SizedBox(height: 12),
             if (snapshot.hasError)
-              const Text('Could not load the queue. Pull down to try again.')
+              const FeedbackMessage.error('Could not load the queue. Pull down to try again.')
             else if (!snapshot.hasData)
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (shown.isEmpty)

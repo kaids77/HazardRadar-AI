@@ -8,6 +8,8 @@ import 'services/account_linker.dart';
 import 'services/analytics.dart';
 import 'services/app_settings.dart';
 import 'services/auth_service.dart';
+import 'services/avatar_picker.dart';
+import 'services/avatar_repository.dart';
 import 'services/chat_service.dart';
 import 'services/detour_service.dart';
 import 'services/dispatch_repository.dart';
@@ -35,6 +37,10 @@ import 'ui/splash/splash_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  final settings = AppSettings(SharedPreferencesSettingsStore());
+  // Read the saved theme before the first frame, so a dark-mode user never sees a light flash.
+  await settings.load();
 
   final auth = FirebaseAuthService();
   final session = SessionService(
@@ -68,7 +74,7 @@ Future<void> main() async {
         photos: CameraPhotoCapture(),
         votes: FirestoreVoteRepository(),
         myReports: FirestoreMyReportsRepository(),
-        settings: AppSettings(SharedPreferencesSettingsStore()),
+        settings: settings,
         dispatch: FirestoreDispatchRepository(),
         userAdmin: FirestoreUserAdminRepository(),
         moderation: FirestoreModerationRepository(),
@@ -78,6 +84,8 @@ Future<void> main() async {
         enricher: proxyTriage == null
             ? null
             : ReportEnricher(repository: FirestorePendingReportRepository(), proxy: proxyTriage),
+        avatars: FirestoreAvatarRepository(),
+        avatarPicker: ImageAvatarPicker(),
       ),
     ),
   );
@@ -90,12 +98,18 @@ class HazardRadarApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'HazardRadar AI',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.light(),
-      scrollBehavior: const AppScrollBehavior(),
-      home: SplashScreen(nextBuilder: (_) => HomeScreen(services: services)),
+    // Rebuilds only the theme when the user picks Light or Dark in Settings.
+    return ListenableBuilder(
+      listenable: services.settings,
+      builder: (context, _) => MaterialApp(
+        title: 'HazardRadar AI',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
+        themeMode: services.settings.themeMode,
+        scrollBehavior: const AppScrollBehavior(),
+        home: SplashScreen(nextBuilder: (_) => HomeScreen(services: services)),
+      ),
     );
   }
 }

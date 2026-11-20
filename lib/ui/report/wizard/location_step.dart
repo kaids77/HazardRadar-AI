@@ -79,7 +79,7 @@ class _LocationStepState extends State<LocationStep> {
                         radius: ReportDraft.maxPinShiftMeters,
                         useRadiusInMeter: true,
                         color: Colors.transparent,
-                        borderColor: AppColors.ink,
+                        borderColor: context.palette.ink,
                         borderStrokeWidth: 1.5,
                       ),
                     ],
@@ -90,8 +90,8 @@ class _LocationStepState extends State<LocationStep> {
                         point: fix.position,
                         width: 12,
                         height: 12,
-                        child: const DecoratedBox(
-                          decoration: BoxDecoration(color: AppColors.ink, shape: BoxShape.circle),
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(color: context.palette.ink, shape: BoxShape.circle),
                         ),
                       ),
                     ],
@@ -137,7 +137,7 @@ class _Crosshair extends StatelessWidget {
       height: 22,
       decoration: BoxDecoration(
         color: AppColors.redOrange,
-        border: Border.all(color: AppColors.ink, width: 2),
+        border: Border.all(color: context.palette.ink, width: 2),
       ),
     );
   }

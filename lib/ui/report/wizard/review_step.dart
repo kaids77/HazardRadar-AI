@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../theme/app_theme.dart';
+import '../../common/feedback.dart';
 import '../../common/status_style.dart';
 import '../../map/risk_style.dart';
 import 'report_draft.dart';
@@ -29,7 +30,7 @@ class ReviewStep extends StatelessWidget {
                 const SizedBox(height: 12),
                 const Text('Radar AI is reading your note...'),
               ] else ...[
-                Text(error!, textAlign: TextAlign.center),
+                FeedbackMessage.error(error!),
                 const SizedBox(height: 12),
                 OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
               ],
@@ -54,15 +55,15 @@ class ReviewStep extends StatelessWidget {
             ),
             FlatBadge(
               label: result.aiProcessed ? 'Classified by Radar AI' : 'Classified offline',
-              background: AppColors.sage,
-              foreground: AppColors.ink,
+              background: context.palette.sage,
+              foreground: context.palette.ink,
             ),
           ],
         ),
         const SizedBox(height: 8),
         Text(
           result.category,
-          style: const TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28, color: AppColors.ink),
+          style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28, color: context.palette.ink),
         ),
         const SizedBox(height: 8),
         Text(result.aiSummary, style: textTheme.bodyLarge),

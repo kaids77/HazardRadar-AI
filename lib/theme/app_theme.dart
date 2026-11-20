@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 
-/// Palette from the approved design: cream, sage, and red-orange.
+/// Fixed colors from the approved design: cream, sage, and red-orange.
 /// Low and Medium risk colors sit outside the palette on purpose (approved), so the
 /// three risk levels stay easy to tell apart.
+///
+/// These never change with light or dark mode. Screens use [AppPalette] (through
+/// `context.palette`) for the background, text, and panel colors that do change.
 abstract final class AppColors {
   static const cream = Color(0xFFEFE6D5);
   static const sage = Color(0xFF9DBEB7);
@@ -19,49 +22,134 @@ abstract final class AppColors {
   /// Reports a crew is working on. A flat ink-blue, with cream text on top (about 9:1).
   static const inProgress = Color(0xFF2E4A62);
   static const onInProgress = cream;
+
+  /// Success messages: a deeper green than [riskLow], so cream text reaches about 5.6:1.
+  static const success = Color(0xFF256446);
+  static const onSuccess = cream;
+
+  /// Error messages use red-orange with black text, like the High-risk color.
+  static const error = redOrange;
+  static const onError = onRedOrange;
+
+  /// Dark mode background and panel.
+  static const darkPaper = Color(0xFF1C1B19);
+  static const darkSage = Color(0xFF35504A);
 }
 
-/// Flat light theme. No elevation, no shadows, no surface tint, and no gradients.
+/// The colors that switch between light and dark mode.
+///
+/// [paper] is the background (cream in light mode), [ink] the text and lines (ink in
+/// light mode), and [sage] the panel color. Read it with `context.palette`.
+@immutable
+class AppPalette extends ThemeExtension<AppPalette> {
+  const AppPalette({required this.paper, required this.ink, required this.sage});
+
+  static const light = AppPalette(paper: AppColors.cream, ink: AppColors.ink, sage: AppColors.sage);
+  static const dark = AppPalette(paper: AppColors.darkPaper, ink: AppColors.cream, sage: AppColors.darkSage);
+
+  final Color paper;
+  final Color ink;
+  final Color sage;
+
+  @override
+  AppPalette copyWith({Color? paper, Color? ink, Color? sage}) =>
+      AppPalette(paper: paper ?? this.paper, ink: ink ?? this.ink, sage: sage ?? this.sage);
+
+  @override
+  AppPalette lerp(ThemeExtension<AppPalette>? other, double t) {
+    if (other is! AppPalette) return this;
+    return AppPalette(
+      paper: Color.lerp(paper, other.paper, t)!,
+      ink: Color.lerp(ink, other.ink, t)!,
+      sage: Color.lerp(sage, other.sage, t)!,
+    );
+  }
+}
+
+extension AppPaletteContext on BuildContext {
+  /// The light or dark palette of the current theme. Falls back to light, so widgets
+  /// built without [AppTheme] (some tests) still get the approved colors.
+  AppPalette get palette => Theme.of(this).extension<AppPalette>() ?? AppPalette.light;
+}
+
+/// Flat light and dark themes. No elevation, no shadows, no surface tint, and no gradients.
 abstract final class AppTheme {
-  static ThemeData light() {
-    final scheme = ColorScheme.light(
+  static ThemeData light() => _build(AppPalette.light, Brightness.light);
+
+  static ThemeData dark() => _build(AppPalette.dark, Brightness.dark);
+
+  static ThemeData _build(AppPalette p, Brightness brightness) {
+    final base = brightness == Brightness.light ? const ColorScheme.light() : const ColorScheme.dark();
+    final scheme = base.copyWith(
       primary: AppColors.redOrange,
       onPrimary: AppColors.onRedOrange,
-      secondary: AppColors.sage,
-      onSecondary: AppColors.ink,
-      error: AppColors.redOrange,
-      onError: AppColors.onRedOrange,
-      surface: AppColors.cream,
-      onSurface: AppColors.ink,
-      surfaceContainerHighest: AppColors.sage,
+      secondary: p.sage,
+      onSecondary: p.ink,
+      error: AppColors.error,
+      onError: AppColors.onError,
+      surface: p.paper,
+      onSurface: p.ink,
+      onSurfaceVariant: p.ink,
+      surfaceContainerLowest: p.paper,
+      surfaceContainerLow: p.paper,
+      surfaceContainer: p.paper,
+      surfaceContainerHigh: p.paper,
+      surfaceContainerHighest: p.sage,
+      outline: p.ink,
+      outlineVariant: p.sage,
+      inverseSurface: p.ink,
+      onInverseSurface: p.paper,
       surfaceTint: Colors.transparent,
     );
+    final typography = Typography.material2021(colorScheme: scheme);
+    final textTheme = (brightness == Brightness.light ? typography.black : typography.white)
+        .apply(bodyColor: p.ink, displayColor: p.ink);
 
     return ThemeData(
       useMaterial3: true,
+      brightness: brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: AppColors.cream,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.cream,
-        foregroundColor: AppColors.ink,
+      textTheme: textTheme,
+      extensions: [p],
+      scaffoldBackgroundColor: p.paper,
+      canvasColor: p.paper,
+      appBarTheme: AppBarTheme(
+        backgroundColor: p.paper,
+        foregroundColor: p.ink,
         elevation: 0,
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
-        titleTextStyle: TextStyle(
-          fontFamily: 'DMSerifDisplay',
-          fontSize: 22,
-          color: AppColors.ink,
-        ),
+        titleTextStyle: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22, color: p.ink),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.redOrange),
-      cardTheme: const CardThemeData(
-        color: AppColors.sage,
+      cardTheme: CardThemeData(
+        color: p.sage,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
         margin: EdgeInsets.zero,
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: p.paper,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: p.paper,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: const RoundedRectangleBorder(),
+      ),
+      popupMenuTheme: PopupMenuThemeData(color: p.paper, surfaceTintColor: Colors.transparent, elevation: 0),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: p.ink,
+        contentTextStyle: TextStyle(color: p.paper),
+        elevation: 0,
+        shape: const RoundedRectangleBorder(),
+      ),
+      textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: p.ink)),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
@@ -71,31 +159,36 @@ abstract final class AppTheme {
           surfaceTintColor: Colors.transparent,
         ),
       ),
-      dividerTheme: const DividerThemeData(color: AppColors.sage, space: 1),
+      dividerTheme: DividerThemeData(color: p.sage, space: 1),
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: AppColors.cream,
+        backgroundColor: p.paper,
         elevation: 0,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        indicatorColor: AppColors.sage,
+        indicatorColor: p.sage,
         indicatorShape: const RoundedRectangleBorder(),
-        labelTextStyle: WidgetStateProperty.all(const TextStyle(color: AppColors.ink, fontSize: 12)),
-        iconTheme: WidgetStateProperty.all(const IconThemeData(color: AppColors.ink)),
+        labelTextStyle: WidgetStateProperty.all(TextStyle(color: p.ink, fontSize: 12)),
+        iconTheme: WidgetStateProperty.all(IconThemeData(color: p.ink)),
       ),
-      chipTheme: const ChipThemeData(
-        backgroundColor: AppColors.cream,
+      chipTheme: ChipThemeData(
+        backgroundColor: p.paper,
         selectedColor: AppColors.redOrange,
-        labelStyle: TextStyle(color: AppColors.ink),
-        side: BorderSide(color: AppColors.ink),
-        shape: RoundedRectangleBorder(),
+        // Black on the red-orange selected chip in both modes.
+        labelStyle: TextStyle(
+          color: WidgetStateColor.resolveWith(
+            (states) => states.contains(WidgetState.selected) ? AppColors.onRedOrange : p.ink,
+          ),
+        ),
+        side: BorderSide(color: p.ink),
+        shape: const RoundedRectangleBorder(),
         elevation: 0,
         pressElevation: 0,
         showCheckmark: false,
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.all(AppColors.ink),
+        thumbColor: WidgetStateProperty.all(p.ink),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColors.redOrange : AppColors.sage,
+          (states) => states.contains(WidgetState.selected) ? AppColors.redOrange : p.sage,
         ),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),

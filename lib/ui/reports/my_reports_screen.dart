@@ -5,6 +5,7 @@ import '../../models/user_profile.dart';
 import '../../services/level_policy.dart';
 import '../../services/my_reports_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/feedback.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/risk_style.dart';
@@ -120,7 +121,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
             ),
             const SizedBox(height: 12),
             if (snapshot.hasError)
-              const Text('Could not load your reports. Pull down to try again.')
+              const FeedbackMessage.error('Could not load your reports. Pull down to try again.')
             else if (!snapshot.hasData)
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (shown.isEmpty)
@@ -140,7 +141,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     );
   }
 
-  static const _heading = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22, color: AppColors.ink);
+  static const _heading = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22);
 }
 
 class _GuestCard extends StatelessWidget {
@@ -151,7 +152,7 @@ class _GuestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.sage,
+      color: context.palette.sage,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -190,7 +191,7 @@ class _BadgePicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppColors.sage,
+      color: context.palette.sage,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -203,8 +204,8 @@ class _BadgePicker extends StatelessWidget {
               child: OutlinedButton(
                 onPressed: () => onPick(badge),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.ink,
-                  side: const BorderSide(color: AppColors.ink),
+                  foregroundColor: context.palette.ink,
+                  side: BorderSide(color: context.palette.ink),
                   shape: const RoundedRectangleBorder(),
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.all(12),
@@ -228,7 +229,7 @@ class _ProfileCard extends StatelessWidget {
     final progress = LevelPolicy.progress(profile);
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      decoration: const BoxDecoration(border: Border.fromBorderSide(BorderSide(color: AppColors.ink))),
+      decoration: BoxDecoration(border: Border.fromBorderSide(BorderSide(color: context.palette.ink))),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -243,7 +244,7 @@ class _ProfileCard extends StatelessWidget {
                     Text('Level ${profile.tier}', style: textTheme.labelLarge),
                     Text(
                       profile.tierTitle,
-                      style: const TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 24, color: AppColors.ink),
+                      style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 24, color: context.palette.ink),
                     ),
                     if (profile.focusBadge != null) Text(profile.focusBadge!, style: textTheme.bodySmall),
                   ],
@@ -254,7 +255,7 @@ class _ProfileCard extends StatelessWidget {
                 children: [
                   Text(
                     '${profile.ctp}',
-                    style: const TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 32, color: AppColors.ink),
+                    style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 32, color: context.palette.ink),
                   ),
                   Text('Trust points', style: textTheme.bodySmall),
                 ],
@@ -267,7 +268,7 @@ class _ProfileCard extends StatelessWidget {
               height: 8,
               child: LinearProgressIndicator(
                 value: progress.fraction,
-                backgroundColor: AppColors.sage,
+                backgroundColor: context.palette.sage,
                 color: AppColors.redOrange,
               ),
             ),
@@ -315,12 +316,12 @@ class _HistoryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = statusStyle(incident);
+    final status = statusStyle(context, incident);
     final textTheme = Theme.of(context).textTheme;
     return Container(
       decoration: BoxDecoration(
         border: Border(left: BorderSide(color: riskColor(incident.riskLevel), width: 4)),
-        color: AppColors.cream,
+        color: context.palette.paper,
       ),
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       child: Column(
@@ -337,7 +338,7 @@ class _HistoryCard extends StatelessWidget {
                 foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
               ),
               if (!incident.aiProcessed)
-                const FlatBadge(label: 'Pending AI review', background: AppColors.sage, foreground: AppColors.ink),
+                FlatBadge(label: 'Pending AI review', background: context.palette.sage, foreground: context.palette.ink),
             ],
           ),
           const SizedBox(height: 6),

@@ -3,12 +3,16 @@ import 'package:flutter/material.dart';
 import '../../models/user_profile.dart';
 import '../../services/staff_auth.dart';
 import '../../theme/app_theme.dart';
+import '../common/feedback.dart';
 
 /// Settings section for city staff.
 ///
-/// Email accounts sign in with a password. Google-linked accounts already have a
-/// session, so staff access comes only from the role on their profile; this section
-/// shows the Google name and email and a button to reload the role.
+/// - Guests see "Sign in with Google" (for staff who use a Google account) and the
+///   email and password form (for city-issued email accounts, or a Google admin who
+///   set a staff password).
+/// - Google accounts see their name and email, "Check staff access", and, for staff,
+///   "Set staff password" so the email form also works with their Google email.
+/// - Email staff accounts see who is signed in and Sign out.
 class StaffSignInSection extends StatefulWidget {
   const StaffSignInSection({
     super.key,
@@ -17,7 +21,10 @@ class StaffSignInSection extends StatefulWidget {
     required this.onSignIn,
     required this.onSignOut,
     this.googleEmail,
+    this.hasPassword = false,
     this.onCheckAccess,
+    this.onGoogleSignIn,
+    this.onSetPassword,
   });
 
   final UserProfile profile;
@@ -26,11 +33,21 @@ class StaffSignInSection extends StatefulWidget {
   /// Set when the account is linked to Google.
   final String? googleEmail;
 
+  /// True when the account can also sign in with email and password.
+  final bool hasPassword;
+
   /// Reloads the profile. Resolves to the fresh copy, or null when it could not load.
   final Future<UserProfile?> Function()? onCheckAccess;
 
   /// Resolves to the signed-in profile. Throws [StaffSignInFailed].
   final Future<UserProfile> Function(String email, String password) onSignIn;
+
+  /// Signs in with Google. Null hides the button.
+  final Future<void> Function()? onGoogleSignIn;
+
+  /// Adds or changes the staff password. Throws [StaffSignInFailed]. Null hides the button.
+  final Future<void> Function(String password)? onSetPassword;
+
   final Future<void> Function() onSignOut;
 
   @override
@@ -41,13 +58,29 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _busy = false;
-  String? _message;
+  ({String text, FeedbackTone tone})? _message;
 
   @override
   void dispose() {
     _email.dispose();
     _password.dispose();
     super.dispose();
+  }
+
+  void _say(String text, FeedbackTone tone) => setState(() => _message = (text: text, tone: tone));
+
+  ButtonStyle get _outline => OutlinedButton.styleFrom(
+        foregroundColor: context.palette.ink,
+        side: BorderSide(color: context.palette.ink),
+        shape: const RoundedRectangleBorder(),
+      );
+
+  /// The user's Google name, then their email, for messages.
+  String get _who {
+    final name = widget.profile.displayName;
+    if (name != null && name.isNotEmpty) return name;
+    final email = widget.googleEmail;
+    return email == null || email.isEmpty ? 'this account' : email;
   }
 
   Future<void> _checkAccess() async {
@@ -59,78 +92,15 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
     });
     final profile = await check();
     if (!mounted) return;
-    setState(() {
-      _busy = false;
-      _message = profile == null
-          ? 'Could not load your account. Check your connection and try again.'
-          : profile.isStaff
-              ? 'Staff access is on. Open the Dispatch tab.'
-              : 'No staff role on this account yet. Ask an admin to give $_who the ADMIN or DISPATCHER role.';
-    });
-  }
-
-  /// The user's Google name, then their email, for messages and the account block.
-  String get _who {
-    final name = widget.profile.displayName;
-    if (name != null && name.isNotEmpty) return name;
-    final email = widget.googleEmail;
-    return email == null || email.isEmpty ? 'this account' : email;
-  }
-
-  Widget _googleBlock(TextTheme textTheme, String email) {
-    final name = widget.profile.displayName;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text('City staff', style: _heading),
-        const SizedBox(height: 4),
-        Container(
-          color: AppColors.sage,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (name != null && name.isNotEmpty) Text(name, style: textTheme.titleSmall),
-              if (email.isNotEmpty) Text(email, style: textTheme.bodySmall),
-              Text('Google account · ${widget.profile.tierTitle}', style: textTheme.bodySmall),
-            ],
-          ),
-        ),
-        const SizedBox(height: 8),
-        if (!widget.profile.isStaff)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              'Staff access comes from the role on your profile, so no password is needed.',
-              style: textTheme.bodySmall,
-            ),
-          ),
-        OutlinedButton(
-          onPressed: _busy ? null : _checkAccess,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.ink,
-            side: const BorderSide(color: AppColors.ink),
-            shape: const RoundedRectangleBorder(),
-          ),
-          child: Text(_busy ? 'Checking...' : 'Check staff access'),
-        ),
-        const SizedBox(height: 8),
-        OutlinedButton(
-          onPressed: _busy ? null : widget.onSignOut,
-          style: OutlinedButton.styleFrom(
-            foregroundColor: AppColors.ink,
-            side: const BorderSide(color: AppColors.ink),
-            shape: const RoundedRectangleBorder(),
-          ),
-          child: const Text('Sign out'),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Your points and reports stay on this Google account. After signing out you browse as a guest.',
-          style: textTheme.bodySmall,
-        ),
-      ],
-    );
+    setState(() => _busy = false);
+    if (profile == null) {
+      _say('Could not load your account. Check your connection and try again.', FeedbackTone.error);
+    } else if (profile.isStaff) {
+      _say('Staff access is on. Open the Dispatch tab.', FeedbackTone.success);
+    } else {
+      _say('No staff role on this account yet. Ask an admin to give $_who the ADMIN or DISPATCHER role.',
+          FeedbackTone.error);
+    }
   }
 
   Future<void> _signIn() async {
@@ -142,12 +112,220 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
       final profile = await widget.onSignIn(_email.text, _password.text);
       _password.clear();
       if (mounted && !profile.isStaff) {
-        setState(() => _message = 'Signed in, but this account has no staff role yet. Ask an admin.');
+        _say('Signed in, but this account has no staff role yet. Ask an admin.', FeedbackTone.error);
       }
     } on StaffSignInFailed catch (failure) {
-      if (mounted) setState(() => _message = failure.message);
+      if (mounted) _say(failure.message, FeedbackTone.error);
     } catch (_) {
-      if (mounted) setState(() => _message = 'Sign-in failed. Try again.');
+      if (mounted) _say('Sign-in failed. Try again.', FeedbackTone.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _google() async {
+    final signIn = widget.onGoogleSignIn;
+    if (signIn == null) return;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    try {
+      await signIn();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _setPassword() async {
+    final save = widget.onSetPassword;
+    if (save == null) return;
+    final saved = await showDialog<bool>(context: context, builder: (_) => _PasswordDialog(onSave: save));
+    if (saved == true && mounted) {
+      _say(
+        'Staff password saved. You can now also sign in with ${widget.googleEmail} and this password.',
+        FeedbackTone.success,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final googleEmail = widget.googleEmail;
+    final message = _message;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (googleEmail != null)
+          ..._googleBlock(googleEmail)
+        else if (widget.isEmailSession)
+          ..._emailBlock()
+        else
+          ..._guestBlock(),
+        if (message != null) ...[
+          const SizedBox(height: 8),
+          FeedbackMessage(message.text, tone: message.tone),
+        ],
+      ],
+    );
+  }
+
+  List<Widget> _googleBlock(String email) {
+    final textTheme = Theme.of(context).textTheme;
+    final name = widget.profile.displayName;
+    final isStaff = widget.profile.isStaff;
+    return [
+      const Text('City staff', style: _heading),
+      const SizedBox(height: 4),
+      Container(
+        color: context.palette.sage,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (name != null && name.isNotEmpty) Text(name, style: textTheme.titleSmall),
+            if (email.isNotEmpty) Text(email, style: textTheme.bodySmall),
+            Text('Google account · ${widget.profile.tierTitle}', style: textTheme.bodySmall),
+          ],
+        ),
+      ),
+      const SizedBox(height: 8),
+      if (!isStaff)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+            'Staff access comes from the role on your profile, so no password is needed.',
+            style: textTheme.bodySmall,
+          ),
+        ),
+      OutlinedButton(
+        onPressed: _busy ? null : _checkAccess,
+        style: _outline,
+        child: Text(_busy ? 'Checking...' : 'Check staff access'),
+      ),
+      if (isStaff && widget.onSetPassword != null) ...[
+        const SizedBox(height: 8),
+        OutlinedButton(
+          onPressed: _busy ? null : _setPassword,
+          style: _outline,
+          child: Text(widget.hasPassword ? 'Change staff password' : 'Set staff password'),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          widget.hasPassword
+              ? 'You can sign in with Google or with $email and your staff password.'
+              : 'Optional: set a password to also sign in with $email in the staff form.',
+          style: textTheme.bodySmall,
+        ),
+      ],
+      const SizedBox(height: 8),
+      OutlinedButton(onPressed: _busy ? null : widget.onSignOut, style: _outline, child: const Text('Sign out')),
+      const SizedBox(height: 4),
+      Text(
+        'Your points and reports stay on this Google account. After signing out you browse as a guest.',
+        style: textTheme.bodySmall,
+      ),
+    ];
+  }
+
+  List<Widget> _emailBlock() => [
+        const Text('Staff account', style: _heading),
+        const SizedBox(height: 8),
+        Text('Signed in as ${widget.profile.tierTitle}.', style: Theme.of(context).textTheme.bodyMedium),
+        const SizedBox(height: 8),
+        OutlinedButton(onPressed: _busy ? null : widget.onSignOut, style: _outline, child: const Text('Sign out')),
+      ];
+
+  List<Widget> _guestBlock() {
+    final textTheme = Theme.of(context).textTheme;
+    return [
+      const Text('City staff', style: _heading),
+      const SizedBox(height: 4),
+      if (widget.onGoogleSignIn != null) ...[
+        Text('Admins and dispatchers with a Google account:', style: textTheme.bodySmall),
+        const SizedBox(height: 8),
+        ElevatedButton(
+          onPressed: _busy ? null : _google,
+          style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), shape: const RoundedRectangleBorder()),
+          child: const Text('Sign in with Google'),
+        ),
+        const SizedBox(height: 16),
+      ],
+      Text(
+        'Or sign in with the email account the city gave you. A Google admin can use their Google email '
+        'here after setting a staff password in Settings. This replaces the guest session on this phone.',
+        style: textTheme.bodySmall,
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _email,
+        keyboardType: TextInputType.emailAddress,
+        autofillHints: const [AutofillHints.email],
+        decoration: const InputDecoration(labelText: 'Staff email', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _password,
+        obscureText: true,
+        autofillHints: const [AutofillHints.password],
+        decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+        onSubmitted: (_) => _signIn(),
+      ),
+      const SizedBox(height: 8),
+      OutlinedButton(
+        onPressed: _busy ? null : _signIn,
+        style: _outline.copyWith(minimumSize: const WidgetStatePropertyAll(Size.fromHeight(48))),
+        child: Text(_busy ? 'Signing in...' : 'Sign in as staff'),
+      ),
+    ];
+  }
+
+  static const _heading = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22);
+}
+
+/// Asks for a new staff password twice. Pops `true` once [onSave] succeeds.
+class _PasswordDialog extends StatefulWidget {
+  const _PasswordDialog({required this.onSave});
+
+  final Future<void> Function(String password) onSave;
+
+  @override
+  State<_PasswordDialog> createState() => _PasswordDialogState();
+}
+
+class _PasswordDialogState extends State<_PasswordDialog> {
+  final _password = TextEditingController();
+  final _confirm = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    if (_password.text.length < FirebaseStaffAuth.minPasswordLength) {
+      setState(() => _error = 'Use at least ${FirebaseStaffAuth.minPasswordLength} characters.');
+      return;
+    }
+    if (_password.text != _confirm.text) {
+      setState(() => _error = 'The two passwords do not match.');
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await widget.onSave(_password.text);
+      if (mounted) Navigator.of(context).pop(true);
+    } on StaffSignInFailed catch (failure) {
+      if (mounted) setState(() => _error = failure.message);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not save the password. Try again.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -155,78 +333,32 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final googleEmail = widget.googleEmail;
-    if (googleEmail != null && !widget.isEmailSession) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+    final error = _error;
+    return AlertDialog(
+      title: const Text('Staff password'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _googleBlock(textTheme, googleEmail),
-          if (_message != null) ...[
-            const SizedBox(height: 8),
-            Text(_message!, style: textTheme.bodyMedium),
-          ],
-        ],
-      );
-    }
-    if (widget.isEmailSession) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const Text('Staff account', style: _heading),
-          const SizedBox(height: 8),
-          Text('Signed in as ${widget.profile.tierTitle}.', style: textTheme.bodyMedium),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: _busy ? null : widget.onSignOut,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.ink,
-              side: const BorderSide(color: AppColors.ink),
-              shape: const RoundedRectangleBorder(),
-            ),
-            child: const Text('Sign out'),
+          TextField(
+            controller: _password,
+            obscureText: true,
+            autofocus: true,
+            decoration: const InputDecoration(labelText: 'New password', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
           ),
-        ],
-      );
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Text('City staff', style: _heading),
-        const SizedBox(height: 4),
-        Text(
-          'Dispatchers and admins sign in with the email account the city gave them. '
-          'This replaces the guest session on this phone.',
-          style: textTheme.bodySmall,
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _email,
-          keyboardType: TextInputType.emailAddress,
-          autofillHints: const [AutofillHints.email],
-          decoration: const InputDecoration(labelText: 'Staff email', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _password,
-          obscureText: true,
-          autofillHints: const [AutofillHints.password],
-          decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
-          onSubmitted: (_) => _signIn(),
-        ),
-        const SizedBox(height: 8),
-        ElevatedButton(
-          onPressed: _busy ? null : _signIn,
-          style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), shape: const RoundedRectangleBorder()),
-          child: Text(_busy ? 'Signing in...' : 'Sign in as staff'),
-        ),
-        if (_message != null) ...[
           const SizedBox(height: 8),
-          Text(_message!, style: textTheme.bodyMedium),
+          TextField(
+            controller: _confirm,
+            obscureText: true,
+            onSubmitted: (_) => _save(),
+            decoration: const InputDecoration(labelText: 'Repeat password', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+          ),
+          if (error != null) ...[const SizedBox(height: 8), FeedbackMessage.error(error)],
         ],
+      ),
+      actions: [
+        TextButton(onPressed: _busy ? null : () => Navigator.of(context).pop(false), child: const Text('Cancel')),
+        TextButton(onPressed: _busy ? null : _save, child: Text(_busy ? 'Saving...' : 'Save')),
       ],
     );
   }
-
-  static const _heading = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22, color: AppColors.ink);
 }

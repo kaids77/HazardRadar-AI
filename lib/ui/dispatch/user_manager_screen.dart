@@ -1,19 +1,34 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../models/user_profile.dart';
+import '../../services/avatar_repository.dart';
 import '../../services/dispatch_repository.dart';
 import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/feedback.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
+import '../common/user_avatar.dart';
 
-/// Dispatch tab B (admins): search users, change role and level, account status,
-/// suspension end, and the emergency rate-limit override.
+/// The name an admin sees for a user. Never the uid.
+String userLabel(UserProfile user) {
+  final name = user.displayName?.trim();
+  if (name != null && name.isNotEmpty) return name;
+  return user.tier == UserProfile.tierCommuterObserver ? 'Guest' : 'Name not set yet';
+}
+
+/// Dispatch tab B (admins): a list of users by name and role. Tapping a user opens
+/// their details and the actions (role, account status, daily limit override).
 class UserManagerScreen extends StatefulWidget {
-  const UserManagerScreen({super.key, required this.admin, required this.users, this.clock = DateTime.now});
+  const UserManagerScreen({super.key, required this.admin, required this.users, this.avatars, this.clock = DateTime.now});
 
   final UserProfile admin;
   final UserAdminRepository users;
+
+  /// Profile photos for the detail page. Null shows initials only.
+  final AvatarRepository? avatars;
   final DateTime Function() clock;
 
   @override
@@ -23,24 +38,133 @@ class UserManagerScreen extends StatefulWidget {
 class _UserManagerScreenState extends State<UserManagerScreen> {
   late Stream<List<UserProfile>> _users = widget.users.watchUsers();
   String _query = '';
-  final Set<String> _busy = {};
 
-  Future<void> _run(String uid, Future<void> Function() action, String done) async {
-    setState(() => _busy.add(uid));
+  void _open(UserProfile user) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => UserDetailScreen(
+          admin: widget.admin,
+          uid: user.uid,
+          users: widget.users,
+          avatars: widget.avatars,
+          clock: widget.clock,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    return StreamBuilder<List<UserProfile>>(
+      stream: _users,
+      builder: (context, snapshot) {
+        final shown = searchUsers(snapshot.data ?? const [], _query);
+        return PullToRefresh(
+          onRefresh: () async => setState(() => _users = widget.users.watchUsers()),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(16),
+            children: [
+              TextField(
+                onChanged: (value) => setState(() => _query = value),
+                decoration: InputDecoration(
+                  hintText: 'Search by name',
+                  prefixIcon: Icon(Icons.search, color: palette.ink),
+                  border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
+                ),
+              ),
+              const SizedBox(height: 12),
+              if (snapshot.hasError)
+                const FeedbackMessage.error('Could not load users. Pull down to try again.')
+              else if (!snapshot.hasData)
+                const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
+              else if (shown.isEmpty)
+                const Text('No users match.')
+              else
+                for (final user in shown)
+                  _UserRow(user: user, isSelf: user.uid == widget.admin.uid, onTap: () => _open(user)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// One list row: initials, name, and role. Nothing else, so the list scans quickly.
+class _UserRow extends StatelessWidget {
+  const _UserRow({required this.user, required this.isSelf, required this.onTap});
+
+  final UserProfile user;
+  final bool isSelf;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final label = userLabel(user);
+    return Container(
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: palette.sage))),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+        leading: UserAvatar(name: user.displayName == null ? null : label, size: 40),
+        title: Text('$label${isSelf ? ' (you)' : ''}', overflow: TextOverflow.ellipsis),
+        subtitle: Text(user.tierTitle),
+        trailing: Icon(Icons.chevron_right, color: palette.ink),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+/// One user's details and the admin actions. Follows the live user list, so a change
+/// shows up as soon as Firestore saves it.
+class UserDetailScreen extends StatefulWidget {
+  const UserDetailScreen({
+    super.key,
+    required this.admin,
+    required this.uid,
+    required this.users,
+    this.avatars,
+    this.clock = DateTime.now,
+  });
+
+  final UserProfile admin;
+  final String uid;
+  final UserAdminRepository users;
+  final AvatarRepository? avatars;
+  final DateTime Function() clock;
+
+  @override
+  State<UserDetailScreen> createState() => _UserDetailScreenState();
+}
+
+class _UserDetailScreenState extends State<UserDetailScreen> {
+  late final Stream<List<UserProfile>> _users = widget.users.watchUsers();
+  late final Future<Uint8List?> _photo = _loadPhoto();
+  bool _busy = false;
+
+  Future<Uint8List?> _loadPhoto() async {
     try {
-      await action();
-      _toast(done);
-    } on DispatchFailed catch (failure) {
-      _toast(failure.message);
+      return await widget.avatars?.load(widget.uid);
     } catch (_) {
-      _toast('Could not save the change. Try again.');
-    } finally {
-      if (mounted) setState(() => _busy.remove(uid));
+      return null;
     }
   }
 
-  void _toast(String message) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  Future<void> _run(Future<void> Function() action, String done) async {
+    setState(() => _busy = true);
+    try {
+      await action();
+      if (mounted) showSuccess(context, done);
+    } on DispatchFailed catch (failure) {
+      if (mounted) showError(context, failure.message);
+    } catch (_) {
+      if (mounted) showError(context, 'Could not save the change. Try again.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _setStatus(UserProfile user, String status) async {
@@ -49,7 +173,6 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
       final days = await showDialog<int>(
         context: context,
         builder: (context) => SimpleDialog(
-          shape: const RoundedRectangleBorder(),
           title: const Text('Suspend for how long?'),
           children: [
             for (final days in const [1, 3, 7, 30])
@@ -63,76 +186,8 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
       if (days == null) return;
       until = widget.clock().add(Duration(days: days));
     }
-    await _run(user.uid, () => widget.users.setStatus(user.uid, status, until: until), 'Status saved.');
+    await _run(() => widget.users.setStatus(user.uid, status, until: until), 'Status saved.');
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<List<UserProfile>>(
-      stream: _users,
-      builder: (context, snapshot) {
-        final shown = searchUsers(snapshot.data ?? const [], _query);
-        return PullToRefresh(
-          onRefresh: () async => setState(() => _users = widget.users.watchUsers()),
-          child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          children: [
-            TextField(
-              onChanged: (value) => setState(() => _query = value),
-              decoration: const InputDecoration(
-                hintText: 'Search by name',
-                prefixIcon: Icon(Icons.search, color: AppColors.ink),
-                border: OutlineInputBorder(borderRadius: BorderRadius.zero),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (snapshot.hasError)
-              const Text('Could not load users. Pull down to try again.')
-            else if (!snapshot.hasData)
-              const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
-            else if (shown.isEmpty)
-              const Text('No users match.')
-            else
-              for (final user in shown) ...[
-                _UserCard(
-                  user: user,
-                  isSelf: user.uid == widget.admin.uid,
-                  busy: _busy.contains(user.uid),
-                  now: widget.clock(),
-                  onRole: (option) => _run(user.uid, () => widget.users.setRole(user.uid, option), 'Role saved.'),
-                  onStatus: (status) => _setStatus(user, status),
-                  onOverride: (value) =>
-                      _run(user.uid, () => widget.users.setRateLimitOverride(user.uid, value), 'Limit setting saved.'),
-                ),
-                const SizedBox(height: 10),
-              ],
-          ],
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _UserCard extends StatelessWidget {
-  const _UserCard({
-    required this.user,
-    required this.isSelf,
-    required this.busy,
-    required this.now,
-    required this.onRole,
-    required this.onStatus,
-    required this.onOverride,
-  });
-
-  final UserProfile user;
-  final bool isSelf;
-  final bool busy;
-  final DateTime now;
-  final ValueChanged<RoleOption> onRole;
-  final ValueChanged<String> onStatus;
-  final ValueChanged<bool> onOverride;
 
   static const _statuses = [
     UserProfile.accountActive,
@@ -143,59 +198,138 @@ class _UserCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('User')),
+      body: StreamBuilder<List<UserProfile>>(
+        stream: _users,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return const Padding(
+              padding: EdgeInsets.all(16),
+              child: FeedbackMessage.error('Could not load this user. Go back and try again.'),
+            );
+          }
+          final user = snapshot.data?.where((u) => u.uid == widget.uid).firstOrNull;
+          if (user == null) {
+            return snapshot.hasData
+                ? const Padding(padding: EdgeInsets.all(16), child: Text('This user no longer exists.'))
+                : const Center(child: CircularProgressIndicator());
+          }
+          return _details(context, user);
+        },
+      ),
+    );
+  }
+
+  Widget _details(BuildContext context, UserProfile user) {
     final textTheme = Theme.of(context).textTheme;
-    final enabled = !isSelf && !busy;
+    final isSelf = user.uid == widget.admin.uid;
+    final enabled = !isSelf && !_busy;
+    final now = widget.clock();
     final until = user.suspendedUntil;
+    final label = userLabel(user);
     final blocked = user.isBlockedAt(now);
-    return Container(
-      decoration: const BoxDecoration(border: Border.fromBorderSide(BorderSide(color: AppColors.ink))),
-      padding: const EdgeInsets.all(12),
+    final warned = user.accountStatus == UserProfile.accountWarned;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Row(
+          children: [
+            FutureBuilder<Uint8List?>(
+              future: _photo,
+              builder: (context, photo) =>
+                  UserAvatar(name: user.displayName == null ? null : label, photo: photo.data, size: 72),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('$label${isSelf ? ' (you)' : ''}', style: textTheme.titleLarge),
+                  Text(user.tierTitle, style: textTheme.bodyMedium),
+                  const SizedBox(height: 4),
+                  FlatBadge(
+                    label: user.accountStatus,
+                    background: blocked
+                        ? AppColors.redOrange
+                        : warned
+                            ? AppColors.riskMedium
+                            : context.palette.sage,
+                    foreground: blocked || warned ? AppColors.ink : context.palette.ink,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            _Stat(label: 'Trust points', value: '${user.ctp}'),
+            _Stat(label: 'Reports', value: '${user.reportsTotal}'),
+            _Stat(label: 'Resolved', value: '${user.reportsResolved}'),
+            _Stat(label: 'Accuracy', value: '${(user.accuracy * 100).round()}%'),
+          ],
+        ),
+        if (until != null && user.accountStatus == UserProfile.accountSuspended) ...[
+          const SizedBox(height: 8),
+          Text('Suspended until ${until.toLocal().toString().substring(0, 16)}', style: textTheme.bodySmall),
+        ],
+        const SizedBox(height: 16),
+        const Divider(),
+        const SizedBox(height: 8),
+        Text('Actions', style: textTheme.titleMedium),
+        if (isSelf) ...[
+          const SizedBox(height: 8),
+          const FeedbackMessage.error('You cannot change your own account.'),
+        ],
+        const SizedBox(height: 8),
+        DropdownButtonFormField<RoleOption>(
+          key: ValueKey('role-${user.role}-${user.tier}'),
+          initialValue: RoleOption.of(user),
+          decoration: const InputDecoration(labelText: 'Role', isDense: true),
+          items: [for (final o in RoleOption.all) DropdownMenuItem(value: o, child: Text(o.title))],
+          onChanged: enabled
+              ? (o) => o == null || o == RoleOption.of(user)
+                  ? null
+                  : _run(() => widget.users.setRole(user.uid, o), 'Role saved.')
+              : null,
+        ),
+        const SizedBox(height: 12),
+        DropdownButtonFormField<String>(
+          key: ValueKey('status-${user.accountStatus}'),
+          initialValue: _statuses.contains(user.accountStatus) ? user.accountStatus : UserProfile.accountActive,
+          decoration: const InputDecoration(labelText: 'Account status', isDense: true),
+          items: [for (final s in _statuses) DropdownMenuItem(value: s, child: Text(s))],
+          onChanged: enabled ? (s) => s == null || s == user.accountStatus ? null : _setStatus(user, s) : null,
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('No daily report limit (emergencies)'),
+          value: user.rateLimitOverride,
+          onChanged: enabled
+              ? (value) => _run(() => widget.users.setRateLimitOverride(user.uid, value), 'Limit setting saved.')
+              : null,
+        ),
+      ],
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Expanded(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '${user.displayName ?? (user.tier == UserProfile.tierCommuterObserver ? 'Guest' : 'Unnamed user')}'
-                  '${isSelf ? ' (you)' : ''}',
-                  style: textTheme.titleMedium,
-                ),
-              ),
-              FlatBadge(
-                label: user.accountStatus,
-                background: blocked ? AppColors.redOrange : (user.accountStatus == UserProfile.accountWarned ? AppColors.riskMedium : AppColors.sage),
-                foreground: AppColors.ink,
-              ),
-            ],
-          ),
-          Text(user.tierTitle, style: textTheme.bodySmall),
-          Text(
-            'CTP ${user.ctp} · Reports ${user.reportsTotal} · Accuracy ${(user.accuracy * 100).round()}%'
-            '${until != null && user.accountStatus == UserProfile.accountSuspended ? ' · Suspended until ${until.toLocal().toString().substring(0, 16)}' : ''}',
-            style: textTheme.bodySmall,
-          ),
-          if (isSelf) Text('You cannot change your own account.', style: textTheme.bodySmall),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<RoleOption>(
-            initialValue: RoleOption.of(user),
-            decoration: const InputDecoration(labelText: 'Role', isDense: true),
-            items: [for (final o in RoleOption.all) DropdownMenuItem(value: o, child: Text(o.title))],
-            onChanged: enabled ? (o) => o == null || o == RoleOption.of(user) ? null : onRole(o) : null,
-          ),
-          const SizedBox(height: 8),
-          DropdownButtonFormField<String>(
-            initialValue: _statuses.contains(user.accountStatus) ? user.accountStatus : UserProfile.accountActive,
-            decoration: const InputDecoration(labelText: 'Account status', isDense: true),
-            items: [for (final s in _statuses) DropdownMenuItem(value: s, child: Text(s))],
-            onChanged: enabled ? (s) => s == null || s == user.accountStatus ? null : onStatus(s) : null,
-          ),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('No daily report limit (emergencies)'),
-            value: user.rateLimitOverride,
-            onChanged: enabled ? onOverride : null,
-          ),
+          Text(value, style: textTheme.titleMedium),
+          Text(label, textAlign: TextAlign.center, style: textTheme.bodySmall),
         ],
       ),
     );

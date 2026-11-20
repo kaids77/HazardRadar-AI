@@ -7,6 +7,7 @@ import '../../models/user_profile.dart';
 import '../../services/dispatch_repository.dart';
 import '../../services/moderation_repository.dart';
 import '../../theme/app_theme.dart';
+import '../common/feedback.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/incident_evidence.dart';
@@ -50,16 +51,16 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
       _toast(done);
       unawaited(_loadStorage());
     } on DispatchFailed catch (failure) {
-      _toast(failure.message);
+      _toast(failure.message, error: true);
     } catch (_) {
-      _toast('Could not finish. Try again.');
+      _toast('Could not finish. Try again.', error: true);
     } finally {
       if (mounted) setState(() => _busy.remove(incident.id));
     }
   }
 
-  void _toast(String message) {
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  void _toast(String message, {bool error = false}) {
+    if (mounted) showFeedback(context, message, tone: error ? FeedbackTone.error : FeedbackTone.success);
   }
 
   Future<void> _purge(Incident incident) async {
@@ -100,7 +101,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
             Text('Quarantined reports (${items.length})', style: textTheme.titleMedium),
             const SizedBox(height: 8),
             if (snapshot.hasError)
-              const Text('Could not load the quarantine queue. Pull down to try again.')
+              const FeedbackMessage.error('Could not load the quarantine queue. Pull down to try again.')
             else if (!snapshot.hasData)
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (items.isEmpty)
@@ -108,7 +109,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
             else
               for (final incident in items) ...[
                 Container(
-                  decoration: const BoxDecoration(border: Border.fromBorderSide(BorderSide(color: AppColors.ink))),
+                  decoration: BoxDecoration(border: Border.fromBorderSide(BorderSide(color: context.palette.ink))),
                   padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -116,9 +117,9 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
                       Wrap(
                         spacing: 6,
                         children: [
-                          const FlatBadge(label: 'Quarantined', background: AppColors.ink, foreground: AppColors.cream),
-                          FlatBadge(label: incident.reference, background: AppColors.sage, foreground: AppColors.ink),
-                          FlatBadge(label: '${incident.netVotes} votes', background: AppColors.sage, foreground: AppColors.ink),
+                          FlatBadge(label: 'Quarantined', background: context.palette.ink, foreground: context.palette.paper),
+                          FlatBadge(label: incident.reference, background: context.palette.sage, foreground: context.palette.ink),
+                          FlatBadge(label: '${incident.netVotes} votes', background: context.palette.sage, foreground: context.palette.ink),
                         ],
                       ),
                       const SizedBox(height: 6),
@@ -135,8 +136,8 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
                                 ? null
                                 : () => _run(incident, () => widget.moderation.restore(incident), 'Restored to the map.'),
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: AppColors.ink,
-                              side: const BorderSide(color: AppColors.ink),
+                              foregroundColor: context.palette.ink,
+                              side: BorderSide(color: context.palette.ink),
                               shape: const RoundedRectangleBorder(),
                             ),
                             child: const Text('Restore and verify'),

@@ -5,6 +5,7 @@ import '../../../services/location_service.dart';
 import '../../../services/photo_service.dart';
 import '../../../services/report_service.dart';
 import '../../../theme/app_theme.dart';
+import '../../common/feedback.dart';
 import 'location_step.dart';
 import 'photo_notes_steps.dart';
 import 'report_draft.dart';
@@ -138,7 +139,7 @@ class _ReportWizardScreenState extends State<ReportWizardScreen> {
               if (_error != null && !(_draft.step == WizardStep.review && _draft.triage == null))
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Text(_error!, style: Theme.of(context).textTheme.bodyMedium),
+                  child: FeedbackMessage.error(_error!),
                 ),
               _NavBar(
                 showBack: _draft.step != WizardStep.location,
@@ -208,8 +209,8 @@ class _NavBar extends StatelessWidget {
                 onPressed: onBack,
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
-                  foregroundColor: AppColors.ink,
-                  side: const BorderSide(color: AppColors.ink),
+                  foregroundColor: context.palette.ink,
+                  side: BorderSide(color: context.palette.ink),
                   shape: const RoundedRectangleBorder(),
                 ),
                 child: const Text('Back'),

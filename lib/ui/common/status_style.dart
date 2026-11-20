@@ -4,9 +4,9 @@ import '../../models/incident.dart';
 import '../../theme/app_theme.dart';
 
 /// Label and flat colors for a report's status badge.
-({String label, Color background, Color foreground}) statusStyle(Incident incident) {
+({String label, Color background, Color foreground}) statusStyle(BuildContext context, Incident incident) {
   if (incident.isQuarantined) {
-    return (label: 'Disputed', background: AppColors.ink, foreground: AppColors.cream);
+    return (label: 'Disputed', background: context.palette.ink, foreground: context.palette.paper);
   }
   return switch (incident.status) {
     Incident.statusInProgress => (
@@ -14,7 +14,7 @@ import '../../theme/app_theme.dart';
         background: AppColors.inProgress,
         foreground: AppColors.onInProgress,
       ),
-    Incident.statusResolved => (label: 'Resolved by city', background: AppColors.sage, foreground: AppColors.ink),
+    Incident.statusResolved => (label: 'Resolved by city', background: context.palette.sage, foreground: context.palette.ink),
     _ => (label: 'Active', background: AppColors.redOrange, foreground: AppColors.onRedOrange),
   };
 }

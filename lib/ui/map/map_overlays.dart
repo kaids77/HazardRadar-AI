@@ -13,17 +13,17 @@ class MapSearchField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.cream,
+      color: context.palette.paper,
       child: TextField(
         onChanged: onChanged,
         textInputAction: TextInputAction.search,
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: 'Search: high risk, pothole, HZD id',
-          prefixIcon: Icon(Icons.search, color: AppColors.ink),
+          prefixIcon: Icon(Icons.search, color: context.palette.ink),
           isDense: true,
-          border: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: AppColors.ink)),
+          border: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: context.palette.ink)),
           enabledBorder:
-              OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: AppColors.ink)),
+              OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: context.palette.ink)),
         ),
       ),
     );
@@ -75,7 +75,7 @@ class MapLegend extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.labelSmall;
     return Container(
-      color: AppColors.cream,
+      color: context.palette.paper,
       padding: const EdgeInsets.all(8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,10 +112,10 @@ class MapSquareButton extends StatelessWidget {
     return Tooltip(
       message: tooltip,
       child: Material(
-        color: AppColors.sage,
+        color: context.palette.sage,
         child: InkWell(
           onTap: onPressed,
-          child: SizedBox(width: 48, height: 48, child: Icon(icon, color: AppColors.ink)),
+          child: SizedBox(width: 48, height: 48, child: Icon(icon, color: context.palette.ink)),
         ),
       ),
     );
@@ -124,17 +124,22 @@ class MapSquareButton extends StatelessWidget {
 
 /// A flat label block, for the GPS chip and notices.
 class MapLabel extends StatelessWidget {
-  const MapLabel({super.key, required this.text, this.color = AppColors.sage});
+  const MapLabel({super.key, required this.text, this.color, this.textColor});
 
   final String text;
-  final Color color;
+
+  /// Null means the palette's panel color.
+  final Color? color;
+
+  /// Null means the palette's text color.
+  final Color? textColor;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: color,
+      color: color ?? context.palette.sage,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: Text(text, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: AppColors.ink)),
+      child: Text(text, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: textColor ?? context.palette.ink)),
     );
   }
 }

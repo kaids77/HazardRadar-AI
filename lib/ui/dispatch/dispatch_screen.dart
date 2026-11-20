@@ -38,14 +38,14 @@ class DispatchScreen extends StatelessWidget {
       child: Column(
         children: [
           ColoredBox(
-            color: AppColors.cream,
+            color: context.palette.paper,
             child: TabBar(
               isScrollable: true,
-              labelColor: AppColors.ink,
-              unselectedLabelColor: AppColors.ink,
-              indicator: const BoxDecoration(color: AppColors.sage),
+              labelColor: context.palette.ink,
+              unselectedLabelColor: context.palette.ink,
+              indicator: BoxDecoration(color: context.palette.sage),
               indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: AppColors.sage,
+              dividerColor: context.palette.sage,
               tabs: [for (final (label, _) in tabs) Tab(text: label)],
             ),
           ),

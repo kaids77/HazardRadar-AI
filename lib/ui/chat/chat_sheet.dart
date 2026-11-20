@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import '../../models/chat.dart';
 import '../../models/incident.dart';
 import '../../theme/app_theme.dart';
+import '../common/feedback.dart';
 import 'chat_controller.dart';
 
 /// Opens Radar AI. Resolves to the action the user tapped, or null when closed.
@@ -19,7 +20,7 @@ Future<ChatAction?> showChatSheet(
   return showModalBottomSheet<ChatAction>(
     context: context,
     isScrollControlled: true,
-    backgroundColor: AppColors.cream,
+    backgroundColor: context.palette.paper,
     elevation: 0,
     shape: const RoundedRectangleBorder(),
     builder: (_) => FractionallySizedBox(
@@ -104,21 +105,21 @@ class _ChatSheetState extends State<ChatSheet> {
               padding: const EdgeInsets.fromLTRB(20, 20, 8, 8),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Radar AI',
-                      style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28, color: AppColors.ink),
+                      style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 28, color: context.palette.ink),
                     ),
                   ),
                   IconButton(
                     tooltip: 'Start over',
                     onPressed: widget.controller.reset,
-                    icon: const Icon(Icons.restart_alt, color: AppColors.ink),
+                    icon: Icon(Icons.restart_alt, color: context.palette.ink),
                   ),
                   IconButton(
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close, color: AppColors.ink),
+                    icon: Icon(Icons.close, color: context.palette.ink),
                   ),
                 ],
               ),
@@ -171,8 +172,8 @@ class _ChatSheetState extends State<ChatSheet> {
                                         : () => widget.controller
                                             .answer(choice, incidents: widget.incidents(), around: widget.around()),
                                     style: OutlinedButton.styleFrom(
-                                      foregroundColor: AppColors.ink,
-                                      side: const BorderSide(color: AppColors.ink),
+                                      foregroundColor: context.palette.ink,
+                                      side: BorderSide(color: context.palette.ink),
                                       shape: const RoundedRectangleBorder(),
                                     ),
                                     child: Text(choice),
@@ -188,8 +189,8 @@ class _ChatSheetState extends State<ChatSheet> {
                               child: OutlinedButton(
                                 onPressed: () => Navigator.of(context).pop(action),
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.ink,
-                                  side: const BorderSide(color: AppColors.ink),
+                                  foregroundColor: context.palette.ink,
+                                  side: BorderSide(color: context.palette.ink),
                                   shape: const RoundedRectangleBorder(),
                                 ),
                                 child: Text(_labelFor(action)),
@@ -201,7 +202,7 @@ class _ChatSheetState extends State<ChatSheet> {
                       if (widget.controller.waiting)
                         Text('Radar AI is checking the map...', style: textTheme.bodyMedium),
                       if (widget.controller.error != null)
-                        Text(widget.controller.error!, style: textTheme.bodyMedium),
+                        FeedbackMessage.error(widget.controller.error!),
                     ],
                   );
                 },
@@ -250,7 +251,7 @@ class _ChatSheetState extends State<ChatSheet> {
                     builder: (context, _) => IconButton(
                       tooltip: 'Send',
                       onPressed: widget.controller.waiting ? null : _send,
-                      icon: const Icon(Icons.arrow_upward, color: AppColors.ink),
+                      icon: Icon(Icons.arrow_upward, color: context.palette.ink),
                     ),
                   ),
                 ],
@@ -278,7 +279,7 @@ class _Bubble extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
           child: ColoredBox(
-            color: AppColors.sage,
+            color: context.palette.sage,
             child: Padding(padding: const EdgeInsets.all(12), child: text),
           ),
         ),

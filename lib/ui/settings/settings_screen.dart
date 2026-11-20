@@ -1,26 +1,49 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../models/user_profile.dart';
 import '../../services/app_settings.dart';
 import '../../theme/app_theme.dart';
 import '../common/pull_to_refresh.dart';
+import '../common/user_avatar.dart';
 
-/// Tab 3 for citizens: account and data preferences.
+/// The Settings tab: account (name, photo, level), appearance, data, and staff.
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({
     super.key,
     required this.profile,
     required this.settings,
+    this.name,
+    this.photo,
+    this.hasAccount = false,
     this.onAccount,
+    this.onEditName,
+    this.onChangePhoto,
     this.staffSection,
     this.onRefresh,
   });
 
   final UserProfile profile;
   final AppSettings settings;
+
+  /// The name shown for the account. Null falls back to the level title.
+  final String? name;
+  final Uint8List? photo;
+
+  /// True for Google and staff email accounts. Guests see the Google sign-in instead.
+  final bool hasAccount;
+
+  /// Opens the account sheet (Google sign-in for guests, level details otherwise).
   final VoidCallback? onAccount;
 
-  /// Extra section for staff sign-in or tools, added by later screens.
+  /// Null hides the "Edit name" button.
+  final VoidCallback? onEditName;
+
+  /// Null hides the "Change photo" button.
+  final VoidCallback? onChangePhoto;
+
+  /// Extra section for staff sign-in or tools.
   final Widget? staffSection;
 
   /// Reloads the profile (level, role) on pull-to-refresh.
@@ -29,51 +52,98 @@ class SettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
+    final palette = context.palette;
+    final shownName = name ?? profile.tierTitle;
+    final outline = OutlinedButton.styleFrom(
+      foregroundColor: palette.ink,
+      side: BorderSide(color: palette.ink),
+      shape: const RoundedRectangleBorder(),
+    );
     return ListenableBuilder(
       listenable: settings,
       builder: (context, _) => PullToRefresh(
         onRefresh: onRefresh ?? () async {},
         child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: [
-          Text('Account', style: _heading),
-          const SizedBox(height: 8),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(profile.tierTitle),
-            subtitle: Text('Level ${profile.tier}'),
-            trailing: onAccount == null
-                ? null
-                : TextButton(
-                    onPressed: onAccount,
-                    style: TextButton.styleFrom(foregroundColor: AppColors.ink, shape: const RoundedRectangleBorder()),
-                    child: Text(profile.tier == UserProfile.tierCommuterObserver ? 'Sign in with Google' : 'Details'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            const Text('Account', style: _heading),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                UserAvatar(name: hasAccount ? shownName : null, photo: photo, size: 64),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(shownName, style: textTheme.titleLarge, overflow: TextOverflow.ellipsis),
+                      Text('${profile.tierTitle} · Level ${profile.tier}', style: textTheme.bodySmall),
+                    ],
                   ),
-          ),
-          const Divider(),
-          const SizedBox(height: 16),
-          Text('Data', style: _heading),
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Data saver'),
-            subtitle: Text(
-              'Report photos load only when you tap them.',
-              style: textTheme.bodySmall,
+                ),
+              ],
             ),
-            value: settings.dataSaver,
-            onChanged: settings.setDataSaver,
-          ),
-          if (staffSection != null) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (onEditName != null)
+                  OutlinedButton(onPressed: onEditName, style: outline, child: const Text('Edit name')),
+                if (onChangePhoto != null)
+                  OutlinedButton(onPressed: onChangePhoto, style: outline, child: const Text('Change photo')),
+                if (onAccount != null)
+                  hasAccount
+                      ? TextButton(
+                          onPressed: onAccount,
+                          style: TextButton.styleFrom(shape: const RoundedRectangleBorder()),
+                          child: const Text('Level details'),
+                        )
+                      : ElevatedButton(
+                          onPressed: onAccount,
+                          style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder()),
+                          child: const Text('Sign in with Google'),
+                        ),
+              ],
+            ),
+            const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 16),
-            staffSection!,
+            const Text('Appearance', style: _heading),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final (mode, label) in const [(ThemeMode.light, 'Light'), (ThemeMode.dark, 'Dark')])
+                  ChoiceChip(
+                    label: Text(label),
+                    selected: settings.themeMode == mode,
+                    onSelected: (_) => settings.setThemeMode(mode),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 16),
+            const Text('Data', style: _heading),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Data saver'),
+              subtitle: Text('Report photos load only when you tap them.', style: textTheme.bodySmall),
+              value: settings.dataSaver,
+              onChanged: settings.setDataSaver,
+            ),
+            if (staffSection != null) ...[
+              const Divider(),
+              const SizedBox(height: 16),
+              staffSection!,
+            ],
           ],
-        ],
         ),
       ),
     );
   }
 
-  static const _heading = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22, color: AppColors.ink);
+  static const _heading = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22);
 }

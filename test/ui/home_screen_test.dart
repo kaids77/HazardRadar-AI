@@ -132,7 +132,7 @@ Widget _app(SessionService session) => MaterialApp(
     );
 
 void main() {
-  testWidgets('shows a loading indicator, then the tier label in the app bar', (tester) async {
+  testWidgets('shows a loading indicator, then the guest name in the app bar', (tester) async {
     final session = SessionService(auth: _OkAuth(), profiles: _ProfileRepo());
     await tester.pumpWidget(_app(session));
 
@@ -141,7 +141,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Commuter Observer'), findsOneWidget);
+    expect(find.text('Guest'), findsOneWidget);
     expect(find.text('Report hazard'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });

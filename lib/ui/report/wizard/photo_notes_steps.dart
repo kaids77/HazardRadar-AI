@@ -28,7 +28,7 @@ class PhotoStep extends StatelessWidget {
             onTap: busy ? null : onTakePhoto,
             child: Container(
               height: 240,
-              color: AppColors.sage,
+              color: context.palette.sage,
               alignment: Alignment.center,
               child: photo == null
                   ? Text(busy ? 'Opening the camera...' : 'Tap to take a photo', style: textTheme.titleMedium)

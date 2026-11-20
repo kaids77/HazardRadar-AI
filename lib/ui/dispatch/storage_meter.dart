@@ -17,7 +17,7 @@ class StorageMeter extends StatelessWidget {
     final mb = e == null ? null : e.usedBytes / (1024 * 1024);
     final warn = e != null && e.fraction >= 0.8;
     return Container(
-      decoration: const BoxDecoration(border: Border.fromBorderSide(BorderSide(color: AppColors.ink))),
+      decoration: BoxDecoration(border: Border.fromBorderSide(BorderSide(color: context.palette.ink))),
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -28,8 +28,8 @@ class StorageMeter extends StatelessWidget {
             height: 10,
             child: LinearProgressIndicator(
               value: e?.fraction,
-              backgroundColor: AppColors.sage,
-              color: warn ? AppColors.redOrange : AppColors.ink,
+              backgroundColor: context.palette.sage,
+              color: warn ? AppColors.redOrange : context.palette.ink,
             ),
           ),
           const SizedBox(height: 6),

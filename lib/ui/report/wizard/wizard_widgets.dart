@@ -25,10 +25,10 @@ class WizardStepper extends StatelessWidget {
                   child: Container(
                     height: 6,
                     color: s.index < step.index
-                        ? AppColors.ink
+                        ? context.palette.ink
                         : s == step
                             ? AppColors.redOrange
-                            : AppColors.sage,
+                            : context.palette.sage,
                   ),
                 ),
                 if (s != WizardStep.values.last) const SizedBox(width: 6),
@@ -57,7 +57,7 @@ class InfoChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      color: AppColors.sage,
+      color: context.palette.sage,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -27,6 +27,14 @@ abstract interface class StaffAuth {
   /// The Google email when the current account is linked to Google, otherwise null.
   /// Google-linked staff get their access from the role on their profile, not a password.
   String? get googleEmail;
+
+  /// True when the current account can also sign in with email and password.
+  bool get hasPassword;
+
+  /// Adds a password to a Google-linked account (or changes it), so the staff email
+  /// form also works with the Google email. The uid, role, and points stay the same.
+  /// Throws [StaffSignInFailed] with a user-facing message.
+  Future<void> setPassword(String password);
 }
 
 class FirebaseStaffAuth implements StaffAuth {
@@ -45,6 +53,42 @@ class FirebaseStaffAuth implements StaffAuth {
         .firstOrNull;
     if (google == null) return null;
     return google.email ?? _auth.currentUser?.email ?? '';
+  }
+
+  @override
+  bool get hasPassword => isEmailSession;
+
+  static const int minPasswordLength = 8;
+
+  @override
+  Future<void> setPassword(String password) async {
+    final user = _auth.currentUser;
+    final email = googleEmail;
+    if (user == null || email == null || email.isEmpty) {
+      throw const StaffSignInFailed('Sign in with Google first.');
+    }
+    if (password.length < minPasswordLength) {
+      throw const StaffSignInFailed('Use at least $minPasswordLength characters.');
+    }
+    try {
+      if (hasPassword) {
+        await user.updatePassword(password);
+      } else {
+        await user.linkWithCredential(EmailAuthProvider.credential(email: email, password: password));
+      }
+      await user.reload();
+    } on FirebaseAuthException catch (error) {
+      throw StaffSignInFailed(switch (error.code) {
+        'operation-not-allowed' =>
+          'Email sign-in is off for this project. In the Firebase console, turn on Email/Password under Authentication > Sign-in method.',
+        'requires-recent-login' => 'For security, sign out, sign in with Google again, then set the password.',
+        'weak-password' => 'That password is too weak. Use at least $minPasswordLength characters.',
+        'email-already-in-use' || 'credential-already-in-use' =>
+          'Another account already uses this email with a password.',
+        'network-request-failed' => 'No connection. Try again when you are online.',
+        _ => 'Could not save the password. Try again.',
+      });
+    }
   }
 
   @override
