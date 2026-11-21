@@ -189,35 +189,44 @@ flowchart TD
 
 ## 5. Project layout
 
-```
+```text
 hazardradarai/
-  lib/
-    main.dart                 Wires every service into HomeServices and starts the app
-    config/                   Dart-define values (proxy URL, Google client id)
-    geo/                      Geohash, Philippine bounds, Philippine day (UTC+8)
-    models/                   Incident, UserProfile, Report, TriageResult, Chat, HazardCategory
-    services/                 Firebase, proxy, location, photo, avatar, and policy code behind interfaces
-    theme/app_theme.dart      Fixed colors (AppColors), light/dark palette (AppPalette), themes
-    ui/
-      account/                Account sheet (Google upgrade, Level details), name and photo dialogs
-      chat/                   Radar AI sheet and controller
-      common/                 Feedback messages, avatar, pull-to-refresh, status badges
-      dispatch/               Queue, quarantine, users, user page, analytics
-      home/                   HomeScreen (tabs, top bar, profile handling)
-      map/                    Radar map, overlays, clusters, hazard sheet, alerts
-      report/wizard/          The 4-step report wizard
-      reports/                My Reports
-      settings/               Settings and the City staff section
-      splash/                 Launch screen
-  test/                       Flutter unit and widget tests (fakes for every service)
-  proxy/                      Express proxy: src/ (app, triage, chat, detour, idToken, rateLimit), test/
-  rules-test/                 Firestore rules tests against the emulator
-  firestore.rules             Security rules (publish in the Firebase console)
-  firestore.indexes.json      The composite indexes the app needs (record only; create in the console)
-  firebase.json               Emulator settings for the rules tests
-  docs/                       Walkthrough, explanations, staff setup
-  .env.example                Proxy settings template (copy to .env)
-  dart_defines.example.json   App build values template (copy to dart_defines.json)
+├── lib/
+│   ├── main.dart                 <-- Wires every service into HomeServices and starts the app
+│   ├── config/                   <-- Dart-define values (proxy URL, Google client id)
+│   ├── geo/                      <-- Geohash, Philippine bounds, Philippine day (UTC+8)
+│   ├── models/                   <-- Incident, UserProfile, Report, TriageResult, Chat, HazardCategory
+│   ├── services/                 <-- Firebase, proxy, location, photo, avatar, and policy code behind interfaces
+│   ├── theme/
+│   │   └── app_theme.dart        <-- Fixed colors (AppColors), light/dark palette (AppPalette), themes
+│   └── ui/
+│       ├── account/              <-- Account sheet (Google upgrade, Level details), name and photo dialogs
+│       ├── chat/                 <-- Radar AI sheet and controller
+│       ├── common/               <-- Feedback messages, avatar, pull-to-refresh, status badges
+│       ├── dispatch/             <-- Queue, quarantine, users, user page, analytics
+│       ├── home/                 <-- HomeScreen (tabs, top bar, profile handling)
+│       ├── map/                  <-- Radar map, overlays, clusters, hazard sheet, alerts
+│       ├── report/
+│       │   └── wizard/           <-- The 4-step report wizard
+│       ├── reports/              <-- My Reports
+│       ├── settings/             <-- Settings and the City staff section
+│       └── splash/               <-- Launch screen
+├── test/                         <-- Flutter unit and widget tests (fakes for every service)
+├── proxy/                        <-- Express proxy
+│   ├── src/                      <-- app, triage, chat, detour, idToken, rateLimit, config
+│   └── test/                     <-- Proxy tests
+├── rules-test/                   <-- Firestore rules tests against the emulator
+├── docs/                         <-- Walkthrough, explanations, staff setup
+├── assets/                       <-- Fonts (DM Serif Display) and the splash image
+├── android/                      <-- Android project
+├── web/                          <-- Web project
+├── firestore.rules               <-- Security rules (publish in the Firebase console)
+├── firestore.indexes.json        <-- The composite indexes the app needs (record only; create in the console)
+├── firebase.json                 <-- Emulator settings for the rules tests
+├── .env.example                  <-- Proxy settings template (copy to .env)
+├── dart_defines.example.json     <-- App build values template (copy to dart_defines.json)
+├── pubspec.yaml                  <-- Flutter dependencies and fonts
+└── README.md                     <-- This file
 ```
 
 ---
