@@ -4,8 +4,7 @@
 > *See the risk before you walk into it.*
 
 **Status:** in active testing (Mobile Programming I project). Not deployed yet; it runs locally.
-Last updated 20 Nov 2026; describes the app at commit `db7f817`. When you change the app, update this file with the
-[checklist at the end](#18-keeping-this-readme-up-to-date).
+Last updated 20 Nov 2026; describes the app at commit `db7f817`.
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.38-02569B.svg?logo=flutter)
 ![Dart](https://img.shields.io/badge/Dart-3.10-0175C2.svg?logo=dart)
@@ -35,8 +34,7 @@ Last updated 20 Nov 2026; describes the app at commit `db7f817`. When you change
 14. [Troubleshooting](#14-troubleshooting)
 15. [Known limitations](#15-known-limitations)
 16. [Security notes](#16-security-notes)
-17. [Other documentation](#17-other-documentation)
-18. [Keeping this README up to date](#18-keeping-this-readme-up-to-date)
+17. [Documentation hub](#17-documentation-hub)
 
 ---
 
@@ -454,7 +452,7 @@ More cases, with the reason behind each: [`docs/WALKTHROUGH_WHY.md`](docs/WALKTH
 
 ---
 
-## 17. Other documentation
+## 17. Documentation hub
 
 | File | What it covers |
 |---|---|
@@ -462,19 +460,3 @@ More cases, with the reason behind each: [`docs/WALKTHROUGH_WHY.md`](docs/WALKTH
 | [`docs/WALKTHROUGH_WHY.md`](docs/WALKTHROUGH_WHY.md) | Why each screen, action, and message behaves as it does, plus a change log |
 | [`docs/STAFF_SETUP.md`](docs/STAFF_SETUP.md) | Creating staff accounts and giving roles |
 | `firestore.rules` | The comments above each rule explain what it allows |
-
----
-
-## 18. Keeping this README up to date
-
-When you change the app, check these sections:
-
-- [ ] **Status line** at the top: date and latest commit (`git log --oneline -1`).
-- [ ] **System Features** ([2](#2-system-features)) for any new, removed, or renamed screen or button.
-- [ ] **Data model** ([11](#11-data-model)) and **Levels** ([12](#12-levels-limits-and-rules)) if
-      `firestore.rules`, limits, or fields changed. Remind yourself to republish the rules.
-- [ ] **Configuration** ([10](#10-configuration-reference)) if a dart-define or `.env` key was added.
-- [ ] **Testing** counts ([9](#9-testing)) after running the four commands.
-- [ ] **Troubleshooting** ([14](#14-troubleshooting)) for any new problem you hit and solved.
-- [ ] **Known limitations** ([15](#15-known-limitations)) when one is fixed or a new one appears.
-- [ ] The walkthrough files in `docs/`, if a screen or message changed.
