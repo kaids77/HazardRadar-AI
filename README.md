@@ -7,7 +7,6 @@
 Last updated 20 Nov 2026; describes the app at commit `db7f817`. When you change the app, update this file with the
 [checklist at the end](#18-keeping-this-readme-up-to-date).
 
-![Branch](https://img.shields.io/badge/Branch-development-orange.svg)
 ![Flutter](https://img.shields.io/badge/Flutter-3.38-02569B.svg?logo=flutter)
 ![Dart](https://img.shields.io/badge/Dart-3.10-0175C2.svg?logo=dart)
 ![Firebase](https://img.shields.io/badge/Firebase-Spark%20plan-FFCA28.svg?logo=firebase&logoColor=black)
