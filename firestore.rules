@@ -1,0 +1,381 @@
+rules_version = '2';
+
+// Deny by default: any path not matched below is refused.
+// Tests: rules-test/ (npm run emulator:test). Every change needs allowed and denied cases.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function me() {
+      return get(userPath()).data;
+    }
+
+    function hasRole(role) {
+      return signedIn() && exists(userPath()) && me().role == role;
+    }
+
+    function isStaff() {
+      return hasRole('DISPATCHER') || hasRole('ADMIN');
+    }
+
+    // BANNED always blocks writes. SUSPENDED blocks until suspendedUntil
+    // (no date means indefinitely). WARNED users can still act.
+    function isBlocked() {
+      return signedIn() && exists(userPath()) && (
+        me().accountStatus == 'BANNED'
+        || (me().accountStatus == 'SUSPENDED'
+            && request.time < me().get('suspendedUntil', request.time + duration.value(36500, 'd')))
+      );
+    }
+
+    // Midnight of the current day in the Philippines (UTC+8), as a timestamp.
+    function today() {
+      return (request.time + duration.value(8, 'h')).date();
+    }
+
+    // Reports per Philippine day: Level 1 three, Level 2 ten, Level 3 and up unlimited.
+    function dailyLimit(tier) {
+      return tier == 1 ? 3 : (tier == 2 ? 10 : 1000000);
+    }
+
+    // Fixed hazard categories. Must match lib/models/hazard_category.dart and proxy/src/triage.js.
+    function categories() {
+      return ['Pothole', 'Electrical', 'Flooding', 'Obstruction', 'Lighting', 'Other'];
+    }
+
+    function validTriage(data) {
+      return data.category in categories()
+        && data.riskLevel in ['Low', 'Medium', 'High']
+        && data.aiSummary is string && data.aiSummary.size() > 0 && data.aiSummary.size() <= 500
+        && data.recommendedAction is string && data.recommendedAction.size() > 0 && data.recommendedAction.size() <= 500;
+    }
+
+    // Profiles. Users can create only their own Level 1 profile.
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['role', 'tier', 'accountStatus', 'createdAt'])
+        && request.resource.data.role == 'CITIZEN'
+        && request.resource.data.tier == 1
+        && request.resource.data.accountStatus == 'ACTIVE';
+
+      // A user may raise only their own tier, only from 1 to 2, and only after a
+      // Google account is linked to this uid. The provider is read from the ID token.
+      function isGoogleUpgrade() {
+        return signedIn()
+          && request.auth.uid == uid
+          && resource.data.accountStatus in ['ACTIVE', 'WARNED']
+          && resource.data.tier == 1
+          && request.resource.data.tier == 2
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tier'])
+          && 'google.com' in request.auth.token.firebase.identities;
+      }
+
+      // The daily counter changes only in the same write that creates the user's new
+      // report (lastReportId). The incident create rule checks the count and the limit.
+      // Every published report also earns exactly +10 CTP and +1 to reportsTotal.
+      function isReportCounterUpdate() {
+        let after = request.resource.data;
+        return signedIn()
+          && request.auth.uid == uid
+          && after.diff(resource.data).affectedKeys()
+               .hasOnly(['reportDay', 'reportCount', 'lastReportId', 'ctp', 'reportsTotal'])
+          && after.ctp == resource.data.get('ctp', 0) + 10
+          && after.reportsTotal == resource.data.get('reportsTotal', 0) + 1
+          && after.lastReportId is string
+          && after.lastReportId.matches('^[A-Za-z0-9]{1,40}$')
+          && !exists(/databases/$(database)/documents/incidents/$(after.lastReportId))
+          && existsAfter(/databases/$(database)/documents/incidents/$(after.lastReportId))
+          && getAfter(/databases/$(database)/documents/incidents/$(after.lastReportId)).data.reporterUid == uid;
+      }
+
+      // Merit level-ups a user applies to their own profile:
+      // Level 1 -> 2 at 50 CTP; Level 2 -> 3 (role VERIFIER) at 250 CTP with at least
+      // 85% of their reports resolved. Must match lib/services/level_policy.dart.
+      function isMeritUpgrade() {
+        let before = resource.data;
+        let after = request.resource.data;
+        let changed = after.diff(before).affectedKeys();
+        return signedIn()
+          && request.auth.uid == uid
+          && before.accountStatus in ['ACTIVE', 'WARNED']
+          && (
+            (before.tier == 1 && after.tier == 2 && changed.hasOnly(['tier'])
+              && before.get('ctp', 0) >= 50)
+            || (before.tier == 2 && after.tier == 3 && before.role == 'CITIZEN' && after.role == 'VERIFIER'
+              && changed.hasOnly(['tier', 'role'])
+              && before.get('ctp', 0) >= 250
+              && before.get('reportsTotal', 0) > 0
+              && before.get('reportsResolved', 0) * 100 >= before.get('reportsTotal', 0) * 85)
+          );
+      }
+
+      // Neighborhood Sentinels pick one civic focus badge.
+      function isFocusBadgeChoice() {
+        return signedIn()
+          && request.auth.uid == uid
+          && resource.data.tier >= 3
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['focusBadge'])
+          && request.resource.data.focusBadge in ['Roadway Watch', 'Grid Guardian', 'Hydro Monitor'];
+      }
+
+      // Staff credit the reporter (+10 CTP, +1 resolved) only in the same write that
+      // moves the reporter's own incident (lastResolvedId) from IN_PROGRESS to RESOLVED.
+      function isResolveCredit() {
+        let after = request.resource.data;
+        return isStaff()
+          && after.diff(resource.data).affectedKeys().hasOnly(['ctp', 'reportsResolved', 'lastResolvedId'])
+          && after.lastResolvedId is string
+          && after.lastResolvedId.matches('^[A-Za-z0-9]{1,40}$')
+          && after.ctp == resource.data.get('ctp', 0) + 10
+          && after.reportsResolved == resource.data.get('reportsResolved', 0) + 1
+          && get(/databases/$(database)/documents/incidents/$(after.lastResolvedId)).data.status == 'IN_PROGRESS'
+          && getAfter(/databases/$(database)/documents/incidents/$(after.lastResolvedId)).data.status == 'RESOLVED'
+          && getAfter(/databases/$(database)/documents/incidents/$(after.lastResolvedId)).data.reporterUid == uid;
+      }
+
+      // Admins manage other users (never themselves): role and level together, account
+      // status, suspension end, and the emergency rate-limit override.
+      function isAdminUserUpdate() {
+        let after = request.resource.data;
+        return hasRole('ADMIN')
+          && !isBlocked()
+          && request.auth.uid != uid
+          && after.diff(resource.data).affectedKeys()
+               .hasOnly(['role', 'tier', 'accountStatus', 'suspendedUntil', 'rateLimitOverride'])
+          && ((after.role == 'CITIZEN' && after.tier in [1, 2])
+              || (after.role == 'VERIFIER' && after.tier == 3)
+              || (after.role == 'DISPATCHER' && after.tier == 4)
+              || (after.role == 'ADMIN' && after.tier == 5))
+          && after.accountStatus in ['ACTIVE', 'WARNED', 'SUSPENDED', 'BANNED']
+          && (after.get('suspendedUntil', null) == null || after.suspendedUntil is timestamp)
+          && after.get('rateLimitOverride', false) is bool;
+      }
+
+      // Users set their own public display name (taken from Google when they link).
+      function isDisplayNameUpdate() {
+        return signedIn()
+          && request.auth.uid == uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName'])
+          && request.resource.data.displayName is string
+          && request.resource.data.displayName.size() > 0
+          && request.resource.data.displayName.size() <= 40;
+      }
+
+      allow update: if isAdminUserUpdate() || isDisplayNameUpdate()
+          || isGoogleUpgrade() || isReportCounterUpdate() || isResolveCredit()
+          || isMeritUpgrade() || isFocusBadgeChoice();
+
+      allow delete: if false;
+    }
+
+    // Profile photos, one small JPEG per user, kept out of users/{uid} so the admin user
+    // list does not download every photo. Owners and staff can read; only the owner writes.
+    // 40,000 Base64 characters is about 29 KB of JPEG (the app sends at most 29 KB).
+    match /avatars/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || isStaff());
+
+      allow create, update: if signedIn()
+        && request.auth.uid == uid
+        && !isBlocked()
+        && request.resource.data.keys().hasOnly(['imageBase64', 'updatedAt'])
+        && request.resource.data.imageBase64 is string
+        && request.resource.data.imageBase64.size() > 0
+        && request.resource.data.imageBase64.size() <= 40000
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Hazard reports.
+    match /incidents/{incidentId} {
+      allow read: if signedIn() && (
+        resource.data.visibility == 'PUBLIC'
+        || resource.data.reporterUid == request.auth.uid
+        || isStaff()
+      );
+
+      // The reporter's profile must move to today's count + 1 in the same write,
+      // pointing at this report, and stay within the daily limit unless overridden.
+      function reportCounterOk() {
+        let before = me();
+        let after = getAfter(userPath()).data;
+        let previous = before.get('reportDay', null) == today() ? before.get('reportCount', 0) : 0;
+        return after.get('reportDay', null) == today()
+          && after.get('reportCount', -1) == previous + 1
+          && after.get('lastReportId', '') == incidentId
+          && (before.get('rateLimitOverride', false) == true || previous + 1 <= dailyLimit(before.tier));
+      }
+
+      allow create: if signedIn()
+        && exists(userPath())
+        && !isBlocked()
+        && request.resource.data.keys().hasOnly([
+          'reporterUid', 'reporterTier', 'category', 'riskLevel', 'aiSummary', 'recommendedAction',
+          'note', 'latitude', 'longitude', 'geohash', 'photoBytes',
+          'status', 'visibility', 'netVotes', 'aiProcessed', 'createdAt'
+        ])
+        && request.resource.data.reporterUid == request.auth.uid
+        && request.resource.data.reporterTier == me().tier
+        && request.resource.data.photoBytes is int
+        && request.resource.data.photoBytes > 0 && request.resource.data.photoBytes <= 153600
+        && request.resource.data.status == 'ACTIVE'
+        && request.resource.data.visibility == 'PUBLIC'
+        && request.resource.data.netVotes == 0
+        && request.resource.data.aiProcessed is bool
+        && validTriage(request.resource.data)
+        && request.resource.data.note is string && request.resource.data.note.size() <= 500
+        && request.resource.data.geohash is string && request.resource.data.geohash.size() <= 12
+        && request.resource.data.latitude is number && request.resource.data.latitude >= -90 && request.resource.data.latitude <= 90
+        && request.resource.data.longitude is number && request.resource.data.longitude >= -180 && request.resource.data.longitude <= 180
+        && reportCounterOk();
+
+      function votePath(incidentId) {
+        return /databases/$(database)/documents/incidents/$(incidentId)/votes/$(request.auth.uid);
+      }
+
+      // A vote changes only netVotes, and visibility when the report is quarantined.
+      // netVotes must move by exactly the value of the vote document created in the
+      // same batch. A report at -3 or lower must become QUARANTINED in that write.
+      function isVoteUpdate(incidentId) {
+        return signedIn()
+          && !isBlocked()
+          && resource.data.status == 'ACTIVE'
+          && resource.data.visibility == 'PUBLIC'
+          && !exists(votePath(incidentId))
+          && existsAfter(votePath(incidentId))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['netVotes', 'visibility'])
+          && request.resource.data.netVotes is int
+          && request.resource.data.netVotes - resource.data.netVotes == getAfter(votePath(incidentId)).data.value
+          && (request.resource.data.netVotes > -3 || request.resource.data.visibility == 'QUARANTINED')
+          && (request.resource.data.visibility == 'PUBLIC'
+              || (request.resource.data.visibility == 'QUARANTINED' && request.resource.data.netVotes <= -3));
+      }
+
+      // A report triaged offline (aiProcessed false) may be updated once by its owner
+      // with the AI result. Only the triage fields change, and aiProcessed becomes true.
+      function isEnrichment() {
+        return signedIn()
+          && !isBlocked()
+          && resource.data.reporterUid == request.auth.uid
+          && resource.data.get('aiProcessed', true) == false
+          && request.resource.data.aiProcessed == true
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['category', 'riskLevel', 'aiSummary', 'recommendedAction', 'aiProcessed'])
+          && validTriage(request.resource.data);
+      }
+
+      // Staff edits. The status only moves forward one step at a time:
+      // ACTIVE -> IN_PROGRESS (stamps inProgressAt) -> RESOLVED (stamps resolvedAt and
+      // resolvedBy, needs a note, and credits the reporter in the same write).
+      // Staff may also assign a crew, override the AI category or risk, and restore a
+      // quarantined report (netVotes resets to 0).
+      function isStaffUpdate() {
+        let before = resource.data;
+        let after = request.resource.data;
+        let changed = after.diff(before).affectedKeys();
+        let stepped = before.status != after.status;
+        return isStaff()
+          && !isBlocked()
+          && changed.hasOnly([
+               'status', 'inProgressAt', 'resolvedAt', 'resolvedBy', 'resolutionNote',
+               'assignedCrew', 'category', 'riskLevel', 'visibility', 'netVotes', 'updatedAt'
+             ])
+          && (!changed.hasAny(['category']) || after.category in categories())
+          && (!changed.hasAny(['riskLevel']) || after.riskLevel in ['Low', 'Medium', 'High'])
+          && (!changed.hasAny(['assignedCrew']) || (after.assignedCrew is string && after.assignedCrew.size() <= 60))
+          && (!changed.hasAny(['updatedAt']) || after.updatedAt == request.time)
+          && (!stepped || (before.status == 'ACTIVE' && after.status == 'IN_PROGRESS')
+                       || (before.status == 'IN_PROGRESS' && after.status == 'RESOLVED'))
+          && (!changed.hasAny(['inProgressAt']) || (after.status == 'IN_PROGRESS' && stepped && after.inProgressAt == request.time))
+          && (!stepped || after.status != 'IN_PROGRESS' || changed.hasAll(['inProgressAt']))
+          && (!changed.hasAny(['resolvedAt', 'resolvedBy', 'resolutionNote']) || (after.status == 'RESOLVED' && stepped))
+          && (!stepped || after.status != 'RESOLVED' || (
+                after.resolvedAt == request.time
+                && after.resolvedBy == request.auth.uid
+                && after.resolutionNote is string
+                && after.resolutionNote.size() > 0 && after.resolutionNote.size() <= 300
+                && getAfter(/databases/$(database)/documents/users/$(before.reporterUid)).data.get('lastResolvedId', '') == incidentId
+                && getAfter(/databases/$(database)/documents/users/$(before.reporterUid)).data.get('ctp', 0)
+                     == get(/databases/$(database)/documents/users/$(before.reporterUid)).data.get('ctp', 0) + 10
+             ))
+          && (!changed.hasAny(['visibility', 'netVotes']) || (
+                before.visibility == 'QUARANTINED' && after.visibility == 'PUBLIC' && after.netVotes == 0
+             ));
+      }
+
+      // A Neighborhood Sentinel (Level 3, not staff) may send a public report by someone
+      // else straight to quarantine as spam or a duplicate.
+      function isSentinelFlag() {
+        return signedIn()
+          && exists(userPath())
+          && !isBlocked()
+          && me().tier >= 3
+          && resource.data.reporterUid != request.auth.uid
+          && resource.data.visibility == 'PUBLIC'
+          && request.resource.data.visibility == 'QUARANTINED'
+          && request.resource.data.flaggedBy == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['visibility', 'flaggedBy']);
+      }
+
+      allow update: if isStaffUpdate() || isVoteUpdate(incidentId) || isEnrichment() || isSentinelFlag();
+
+      allow delete: if hasRole('ADMIN');
+
+      // Allowed vote values by tier. Tier 1 cannot vote. Tier 2 votes with weight 1,
+      // tier 3 and above with weight 2.
+      function voteValues() {
+        let tier = me().tier;
+        return tier == 2 ? [1, -1] : (tier >= 3 ? [2, -2] : []);
+      }
+
+      // One vote per user per incident. Votes cannot be edited or removed.
+      // Reporters cannot vote on their own report. The 200 m distance check is
+      // made in the app, because rules cannot see the voter's location.
+      match /votes/{voterId} {
+        allow read: if signedIn();
+        allow create: if signedIn()
+          && exists(userPath())
+          && !isBlocked()
+          && request.auth.uid == voterId
+          && request.resource.data.keys().hasOnly(['value', 'createdAt'])
+          && request.resource.data.value in voteValues()
+          && get(/databases/$(database)/documents/incidents/$(incidentId)).data.reporterUid != request.auth.uid;
+        allow update: if false;
+        // Admins delete votes when purging a quarantined report.
+        allow delete: if hasRole('ADMIN');
+      }
+
+      // One compressed photo per report, stored in Firestore instead of Storage.
+      // It is created together with the incident in the same batch, so the
+      // ownership check reads the incident as it will be after the batch (getAfter).
+      match /photo/main {
+        allow read: if signedIn() && (
+          get(/databases/$(database)/documents/incidents/$(incidentId)).data.visibility == 'PUBLIC'
+          || get(/databases/$(database)/documents/incidents/$(incidentId)).data.reporterUid == request.auth.uid
+          || isStaff()
+        );
+        allow create: if signedIn()
+          && !isBlocked()
+          && request.resource.data.keys().hasOnly(['reporterUid', 'mimeType', 'imageBase64', 'createdAt'])
+          && request.resource.data.reporterUid == request.auth.uid
+          && getAfter(/databases/$(database)/documents/incidents/$(incidentId)).data.reporterUid == request.auth.uid
+          && request.resource.data.mimeType in ['image/jpeg', 'image/webp']
+          && request.resource.data.imageBase64 is string
+          && request.resource.data.imageBase64.size() <= 900000;
+        allow update: if false;
+        // Admins delete the photo when purging a quarantined report.
+        allow delete: if hasRole('ADMIN');
+      }
+    }
+  }
+}

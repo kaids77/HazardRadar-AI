@@ -43,3 +43,20 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local Node proxy
+proxy/node_modules/
+
+# Secrets: never commit the local environment file (.env.example stays tracked)
+.env
+
+# Generated Android build reports
+android/build/
+
+# Secrets: local --dart-define-from-file values (dart_defines.example.json stays tracked)
+dart_defines.json
+
+# Firestore rules tests
+rules-test/node_modules/
+firebase-debug.log
+firestore-debug.log

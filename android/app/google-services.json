@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "368757984421",
+    "project_id": "hazardradarai",
+    "storage_bucket": "hazardradarai.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:368757984421:android:18376951e51ec1aa07114c",
+        "android_client_info": {
+          "package_name": "com.example.hazardradarai"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "368757984421-lvlfa42d7e5cj0l9o2khf0klk66h5lor.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.hazardradarai",
+            "certificate_hash": "03447ee820e0bf3d607220ba53a165e9a646e4c0"
+          }
+        },
+        {
+          "client_id": "368757984421-l4ihv60m0ej5b6e099ojv141ff4lqion.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC1ODZlY2AhE9dT-4EkVTx1RgpJAm-fpB8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "368757984421-l4ihv60m0ej5b6e099ojv141ff4lqion.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,0 +1,218 @@
+import 'package:flutter/material.dart';
+
+import '../../models/hazard_category.dart';
+import '../../services/analytics.dart';
+import '../../services/moderation_repository.dart';
+import '../../theme/app_theme.dart';
+import '../common/feedback.dart';
+import '../common/pull_to_refresh.dart';
+import 'storage_meter.dart';
+
+/// Dispatch tab C (admins): city performance from the newest 500 reports.
+class AnalyticsScreen extends StatefulWidget {
+  const AnalyticsScreen({super.key, required this.analytics, this.moderation, this.clock = DateTime.now});
+
+  final AnalyticsRepository analytics;
+  final ModerationRepository? moderation;
+  final DateTime Function() clock;
+
+  @override
+  State<AnalyticsScreen> createState() => _AnalyticsScreenState();
+}
+
+class _AnalyticsScreenState extends State<AnalyticsScreen> {
+  CityAnalytics? _data;
+  StorageEstimate? _storage;
+  bool _error = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _error = false);
+    try {
+      final incidents = await widget.analytics.recent();
+      if (mounted) setState(() => _data = CityAnalytics.compute(incidents, widget.clock()));
+    } catch (_) {
+      if (mounted) setState(() => _error = true);
+    }
+    try {
+      final storage = await widget.moderation?.storage();
+      if (mounted && storage != null) setState(() => _storage = storage);
+    } catch (_) {
+      // Informational only.
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final data = _data;
+    final textTheme = Theme.of(context).textTheme;
+    if (_error) {
+      return PullToRefresh(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(32),
+          children: [
+            const FeedbackMessage.error('Could not load analytics. Pull down to try again.'),
+            const SizedBox(height: 8),
+            Center(child: OutlinedButton(onPressed: _load, child: const Text('Try again'))),
+          ],
+        ),
+      );
+    }
+    if (data == null) return const Center(child: CircularProgressIndicator());
+    final mttr = data.meanTimeToResolve;
+    return PullToRefresh(
+      onRefresh: _load,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            children: [
+              _Block(label: 'Resolution rate', value: '${(data.resolutionRate * 100).toStringAsFixed(1)}%'),
+              _Block(label: 'Mean time to resolve', value: mttr == null ? '-' : formatDuration(mttr)),
+              _Block(label: 'Total reports', value: '${data.total}'),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _Block(label: 'Active high', value: '${data.activeHigh}', color: AppColors.redOrange, foreground: AppColors.onRedOrange),
+              _Block(label: 'Active medium', value: '${data.activeMedium}', color: AppColors.riskMedium, foreground: AppColors.ink),
+              _Block(label: 'Active low', value: '${data.activeLow}', color: AppColors.riskLow, foreground: AppColors.cream),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _Block(label: 'In progress', value: '${data.inProgress}', color: AppColors.inProgress, foreground: AppColors.onInProgress),
+              _Block(label: 'Resolved today', value: '${data.resolvedToday}'),
+              _Block(label: 'Quarantined', value: '${data.quarantined}', color: context.palette.ink, foreground: context.palette.paper),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text('Hazard categories', style: textTheme.titleMedium),
+          const SizedBox(height: 8),
+          _CategoryBar(counts: data.categoryCounts),
+          const SizedBox(height: 16),
+          Text('Hotspots (open reports per 1 km cell)', style: textTheme.titleMedium),
+          const SizedBox(height: 4),
+          if (data.hotspots.isEmpty)
+            Text('No open reports.', style: textTheme.bodySmall)
+          else
+            for (final (index, spot) in data.hotspots.indexed)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 2),
+                child: Text('${index + 1}. ${spot.geohash} · ${spot.count} open', style: textTheme.bodyMedium?.copyWith(fontFamily: 'monospace')),
+              ),
+          const SizedBox(height: 16),
+          Text('AI health', style: textTheme.titleMedium),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 10,
+            child: LinearProgressIndicator(value: data.aiProcessedShare, backgroundColor: context.palette.sage, color: context.palette.ink),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${(data.aiProcessedShare * 100).round()}% of reports classified by Radar AI; the rest used the offline fallback.',
+            style: textTheme.bodySmall,
+          ),
+          const SizedBox(height: 16),
+          if (widget.moderation != null) StorageMeter(estimate: _storage),
+          const SizedBox(height: 8),
+          Text('Based on the newest ${data.total} reports. Pull down to refresh.', style: textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+class _Block extends StatelessWidget {
+  const _Block({required this.label, required this.value, this.color, this.foreground});
+
+  final String label;
+  final String value;
+
+  /// Null means the palette's panel color and text color.
+  final Color? color;
+  final Color? foreground;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = this.foreground ?? context.palette.ink;
+    return Expanded(
+      child: Container(
+        color: color ?? context.palette.sage,
+        margin: const EdgeInsets.only(right: 6),
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22, color: foreground)),
+            Text(label, textAlign: TextAlign.center, style: Theme.of(context).textTheme.labelSmall?.copyWith(color: foreground)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// One flat stacked bar plus a legend. Plain widgets, no chart library.
+class _CategoryBar extends StatelessWidget {
+  const _CategoryBar({required this.counts});
+
+  final Map<String, int> counts;
+
+  /// Fixed fills, so the legend reads the same in light and dark mode. "Other" uses the
+  /// text color, so it stays visible on either background.
+  static Map<String, Color> _colors(BuildContext context) => {
+    HazardCategory.pothole: AppColors.riskMedium,
+    HazardCategory.electrical: AppColors.redOrange,
+    HazardCategory.flooding: AppColors.inProgress,
+    HazardCategory.obstruction: AppColors.riskLow,
+    HazardCategory.lighting: AppColors.sage,
+    HazardCategory.other: context.palette.ink,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final total = counts.values.fold<int>(0, (a, b) => a + b);
+    final textTheme = Theme.of(context).textTheme;
+    if (total == 0) return Text('No reports yet.', style: textTheme.bodySmall);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          height: 18,
+          child: Row(
+            children: [
+              for (final entry in counts.entries)
+                if (entry.value > 0) Expanded(flex: entry.value, child: ColoredBox(color: _colors(context)[entry.key]!)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 12,
+          runSpacing: 4,
+          children: [
+            for (final entry in counts.entries)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(width: 12, height: 12, color: _colors(context)[entry.key]),
+                  const SizedBox(width: 4),
+                  Text('${entry.key} ${(entry.value * 100 / total).round()}%', style: textTheme.bodySmall),
+                ],
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+}
