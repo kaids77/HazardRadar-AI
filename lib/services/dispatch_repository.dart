@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/hazard_category.dart';
 import '../models/incident.dart';
+import '../models/transparency_entry.dart';
 import 'level_policy.dart';
 
 /// Thrown when a staff action is refused or invalid. The message is safe to show.
@@ -117,11 +118,14 @@ class FirestoreDispatchRepository implements DispatchRepository {
         }
         final text = DispatchPolicy.validNote(note);
         final reporter = _db.collection('users').doc(incident.reporterUid);
+        final ref = _incidents.doc(incident.id);
         return _db.runTransaction((transaction) async {
           final data = (await transaction.get(reporter)).data();
           if (data == null) throw const DispatchFailed('The reporter\'s profile no longer exists.');
+          // Fresh copy, so the public log entry copies the current category, risk, and crew.
+          final current = (await transaction.get(ref)).data() ?? const <String, dynamic>{};
           transaction
-            ..update(_incidents.doc(incident.id), {
+            ..update(ref, {
               'status': Incident.statusResolved,
               'resolvedAt': FieldValue.serverTimestamp(),
               'resolvedBy': staffUid,
@@ -131,6 +135,17 @@ class FirestoreDispatchRepository implements DispatchRepository {
               'ctp': _int(data['ctp']) + LevelPolicy.ctpPerResolved,
               'reportsResolved': _int(data['reportsResolved']) + 1,
               'lastResolvedId': incident.id,
+            })
+            ..set(_db.collection(TransparencyEntry.collection).doc(incident.id), {
+              ...TransparencyEntry.fields(
+                category: current['category'] is String ? current['category'] as String : incident.category,
+                riskLevel: current['riskLevel'] is String ? current['riskLevel'] as String : incident.riskLevel,
+                kind: TransparencyEntry.kindResolved,
+                crew: current['assignedCrew'] is String ? current['assignedCrew'] as String : '',
+                resolutionNote: text,
+              ),
+              // Same server time as resolvedAt, which the rules compare.
+              'at': FieldValue.serverTimestamp(),
             });
         });
       });
