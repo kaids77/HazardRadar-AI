@@ -13,6 +13,7 @@ import '../../services/photo_service.dart';
 import '../../services/report_enricher.dart';
 import '../../services/report_service.dart';
 import '../../services/session_service.dart';
+import '../../services/transparency_repository.dart';
 import '../../services/user_admin_repository.dart';
 import '../../services/vote_repository.dart';
 
@@ -36,6 +37,8 @@ class HomeServices {
     this.enricher,
     this.avatars,
     this.avatarPicker,
+    this.transparency,
+    this.transparencySync,
   });
 
   final SessionService session;
@@ -73,4 +76,10 @@ class HomeServices {
 
   /// Camera or gallery for a new profile photo. Null hides "Change photo".
   final AvatarPicker? avatarPicker;
+
+  /// The public report transparency log. Null hides the section in My Reports.
+  final TransparencyRepository? transparency;
+
+  /// Staff tool that adds log entries for older reports. Null hides the sync button.
+  final TransparencySync? transparencySync;
 }

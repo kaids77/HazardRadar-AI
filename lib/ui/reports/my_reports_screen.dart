@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../models/incident.dart';
+import '../../models/transparency_entry.dart';
 import '../../models/user_profile.dart';
 import '../../services/level_policy.dart';
 import '../../services/my_reports_repository.dart';
+import '../../services/transparency_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/risk_style.dart';
+import 'transparency_section.dart';
 
 enum ReportFilter { all, active, inProgress, resolved }
 
@@ -37,10 +40,14 @@ class MyReportsScreen extends StatefulWidget {
     this.onSignIn,
     this.onPickBadge,
     this.onRefresh,
+    this.transparency,
   });
 
   final UserProfile profile;
   final MyReportsRepository reports;
+
+  /// The public report transparency log shown at the bottom. Null hides the section.
+  final TransparencyRepository? transparency;
 
   /// Opens the Google upgrade. Shown to guests only.
   final VoidCallback? onSignIn;
@@ -59,10 +66,23 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
   late Stream<List<Incident>> _mine;
   ReportFilter _filter = ReportFilter.all;
 
+  /// The public transparency log, or null when the build has none.
+  Stream<List<TransparencyEntry>>? _log;
+  Future<({int resolved, int quarantined})>? _logCounts;
+
   @override
   void initState() {
     super.initState();
     _mine = widget.reports.watchMine(widget.profile.uid);
+    _subscribeLog();
+  }
+
+  void _subscribeLog() {
+    final repo = widget.transparency;
+    if (repo == null) return;
+    _log = repo.watchRecent();
+    // A failed count only hides the numbers; the list still loads.
+    _logCounts = repo.counts().catchError((Object _) => (resolved: 0, quarantined: 0));
   }
 
   @override
@@ -74,9 +94,12 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     }
   }
 
-  /// Re-subscribes the list (revives it after an error) and reloads the profile.
+  /// Re-subscribes the lists (revives them after an error) and reloads the profile.
   Future<void> _reload() async {
-    setState(() => _mine = widget.reports.watchMine(widget.profile.uid));
+    setState(() {
+      _mine = widget.reports.watchMine(widget.profile.uid);
+      _subscribeLog();
+    });
     await widget.onRefresh?.call();
   }
 
@@ -134,6 +157,12 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                 _HistoryCard(incident: incident),
                 const SizedBox(height: 8),
               ],
+            if (_log != null && _logCounts != null) ...[
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 16),
+              TransparencySection(entries: _log!, counts: _logCounts!),
+            ],
           ],
           ),
         );

@@ -15,10 +15,14 @@ import 'storage_meter.dart';
 
 /// Dispatch tab: quarantined reports. Staff restore them; admins purge them for good.
 class QuarantineScreen extends StatefulWidget {
-  const QuarantineScreen({super.key, required this.profile, required this.moderation});
+  const QuarantineScreen({super.key, required this.profile, required this.moderation, this.onSyncTransparency});
 
   final UserProfile profile;
   final ModerationRepository moderation;
+
+  /// Admin tool: adds transparency log entries for older resolved and quarantined
+  /// reports. Resolves to how many were added. Null hides the button.
+  final Future<int> Function()? onSyncTransparency;
 
   @override
   State<QuarantineScreen> createState() => _QuarantineScreenState();
@@ -28,6 +32,23 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
   late Stream<List<Incident>> _queue = widget.moderation.watchQuarantined();
   StorageEstimate? _storage;
   final Set<String> _busy = {};
+  bool _syncing = false;
+
+  Future<void> _syncLog() async {
+    final sync = widget.onSyncTransparency;
+    if (sync == null || _syncing) return;
+    setState(() => _syncing = true);
+    try {
+      final added = await sync();
+      _toast(added == 0 ? 'The transparency log is up to date.' : 'Added $added older reports to the transparency log.');
+    } on DispatchFailed catch (failure) {
+      _toast(failure.message, error: true);
+    } catch (_) {
+      _toast('Could not sync the transparency log. Try again.', error: true);
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
 
   @override
   void initState() {
@@ -97,6 +118,23 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
           padding: const EdgeInsets.all(16),
           children: [
             StorageMeter(estimate: _storage),
+            if (widget.onSyncTransparency != null) ...[
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _syncing ? null : _syncLog,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: context.palette.ink,
+                  side: BorderSide(color: context.palette.ink),
+                  shape: const RoundedRectangleBorder(),
+                ),
+                child: Text(_syncing ? 'Syncing...' : 'Sync transparency log'),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Adds reports resolved or quarantined before the public log existed. Safe to run more than once.',
+                style: textTheme.bodySmall,
+              ),
+            ],
             const SizedBox(height: 16),
             Text('Quarantined reports (${items.length})', style: textTheme.titleMedium),
             const SizedBox(height: 8),

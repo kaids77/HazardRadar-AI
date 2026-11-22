@@ -322,6 +322,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onSignIn: () => _openAccount(profile),
         onPickBadge: (badge) => _pickBadge(profile, badge),
         onRefresh: _refresh,
+        transparency: _s.transparency,
       ),
       if (showDispatch)
         DispatchScreen(
@@ -330,7 +331,14 @@ class _HomeScreenState extends State<HomeScreen> {
           dispatch: dispatch,
           staffTabs: [
             if (_s.moderation case final moderation?)
-              ('Quarantine', QuarantineScreen(profile: profile, moderation: moderation)),
+              (
+                'Quarantine',
+                QuarantineScreen(
+                  profile: profile,
+                  moderation: moderation,
+                  onSyncTransparency: profile.isAdmin ? _s.transparencySync?.syncMissing : null,
+                ),
+              ),
           ],
           adminTabs: [
             if (_s.userAdmin case final users?)
