@@ -303,6 +303,7 @@ class _HomeScreenState extends State<HomeScreen> {
             chat: _s.chat,
             detour: _s.detour,
             settings: _s.settings,
+            transparency: _s.transparency,
             onReport: _openReport,
             onUpgrade: () => _openAccount(profile, reason: UpgradeReason.vote),
           ),

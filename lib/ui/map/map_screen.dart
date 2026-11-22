@@ -17,6 +17,7 @@ import '../../services/chat_service.dart';
 import '../../services/detour_service.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
+import '../../services/transparency_repository.dart';
 import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
 import '../chat/chat_controller.dart';
@@ -44,6 +45,7 @@ class MapScreen extends StatefulWidget {
     this.chat,
     this.onReport,
     this.detour,
+    this.transparency,
   });
 
   final IncidentRepository incidents;
@@ -63,6 +65,9 @@ class MapScreen extends StatefulWidget {
 
   /// Null when the build has no proxy. The Safe route button is hidden then.
   final DetourService? detour;
+
+  /// The public transparency log, so Radar AI can answer resolved and quarantined questions.
+  final TransparencyRepository? transparency;
 
   @override
   State<MapScreen> createState() => _MapScreenState();
@@ -143,11 +148,33 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  /// Active and in-progress counts from the loaded pins, plus resolved and quarantined
+  /// totals and the newest entries from the public transparency log.
+  Future<ReportStatusSummary> _statusSummary() async {
+    final active = _latest.where((i) => i.status == Incident.statusActive).length;
+    final inProgress = _latest.where((i) => i.status == Incident.statusInProgress).length;
+    final log = widget.transparency;
+    if (log == null) return ReportStatusSummary(active: active, inProgress: inProgress);
+    try {
+      final counts = await log.counts();
+      final recent = await log.watchRecent(limit: ReportStatusSummary.maxRecent).first;
+      return ReportStatusSummary(
+        active: active,
+        inProgress: inProgress,
+        resolved: counts.resolved,
+        quarantined: counts.quarantined,
+        recent: recent,
+      );
+    } on Object {
+      return ReportStatusSummary(active: active, inProgress: inProgress);
+    }
+  }
+
   @override
   void initState() {
     super.initState();
     final chat = widget.chat;
-    if (chat != null) _chat = ChatController(chat);
+    if (chat != null) _chat = ChatController(chat, statusSummary: _statusSummary);
     _subscribe();
     // Start following the commuter only after the first fix, so the two permission
     // requests never overlap, and only when location is actually available.

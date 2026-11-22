@@ -16,7 +16,8 @@ class ChatUnavailable implements Exception {
 
 abstract interface class ChatService {
   /// Asks about the hazards around [around]. [history] is the recent conversation
-  /// (at most [ProxyChatService.maxHistoryTurns]), sent as context.
+  /// (at most [ProxyChatService.maxHistoryTurns]), sent as context. [status] carries the
+  /// city-wide counts per report status and the newest resolved or moderated reports.
   /// Throws [ChatUnavailable] on failure.
   Future<ChatReply> ask(
     String message, {
@@ -24,6 +25,7 @@ abstract interface class ChatService {
     required LatLng around,
     List<ChatTurn> history = const [],
     ChatMode? mode,
+    ReportStatusSummary? status,
   });
 }
 
@@ -44,6 +46,7 @@ class ProxyChatService implements ChatService {
     required LatLng around,
     List<ChatTurn> history = const [],
     ChatMode? mode,
+    ReportStatusSummary? status,
   }) async {
     final trimmed = message.trim();
     if (trimmed.isEmpty) throw const ChatUnavailable('Type a question first.');
@@ -64,6 +67,7 @@ class ProxyChatService implements ChatService {
               'id': incident.id,
               'category': incident.category,
               'riskLevel': incident.riskLevel,
+              'status': incident.status,
               'aiSummary': incident.aiSummary,
             },
         ],
@@ -76,6 +80,7 @@ class ProxyChatService implements ChatService {
               ).toJson(),
         ],
         'mode': ?mode?.wire,
+        'status': ?status?.toJson(),
       });
     } on ProxyException {
       throw const ChatUnavailable('Radar AI is not reachable right now. Try again in a moment.');

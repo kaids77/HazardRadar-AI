@@ -19,6 +19,11 @@ class QuickPrompt {
     QuickPrompt('Pedestrian tips', 'Give me safety tips for walking here.', ChatMode.recommendations),
     QuickPrompt('Top repairs', 'Which hazards here should the city fix first?', ChatMode.analysis),
     QuickPrompt('Fallen wire', 'What should I do if I see a fallen or sparking wire?', ChatMode.recommendations),
+    QuickPrompt(
+      'Report status',
+      'How many reports are active, in progress, resolved, and quarantined, and what was resolved recently?',
+      ChatMode.analysis,
+    ),
   ];
 }
 
@@ -45,7 +50,23 @@ class CommuterInterview {
 
 /// Holds the conversation for the session, so closing and reopening the chat keeps it.
 class ChatController extends ChangeNotifier {
-  ChatController(this._service);
+  ChatController(this._service, {this.statusSummary});
+
+  /// Builds the city-wide report status sent with each question. Null sends none.
+  /// A failure or a slow answer only leaves the status out; the question still goes.
+  final Future<ReportStatusSummary?> Function()? statusSummary;
+
+  static const Duration _statusTimeout = Duration(seconds: 3);
+
+  Future<ReportStatusSummary?> _status() async {
+    final build = statusSummary;
+    if (build == null) return null;
+    try {
+      return await build().timeout(_statusTimeout);
+    } on Object {
+      return null;
+    }
+  }
 
   static const String greeting =
       'Ask me about hazards around you, for example: is it safe to walk to the market?';
@@ -150,6 +171,7 @@ class ChatController extends ChangeNotifier {
         around: around,
         history: history.length > 6 ? history.sublist(history.length - 6) : history,
         mode: _mode,
+        status: await _status(),
       );
       _messages.add(ChatMessage.assistant(
         reply.reply,

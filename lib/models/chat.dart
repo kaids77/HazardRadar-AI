@@ -1,3 +1,5 @@
+import 'transparency_entry.dart';
+
 /// Something the assistant offers to do. Only these two types exist; anything
 /// else the model returns is dropped.
 sealed class ChatAction {
@@ -112,4 +114,42 @@ class ChatTurn {
   final String text;
 
   Map<String, String> toJson() => {'role': fromUser ? 'user' : 'assistant', 'content': text};
+}
+
+/// City-wide report statuses sent with each Radar AI question, so it can answer
+/// "how many are in progress?" or "what was resolved?". Active and in-progress counts
+/// come from the map; resolved and quarantined come from the public transparency log.
+class ReportStatusSummary {
+  const ReportStatusSummary({
+    required this.active,
+    required this.inProgress,
+    this.resolved,
+    this.quarantined,
+    this.recent = const [],
+  });
+
+  /// Must match MAX_STATUS_ENTRIES in proxy/src/chat.js.
+  static const int maxRecent = 10;
+
+  final int active;
+  final int inProgress;
+
+  /// Null when the transparency log could not be read.
+  final int? resolved;
+  final int? quarantined;
+  final List<TransparencyEntry> recent;
+
+  /// Only safe fields. Reporter ids and notes never leave the phone.
+  Map<String, Object> toJson() => {
+        'counts': {
+          'active': active,
+          'inProgress': inProgress,
+          'resolved': ?resolved,
+          'quarantined': ?quarantined,
+        },
+        'recent': [
+          for (final e in recent.take(maxRecent))
+            {'reference': e.reference, 'category': e.category, 'kind': e.kind, 'reason': e.reason, 'crew': e.crew},
+        ],
+      };
 }

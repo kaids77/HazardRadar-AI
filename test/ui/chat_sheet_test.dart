@@ -26,6 +26,7 @@ class _Chat implements ChatService {
     required LatLng around,
     List<ChatTurn> history = const [],
     ChatMode? mode,
+    ReportStatusSummary? status,
   }) async =>
       const ChatReply(
         reply: 'Avoid the sparking wire ahead.',
