@@ -12,6 +12,7 @@ class DetourRoute {
     required this.distanceMeters,
     required this.durationSeconds,
     this.clearanceMeters,
+    this.direct,
   });
 
   final List<LatLng> path;
@@ -21,13 +22,28 @@ class DetourRoute {
   /// Closest the route comes to a High or Medium hazard, or null when none were nearby.
   final int? clearanceMeters;
 
+  /// The shortest route, when it is a different route from this one. The map draws it
+  /// red when it passes a hazard, next to this route in green.
+  final DetourRoute? direct;
+
   static const int maxPoints = 5000;
 
   /// Must match SAFE_METERS in proxy/src/detour.js.
   static const int unsafeBelowMeters = 40;
 
+  /// True when the route keeps at least [unsafeBelowMeters] from every High or Medium hazard.
+  bool get isSafe => clearanceMeters == null || clearanceMeters! >= unsafeBelowMeters;
+
+  /// The shortest route, only when it passes a hazard and this route avoids them.
+  DetourRoute? get riskyDirect {
+    final d = direct;
+    return d != null && !d.isSafe && isSafe ? d : null;
+  }
+
   /// Parses the proxy `/detour` response. Returns null for anything malformed or outside the Philippines.
-  static DetourRoute? tryFromJson(Object? json) {
+  static DetourRoute? tryFromJson(Object? json) => _parse(json, withDirect: true);
+
+  static DetourRoute? _parse(Object? json, {required bool withDirect}) {
     if (json is! Map) return null;
     final raw = json['path'];
     final distance = json['distanceMeters'];
@@ -46,6 +62,8 @@ class DetourRoute {
       distanceMeters: distance.round(),
       durationSeconds: duration.round(),
       clearanceMeters: clearance is num ? clearance.round() : null,
+      // A malformed extra route is dropped; the safe route still shows.
+      direct: withDirect ? _parse(json['direct'], withDirect: false) : null,
     );
   }
 

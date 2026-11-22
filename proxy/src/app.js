@@ -73,7 +73,7 @@ export function createApp({ config, groq, osrm, verifyIdToken, log = console.log
       const { from, to, hazards } = validateDetourRequest(req.body);
       const choice = await findSafeRoute({ osrm, from, to, hazards });
       if (!choice) throw new UpstreamError('no walking route found', 502);
-      res.json(toDetourResponse(choice, choice.alternatives));
+      res.json(toDetourResponse(choice, choice.alternatives, choice.direct));
     });
   }
 

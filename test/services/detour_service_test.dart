@@ -58,6 +58,25 @@ void main() {
     expect(DetourRoute.tryFromJson({..._good, 'path': 'nope'}), isNull);
   });
 
+  test('a risky shortest route comes back for the red line; a safe route stays green', () {
+    final route = DetourRoute.tryFromJson({
+      ..._good,
+      'direct': {..._good, 'distanceMeters': 900, 'clearanceMeters': 8},
+    })!;
+    expect(route.isSafe, isTrue);
+    expect(route.riskyDirect?.distanceMeters, 900);
+
+    // A broken extra route is dropped; a route that is itself unsafe draws no second line.
+    expect(DetourRoute.tryFromJson({..._good, 'direct': {'path': 'x'}})!.direct, isNull);
+    final stuck = DetourRoute.tryFromJson({
+      ..._good,
+      'clearanceMeters': 10,
+      'direct': {..._good, 'clearanceMeters': 3},
+    })!;
+    expect(stuck.isSafe, isFalse);
+    expect(stuck.riskyDirect, isNull);
+  });
+
   test('sends only High and Medium hazards and maps failures to a message', () async {
     late Map<String, dynamic> sent;
     final service = _service((request) async {

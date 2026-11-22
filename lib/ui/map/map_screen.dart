@@ -138,7 +138,8 @@ class _MapScreenState extends State<MapScreen> {
       final route = await detour.route(from: from, to: destination, hazards: _latest);
       if (!mounted) return;
       setState(() => _route = route);
-      _map.fitCamera(CameraFit.coordinates(coordinates: route.path, padding: const EdgeInsets.all(60)));
+      final shown = [...route.path, ...?route.riskyDirect?.path];
+      _map.fitCamera(CameraFit.coordinates(coordinates: shown, padding: const EdgeInsets.all(60)));
     } on DetourUnavailable catch (failure) {
       if (mounted) _toast(failure.message);
     } catch (_) {
@@ -407,10 +408,20 @@ class _MapScreenState extends State<MapScreen> {
             if (_route case final route?)
               PolylineLayer(
                 polylines: [
+                  // The shortest route underneath, in red, when it passes a hazard.
+                  if (route.riskyDirect case final risky?)
+                    Polyline(
+                      points: risky.path,
+                      strokeWidth: 5,
+                      color: routeRiskyColor,
+                      borderColor: context.palette.ink,
+                      borderStrokeWidth: 1,
+                    ),
+                  // The route to take: green when it keeps clear of hazards, red when it cannot.
                   Polyline(
                     points: route.path,
                     strokeWidth: 6,
-                    color: context.palette.sage,
+                    color: route.isSafe ? routeSafeColor : routeRiskyColor,
                     borderColor: context.palette.ink,
                     borderStrokeWidth: 1.5,
                   ),
@@ -540,6 +551,7 @@ class _MapScreenState extends State<MapScreen> {
                       ? 'Tap your destination on the map.'
                       : _route!.summary,
               actionLabel: _routing ? null : (_pickingDestination ? 'Cancel' : 'Clear route'),
+              route: _routing || _pickingDestination ? null : _route,
               onAction: () => setState(() {
                 _pickingDestination = false;
                 _route = null;
@@ -651,33 +663,68 @@ class _DebugError extends StatelessWidget {
   }
 }
 
-/// Flat route status block with one action (Cancel or Clear route).
+/// Route line colors. Fixed, so they read the same in light and dark mode.
+const Color routeSafeColor = AppColors.success;
+const Color routeRiskyColor = AppColors.redOrange;
+
+/// Flat route status block with one action (Cancel or Clear route). With a planned
+/// [route] it adds a key for the green and red lines on the map.
 class _RoutePanel extends StatelessWidget {
-  const _RoutePanel({required this.text, required this.actionLabel, required this.onAction});
+  const _RoutePanel({required this.text, required this.actionLabel, required this.onAction, this.route});
 
   final String text;
   final String? actionLabel;
   final VoidCallback onAction;
+  final DetourRoute? route;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final route = this.route;
+    final swatch = route == null ? context.palette.sage : (route.isSafe ? routeSafeColor : routeRiskyColor);
     return Container(
       color: context.palette.paper,
       padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 12, height: 12, color: context.palette.sage, margin: const EdgeInsets.only(right: 8)),
-          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
-          if (actionLabel != null)
-            TextButton(
-              onPressed: onAction,
-              style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
-              child: Text(actionLabel!),
+          Row(
+            children: [
+              Container(width: 12, height: 12, color: swatch, margin: const EdgeInsets.only(right: 8)),
+              Expanded(child: Text(text, style: textTheme.bodySmall)),
+              if (actionLabel != null)
+                TextButton(
+                  onPressed: onAction,
+                  style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
+                  child: Text(actionLabel!),
+                ),
+            ],
+          ),
+          if (route != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  if (route.isSafe) _key(textTheme, routeSafeColor, 'Suggested safe route'),
+                  if (!route.isSafe || route.riskyDirect != null) _key(textTheme, routeRiskyColor, 'Passes a hazard'),
+                ],
+              ),
             ),
         ],
       ),
     );
   }
+
+  Widget _key(TextTheme textTheme, Color color, String label) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(width: 18, height: 4, color: color, margin: const EdgeInsets.only(right: 6)),
+          Text(label, style: textTheme.labelSmall),
+        ],
+      );
 }
 
 /// Flat sage block next to the search field.
