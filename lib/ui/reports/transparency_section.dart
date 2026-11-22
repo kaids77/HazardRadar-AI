@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 
 import '../../models/transparency_entry.dart';
@@ -83,6 +84,7 @@ class _TransparencySectionState extends State<TransparencySection> {
           stream: widget.entries,
           builder: (context, snapshot) {
             if (snapshot.hasError) {
+              if (kDebugMode) debugPrint('Transparency load error: ${snapshot.error}');
               return const FeedbackMessage.error('Could not load the transparency log. Pull down to try again.');
             }
             if (!snapshot.hasData) {

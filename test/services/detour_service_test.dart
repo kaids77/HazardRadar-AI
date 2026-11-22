@@ -66,15 +66,18 @@ void main() {
     expect(route.isSafe, isTrue);
     expect(route.riskyDirect?.distanceMeters, 900);
 
-    // A broken extra route is dropped; a route that is itself unsafe draws no second line.
+    // A broken extra route is dropped.
     expect(DetourRoute.tryFromJson({..._good, 'direct': {'path': 'x'}})!.direct, isNull);
+
+    // Chosen route is safer than direct (10 m vs 3 m) → riskyDirect is returned for red line.
     final stuck = DetourRoute.tryFromJson({
       ..._good,
       'clearanceMeters': 10,
       'direct': {..._good, 'clearanceMeters': 3},
     })!;
     expect(stuck.isSafe, isFalse);
-    expect(stuck.riskyDirect, isNull);
+    expect(stuck.isSaferThanDirect, isTrue);
+    expect(stuck.riskyDirect?.clearanceMeters, 3);
   });
 
   test('sends only High and Medium hazards and maps failures to a message', () async {

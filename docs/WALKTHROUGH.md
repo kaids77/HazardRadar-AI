@@ -91,7 +91,8 @@ Run the commands from the project folder (the one with `pubspec.yaml`). `adb` is
     - **Green** line: the suggested safe route. It goes around High and Medium pins, and the panel says "stays X m from High and Medium hazards".
     - **Red** line underneath: the shortest way, shown only when it passes within 40 m of a hazard. The key reads "Passes a hazard".
     - If the shortest way is already safe, there is one green line only.
-    - If no street avoids the hazards, there is one red line and the panel says "Warning: passes within X m of a hazard. No safer route found."
+    - If no street avoids the hazards, there is one red line and the panel says "Warning: passes within X m of a High or Medium hazard. No safer route found." Low hazards are not avoided, so a route can pass over a green pin.
+    - The route panel sits under the filter chips, so it never covers the legend, the GPS chip, or the map buttons.
     - Clear route removes the line.
 38. **Errors (red):**
     - "Pick a destination within 10 km."

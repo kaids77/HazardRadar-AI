@@ -380,7 +380,7 @@ The conversation survives closing the sheet and switching tabs, because the cont
    - **Red underneath:** the shortest route the router offered, when it passes within 40 m of one. The proxy returns it as `direct` next to the chosen route, so you can see what the detour avoids.
    - When the shortest route is already safe, the proxy sends no `direct` route and only the green line shows.
    - When no route keeps clear, the one route is drawn **red**. Colors are fixed, so they look the same in light and dark mode.
-6. If no safe route exists, the panel says so plainly: "Warning: passes within 12 m of a hazard. No safer route found." It never pretends the route is safe.
+6. If no safe route exists, the panel says so plainly: "Warning: passes within 12 m of a High or Medium hazard. No safer route found." It never pretends the route is safe. Low hazards are not avoided (a small crack is not worth a long detour), so the line may cross a green pin. The panel sits under the filter chips so it never covers the legend, GPS chip, or buttons.
 
 The phone waits up to **30 seconds** for a route, longer than the 8 seconds used for chat and triage, because the extra rounds take time.
 

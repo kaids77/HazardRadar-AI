@@ -161,7 +161,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
               const SizedBox(height: 20),
               const Divider(),
               const SizedBox(height: 16),
-              TransparencySection(entries: _log!, counts: _logCounts!),
+              TransparencySection(key: const ValueKey('transparency'), entries: _log!, counts: _logCounts!),
             ],
           ],
           ),

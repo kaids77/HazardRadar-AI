@@ -21,12 +21,23 @@ class FirestoreTransparencyRepository implements TransparencyRepository {
   CollectionReference<Map<String, dynamic>> get _log => _db.collection(TransparencyEntry.collection);
 
   /// One orderBy on a single field, so the automatic index is enough.
+  /// Multi-subscription stream so remounted widgets and multiple listeners can
+  /// listen without stream-already-listened-to errors.
   @override
-  Stream<List<TransparencyEntry>> watchRecent({int limit = 30}) => _log
-      .orderBy('at', descending: true)
-      .limit(limit)
-      .snapshots()
-      .map((s) => [for (final doc in s.docs) ?TransparencyEntry.tryFromFirestore(doc.id, doc.data())]);
+  Stream<List<TransparencyEntry>> watchRecent({int limit = 30}) =>
+      Stream<List<TransparencyEntry>>.multi((controller) {
+        final sub = _log
+            .orderBy('at', descending: true)
+            .limit(limit)
+            .snapshots()
+            .map((s) => [for (final doc in s.docs) ?TransparencyEntry.tryFromFirestore(doc.id, doc.data())])
+            .listen(
+              controller.add,
+              onError: controller.addError,
+              onDone: controller.close,
+            );
+        controller.onCancel = sub.cancel;
+      });
 
   @override
   Future<({int resolved, int quarantined})> counts() async {
