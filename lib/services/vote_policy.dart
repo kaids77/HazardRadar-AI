@@ -40,3 +40,27 @@ abstract final class VotePolicy {
         VoteEligibility.tooFar => 'Voting opens within 200 m of the hazard.',
       };
 }
+
+/// What a vote did to the report, from the new net vote total.
+enum VoteOutcome { recorded, verified, quarantined }
+
+abstract final class VoteOutcomes {
+  /// Must match Incident.verifiedThreshold and the quarantine step in the vote rules.
+  static const int verifiedAt = 3;
+  static const int quarantinedAt = -3;
+
+  static VoteOutcome of(int netVotes) {
+    if (netVotes <= quarantinedAt) return VoteOutcome.quarantined;
+    if (netVotes >= verifiedAt) return VoteOutcome.verified;
+    return VoteOutcome.recorded;
+  }
+
+  /// The message shown right after the vote. All three are successes, so the app shows them in green.
+  static String message(VoteOutcome outcome) => switch (outcome) {
+        VoteOutcome.verified => 'Verified. Enough commuters confirmed this hazard is still there.',
+        VoteOutcome.quarantined =>
+          'Thanks. Enough commuters marked this report as fixed or fake, so it is now hidden from the map '
+              'and sent to a moderator for review.',
+        VoteOutcome.recorded => 'Vote recorded.',
+      };
+}

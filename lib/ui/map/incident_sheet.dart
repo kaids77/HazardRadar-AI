@@ -105,6 +105,12 @@ class _IncidentSheetState extends State<IncidentSheet> {
   bool _busy = false;
   bool _voted = false;
   bool _flagged = false;
+
+  /// The net votes shown in the sheet. Starts from the report and follows this user's vote.
+  late int _netVotes = widget.incident.netVotes;
+
+  /// True when this user's vote just moved the report into quarantine.
+  bool _quarantinedNow = false;
   ({String text, FeedbackTone tone})? _message;
 
   @override
@@ -165,15 +171,18 @@ class _IncidentSheetState extends State<IncidentSheet> {
     });
     final weight = VotePolicy.weightForTier(_profile.tier);
     try {
-      await widget.votes.cast(
+      final next = await widget.votes.cast(
         incidentId: widget.incident.id,
         uid: _profile.uid,
         value: confirm ? weight : -weight,
       );
       if (mounted) {
+        final outcome = VoteOutcomes.of(next);
         setState(() {
           _voted = true;
-          _message = (text: 'Vote recorded.', tone: FeedbackTone.success);
+          _netVotes = next;
+          _quarantinedNow = outcome == VoteOutcome.quarantined;
+          _message = (text: VoteOutcomes.message(outcome), tone: FeedbackTone.success);
         });
       }
     } on AlreadyVotedException {
@@ -195,6 +204,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
       !_profile.isStaff &&
       widget.incident.reporterUid != _profile.uid &&
       !widget.incident.isQuarantined &&
+      !_quarantinedNow &&
       !_flagged;
 
   Future<void> _flag() async {
@@ -249,7 +259,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
                 foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
               ),
               FlatBadge(label: '${incident.reference} · ${status.label}', background: status.background, foreground: status.foreground),
-              if (incident.isVerified)
+              if (_netVotes >= Incident.verifiedThreshold && !_quarantinedNow)
                 FlatBadge(label: 'Verified hazard', background: context.palette.ink, foreground: context.palette.paper),
             ],
           ),
@@ -289,7 +299,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
           const SizedBox(height: 12),
           EvidenceDetails(incident: incident),
           const SizedBox(height: 16),
-          VoteTally(netVotes: incident.netVotes),
+          VoteTally(netVotes: _netVotes),
           const SizedBox(height: 8),
           Row(
             children: [

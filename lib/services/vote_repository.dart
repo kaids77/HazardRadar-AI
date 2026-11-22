@@ -9,8 +9,10 @@ class AlreadyVotedException implements Exception {
 
 abstract interface class VoteRepository {
   /// Records one vote of [value] (+/-1 or +/-2) and updates the report's net votes.
+  /// Returns the new net vote total, so the app can say right away whether the
+  /// report became verified or quarantined.
   /// Throws [AlreadyVotedException] if [uid] voted before.
-  Future<void> cast({required String incidentId, required String uid, required int value});
+  Future<int> cast({required String incidentId, required String uid, required int value});
 
   /// A Neighborhood Sentinel sends a public report straight to quarantine as spam or a duplicate.
   Future<void> flag({required String incidentId, required String uid});
@@ -28,11 +30,11 @@ class FirestoreVoteRepository implements VoteRepository {
   /// A transaction keeps the vote document and the new total consistent.
   /// The rules require both writes together and check the total moves by `value`.
   @override
-  Future<void> cast({required String incidentId, required String uid, required int value}) {
+  Future<int> cast({required String incidentId, required String uid, required int value}) {
     final incident = _db.collection('incidents').doc(incidentId);
     final vote = incident.collection('votes').doc(uid);
 
-    return _db.runTransaction((transaction) async {
+    return _db.runTransaction<int>((transaction) async {
       if ((await transaction.get(vote)).exists) throw const AlreadyVotedException();
 
       final current = (await transaction.get(incident)).data()?['netVotes'];
@@ -43,6 +45,7 @@ class FirestoreVoteRepository implements VoteRepository {
         'netVotes': next,
         if (next <= quarantineAt) 'visibility': 'QUARANTINED',
       });
+      return next;
     });
   }
 
