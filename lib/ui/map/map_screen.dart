@@ -408,23 +408,26 @@ class _MapScreenState extends State<MapScreen> {
             if (_route case final route?)
               PolylineLayer(
                 polylines: [
-                  // The shortest route underneath, in red, when it passes a hazard.
-                  if (route.riskyDirect case final risky?)
-                    Polyline(
-                      points: risky.path,
-                      strokeWidth: 5,
-                      color: routeRiskyColor,
-                      borderColor: context.palette.ink,
-                      borderStrokeWidth: 1,
-                    ),
-                  // The route to take: green when it keeps clear of hazards, red when it cannot.
+                  // The route to take: green when it keeps clear of hazards or is a
+                  // safer alternative (even if not perfectly safe), red only when no
+                  // better route was found at all.
                   Polyline(
                     points: route.path,
                     strokeWidth: 6,
-                    color: route.isSafe ? routeSafeColor : routeRiskyColor,
+                    color: (route.isSafe || route.riskyDirect != null) ? routeSafeColor : routeRiskyColor,
                     borderColor: context.palette.ink,
                     borderStrokeWidth: 1.5,
                   ),
+                  // The shortest route, in semi-transparent red when it passes a hazard.
+                  // Draw it on top so both routes are visible when they overlap.
+                  if (route.riskyDirect case final risky?)
+                    Polyline(
+                      points: risky.path,
+                      strokeWidth: 3,
+                      color: routeRiskyColor.withValues(alpha: 0.6),
+                      borderColor: context.palette.ink.withValues(alpha: 0.4),
+                      borderStrokeWidth: 0.5,
+                    ),
                 ],
               ),
             if (_fix != null)
@@ -478,6 +481,10 @@ class _MapScreenState extends State<MapScreen> {
                   _flyToMatches();
                 },
               ),
+              if (_pickingDestination || _routing || _route != null) ...[
+                const SizedBox(height: 8),
+                _routePanel(),
+              ],
               if (nearby != null) ...[
                 const SizedBox(height: 8),
                 NewHighRiskBanner(
@@ -539,28 +546,25 @@ class _MapScreenState extends State<MapScreen> {
             ],
           ),
         ),
-        if (_pickingDestination || _routing || _route != null)
-          Positioned(
-            left: 76,
-            right: 12,
-            bottom: 96,
-            child: _RoutePanel(
-              text: _routing
-                  ? 'Finding a safe walking route...'
-                  : _pickingDestination
-                      ? 'Tap your destination on the map.'
-                      : _route!.summary,
-              actionLabel: _routing ? null : (_pickingDestination ? 'Cancel' : 'Clear route'),
-              route: _routing || _pickingDestination ? null : _route,
-              onAction: () => setState(() {
-                _pickingDestination = false;
-                _route = null;
-              }),
-            ),
-          ),
       ],
     );
   }
+
+  /// The route status block: picking a destination, planning, or the planned route.
+  /// Shown under the filter chips, so it never covers the legend or the map buttons.
+  Widget _routePanel() => _RoutePanel(
+        text: _routing
+            ? 'Finding a safe walking route...'
+            : _pickingDestination
+                ? 'Tap your destination on the map.'
+                : _route!.summary,
+        actionLabel: _routing ? null : (_pickingDestination ? 'Cancel' : 'Clear route'),
+        route: _routing || _pickingDestination ? null : _route,
+        onAction: () => setState(() {
+          _pickingDestination = false;
+          _route = null;
+        }),
+      );
 
   /// A flat square block with the pin count, in the color of the most severe member.
   /// Square, unlike the round single pins, so the two never get confused.
@@ -681,7 +685,7 @@ class _RoutePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final route = this.route;
-    final swatch = route == null ? context.palette.sage : (route.isSafe ? routeSafeColor : routeRiskyColor);
+    final swatch = route == null ? context.palette.sage : ((route.isSafe || route.riskyDirect != null) ? routeSafeColor : routeRiskyColor);
     return Container(
       color: context.palette.paper,
       padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
@@ -708,7 +712,7 @@ class _RoutePanel extends StatelessWidget {
                 spacing: 12,
                 runSpacing: 4,
                 children: [
-                  if (route.isSafe) _key(textTheme, routeSafeColor, 'Suggested safe route'),
+                  if (route.isSafe || route.riskyDirect != null) _key(textTheme, routeSafeColor, 'Suggested safe route'),
                   if (!route.isSafe || route.riskyDirect != null) _key(textTheme, routeRiskyColor, 'Passes a hazard'),
                 ],
               ),
