@@ -3,7 +3,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'incident.dart';
 
 /// One public record in `transparency/{incidentId}`: what happened to a report.
-/// Holds only safe fields; never the reporter, the note, or the photo.
+/// Holds only safe fields; never the note or the photo. The reporter's name appears
+/// only on resolved entries, and only when the reporter turned on the credit in Settings.
 /// Field names and values must match the transparency rules in firestore.rules.
 class TransparencyEntry {
   const TransparencyEntry({
@@ -14,6 +15,7 @@ class TransparencyEntry {
     this.reason = '',
     this.crew = '',
     this.resolutionNote = '',
+    this.reporterName,
     this.at,
   });
 
@@ -34,6 +36,9 @@ class TransparencyEntry {
   final String reason;
   final String crew;
   final String resolutionNote;
+
+  /// Set only on resolved entries of reporters who opted in.
+  final String? reporterName;
   final DateTime? at;
 
   String get reference => Incident.referenceFor(incidentId);
@@ -58,7 +63,15 @@ class TransparencyEntry {
         _ => null,
       };
 
+  /// The reporter's name from their profile data when they opted in to credit, otherwise null.
+  static String? creditFor(Map<String, Object?>? reporter) {
+    if (reporter?['creditName'] != true) return null;
+    final name = reporter?['displayName'];
+    return name is String && name.isNotEmpty ? name : null;
+  }
+
   /// Fields for a new entry. [at] is written separately (server time, or resolvedAt).
+  /// [reporterName] is added only for resolved entries of reporters who opted in.
   static Map<String, Object> fields({
     required String category,
     required String riskLevel,
@@ -66,6 +79,7 @@ class TransparencyEntry {
     String reason = '',
     String crew = '',
     String resolutionNote = '',
+    String? reporterName,
   }) =>
       {
         'category': category,
@@ -74,6 +88,7 @@ class TransparencyEntry {
         'reason': reason,
         'crew': crew,
         'resolutionNote': resolutionNote,
+        if (kind == kindResolved && reporterName != null && reporterName.isNotEmpty) 'reporterName': reporterName,
       };
 
   /// Returns null for documents missing required fields, so one bad entry never breaks the list.
@@ -91,6 +106,10 @@ class TransparencyEntry {
       reason: data['reason'] is String ? data['reason'] as String : '',
       crew: data['crew'] is String ? data['crew'] as String : '',
       resolutionNote: data['resolutionNote'] is String ? data['resolutionNote'] as String : '',
+      // Shown only on resolved entries, even if an older document carries a name elsewhere.
+      reporterName: kind == kindResolved && data['reporterName'] is String && (data['reporterName'] as String).isNotEmpty
+          ? data['reporterName'] as String
+          : null,
       at: at is Timestamp ? at.toDate() : null,
     );
   }

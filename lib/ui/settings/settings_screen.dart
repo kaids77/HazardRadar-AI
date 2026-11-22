@@ -20,6 +20,7 @@ class SettingsScreen extends StatelessWidget {
     this.onAccount,
     this.onEditName,
     this.onChangePhoto,
+    this.onCreditName,
     this.staffSection,
     this.onRefresh,
   });
@@ -42,6 +43,9 @@ class SettingsScreen extends StatelessWidget {
 
   /// Null hides the "Change photo" button.
   final VoidCallback? onChangePhoto;
+
+  /// Turns the public "Reported by" credit on or off. Null hides the switch (guests).
+  final ValueChanged<bool>? onCreditName;
 
   /// Extra section for staff sign-in or tools.
   final Widget? staffSection;
@@ -107,6 +111,18 @@ class SettingsScreen extends StatelessWidget {
                         ),
               ],
             ),
+            if (onCreditName != null)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Show my name on my resolved reports'),
+                subtitle: Text(
+                  'Your name appears in Report transparency only on reports the city resolved. '
+                  'Turning it off stops new credits.',
+                  style: textTheme.bodySmall,
+                ),
+                value: profile.creditName,
+                onChanged: onCreditName,
+              ),
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 16),

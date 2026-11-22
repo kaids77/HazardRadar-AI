@@ -204,6 +204,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _setCreditName(UserProfile profile, bool on) async {
+    try {
+      await _s.session.profiles.setCreditName(profile.uid, on);
+      await _refresh();
+      _success(on
+          ? 'Your name will show on your reports the city resolves.'
+          : 'Your name will no longer be added to resolved reports.');
+    } catch (_) {
+      _error('Could not save this setting. Try again.');
+    }
+  }
+
   Future<void> _pickBadge(UserProfile profile, String badge) async {
     try {
       await _s.session.profiles.setFocusBadge(profile.uid, badge);
@@ -361,6 +373,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onAccount: () => _openAccount(profile),
         onEditName: hasAccount ? () => _promptName(profile, required: false) : null,
         onChangePhoto: hasAccount && _s.avatarPicker != null && _s.avatars != null ? () => _changePhoto(profile) : null,
+        onCreditName: hasAccount && profile.tier >= UserProfile.tierCivicScout ? (on) => _setCreditName(profile, on) : null,
         onRefresh: _refresh,
         staffSection: staffAuth == null
             ? null

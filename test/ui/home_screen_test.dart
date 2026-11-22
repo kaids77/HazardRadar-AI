@@ -64,6 +64,9 @@ class _ProfileRepo implements ProfileRepository {
 
   @override
   Future<void> setDisplayName(String uid, String name) async {}
+
+  @override
+  Future<void> setCreditName(String uid, bool value) async {}
 }
 
 class _NoIncidents implements IncidentRepository {

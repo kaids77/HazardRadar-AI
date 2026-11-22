@@ -157,6 +157,7 @@ class _EntryCard extends StatelessWidget {
           if (at != null) Text(formatPhilippineTime(at), style: textTheme.bodySmall),
           if (entry.isResolved) ...[
             const SizedBox(height: 4),
+            if (entry.reporterName case final name?) Text('Reported by $name', style: textTheme.bodyMedium),
             Text('Crew: ${entry.crew.isEmpty ? 'not recorded' : entry.crew}', style: textTheme.bodyMedium),
             if (entry.resolutionNote.isNotEmpty) Text('City note: ${entry.resolutionNote}', style: textTheme.bodyMedium),
           ],

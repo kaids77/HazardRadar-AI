@@ -54,13 +54,23 @@ class TransparencySync {
       final quarantined = await incidents.where('visibility', isEqualTo: Incident.visibilityQuarantined).get();
 
       final writes = <(DocumentReference<Map<String, dynamic>>, Map<String, Object>)>[];
-      for (final doc in resolved.docs) {
+      final toResolve = [
+        for (final doc in resolved.docs)
+          if (!existing.contains(doc.id) &&
+              doc.data()['resolvedAt'] is Timestamp &&
+              doc.data()['visibility'] == Incident.visibilityPublic)
+            doc,
+      ];
+      final credits = await _credits({for (final doc in toResolve) _string(doc.data()['reporterUid'])});
+      for (final doc in toResolve) {
         final data = doc.data();
-        final resolvedAt = data['resolvedAt'];
-        if (existing.contains(doc.id) || resolvedAt is! Timestamp || data['visibility'] != Incident.visibilityPublic) continue;
         final entry = _entry(data, TransparencyEntry.kindResolved,
-            crew: _string(data['assignedCrew']), note: _string(data['resolutionNote']));
-        if (entry != null) writes.add((_db.collection(TransparencyEntry.collection).doc(doc.id), {...entry, 'at': resolvedAt}));
+            crew: _string(data['assignedCrew']),
+            note: _string(data['resolutionNote']),
+            reporterName: credits[_string(data['reporterUid'])]);
+        if (entry != null) {
+          writes.add((_db.collection(TransparencyEntry.collection).doc(doc.id), {...entry, 'at': data['resolvedAt'] as Timestamp}));
+        }
       }
       for (final doc in quarantined.docs) {
         final data = doc.data();
@@ -89,12 +99,27 @@ class TransparencySync {
     }
   }
 
+  /// Names of the reporters among [uids] who opted in to credit. A profile that cannot be
+  /// read simply gets no credit.
+  Future<Map<String, String>> _credits(Set<String> uids) async {
+    final names = <String, String>{};
+    await Future.wait([
+      for (final uid in uids.where((u) => u.isNotEmpty))
+        _db.collection('users').doc(uid).get().then((snapshot) {
+          final name = TransparencyEntry.creditFor(snapshot.data());
+          if (name != null) names[uid] = name;
+        }, onError: (Object _) {}),
+    ]);
+    return names;
+  }
+
   static Map<String, Object>? _entry(
     Map<String, dynamic> data,
     String kind, {
     String reason = '',
     String crew = '',
     String note = '',
+    String? reporterName,
   }) {
     final category = data['category'];
     final riskLevel = data['riskLevel'];
@@ -106,6 +131,7 @@ class TransparencySync {
       reason: reason,
       crew: crew,
       resolutionNote: note,
+      reporterName: reporterName,
     );
   }
 

@@ -143,6 +143,8 @@ class FirestoreDispatchRepository implements DispatchRepository {
                 kind: TransparencyEntry.kindResolved,
                 crew: current['assignedCrew'] is String ? current['assignedCrew'] as String : '',
                 resolutionNote: text,
+                // Only when the reporter turned on "Show my name on my resolved reports".
+                reporterName: TransparencyEntry.creditFor(data),
               ),
               // Same server time as resolvedAt, which the rules compare.
               'at': FieldValue.serverTimestamp(),

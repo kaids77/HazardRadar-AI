@@ -9,7 +9,7 @@ import 'package:hazardradarai/ui/settings/settings_screen.dart';
 
 const _scout = UserProfile(uid: 'u', role: 'CITIZEN', tier: 2, accountStatus: 'ACTIVE', displayName: 'Charlie M');
 
-Future<AppSettings> _pump(WidgetTester tester, {ThemeData? theme}) async {
+Future<AppSettings> _pump(WidgetTester tester, {ThemeData? theme, ValueChanged<bool>? onCreditName}) async {
   final settings = AppSettings(MemorySettingsStore());
   await tester.pumpWidget(
     MaterialApp(
@@ -23,6 +23,7 @@ Future<AppSettings> _pump(WidgetTester tester, {ThemeData? theme}) async {
           onAccount: () {},
           onEditName: () {},
           onChangePhoto: () {},
+          onCreditName: onCreditName,
           staffSection: const Text('Staff section'),
         ),
       ),
@@ -33,6 +34,18 @@ Future<AppSettings> _pump(WidgetTester tester, {ThemeData? theme}) async {
 }
 
 void main() {
+  testWidgets('the reporter credit switch is off by default and hidden without a callback', (tester) async {
+    await _pump(tester);
+    expect(find.text('Show my name on my resolved reports'), findsNothing);
+
+    final changes = <bool>[];
+    await _pump(tester, onCreditName: changes.add);
+    expect(find.text('Show my name on my resolved reports'), findsOneWidget);
+    expect(tester.widget<SwitchListTile>(find.byType(SwitchListTile).first).value, isFalse);
+    await tester.tap(find.text('Show my name on my resolved reports'));
+    await tester.pumpAndSettle();
+    expect(changes, [true]);
+  });
   testWidgets('every section shows: account, appearance, data, and staff', (tester) async {
     await _pump(tester);
     expect(tester.takeException(), isNull);

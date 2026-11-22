@@ -20,6 +20,9 @@ abstract interface class ProfileRepository {
 
   /// Saves the user's own display name (1 to 40 characters).
   Future<void> setDisplayName(String uid, String name);
+
+  /// Turns the public "Reported by" credit on the user's resolved reports on or off.
+  Future<void> setCreditName(String uid, bool value);
 }
 
 class FirestoreProfileRepository implements ProfileRepository {
@@ -99,4 +102,8 @@ class FirestoreProfileRepository implements ProfileRepository {
     if (trimmed.isEmpty || trimmed.length > 40) throw ArgumentError.value(name, 'name');
     return _db.collection(usersCollection).doc(uid).update({'displayName': trimmed});
   }
+
+  @override
+  Future<void> setCreditName(String uid, bool value) =>
+      _db.collection(usersCollection).doc(uid).update({'creditName': value});
 }

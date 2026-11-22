@@ -41,4 +41,27 @@ void main() {
       ['category', 'riskLevel', 'kind', 'reason', 'crew', 'resolutionNote'],
     );
   });
+
+  test('the reporter credit is kept only on resolved entries of users who opted in', () {
+    expect(TransparencyEntry.creditFor({'creditName': true, 'displayName': 'Bob Santos'}), 'Bob Santos');
+    expect(TransparencyEntry.creditFor({'creditName': false, 'displayName': 'Bob Santos'}), isNull);
+    expect(TransparencyEntry.creditFor({'displayName': 'Bob Santos'}), isNull);
+    expect(TransparencyEntry.creditFor({'creditName': true}), isNull);
+    expect(TransparencyEntry.creditFor(null), isNull);
+
+    expect(
+      TransparencyEntry.fields(category: 'Pothole', riskLevel: 'High', kind: 'RESOLVED', reporterName: 'Bob')['reporterName'],
+      'Bob',
+    );
+    expect(
+      TransparencyEntry.fields(category: 'Pothole', riskLevel: 'High', kind: 'PURGED', reporterName: 'Bob')
+          .containsKey('reporterName'),
+      isFalse,
+    );
+    final quarantined = TransparencyEntry.tryFromFirestore(
+      'q1',
+      {'category': 'Other', 'riskLevel': 'Low', 'kind': 'QUARANTINED', 'reporterName': 'Bob'},
+    )!;
+    expect(quarantined.reporterName, isNull);
+  });
 }

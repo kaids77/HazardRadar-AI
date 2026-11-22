@@ -13,6 +13,7 @@ final _entries = [
     kind: TransparencyEntry.kindResolved,
     crew: 'DPWH Patch Crew 4',
     resolutionNote: 'Patched by City Engineering Team B',
+    reporterName: 'Bob Santos',
     at: DateTime.utc(2026, 11, 20, 1),
   ),
   const TransparencyEntry(
@@ -63,6 +64,9 @@ void main() {
     expect(find.text('Community votes: marked fixed or fake'), findsOneWidget);
     expect(find.text('Removed as spam'), findsOneWidget);
     expect(find.text('Pothole · HZD-ABC123'), findsOneWidget);
+    // Only the resolved entry, whose reporter opted in, shows a name.
+    expect(find.text('Reported by Bob Santos'), findsOneWidget);
+    expect(find.textContaining('Reported by'), findsOneWidget);
   });
 
   testWidgets('the chips filter resolved and moderated entries', (tester) async {

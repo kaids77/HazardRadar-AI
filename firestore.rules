@@ -189,9 +189,21 @@ service cloud.firestore {
           && get(report).data.visibility == 'QUARANTINED';
       }
 
+      // Accounts (Level 2 and up) choose whether their name is shown on their resolved
+      // reports in the public transparency log. Off unless the user turns it on.
+      // Turning it off is always allowed, even for a blocked account.
+      function isCreditNameChoice() {
+        return signedIn()
+          && request.auth.uid == uid
+          && resource.data.tier >= 2
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditName'])
+          && request.resource.data.creditName is bool
+          && (request.resource.data.creditName == false || !isBlocked());
+      }
+
       allow update: if isAdminUserUpdate() || isDisplayNameUpdate()
           || isGoogleUpgrade() || isReportCounterUpdate() || isResolveCredit()
-          || isMeritUpgrade() || isFocusBadgeChoice() || isRemovalCount();
+          || isMeritUpgrade() || isFocusBadgeChoice() || isRemovalCount() || isCreditNameChoice();
 
       allow delete: if false;
     }
@@ -215,21 +227,33 @@ service cloud.firestore {
     }
 
     // Public report transparency log: one entry per report that was resolved, quarantined,
-    // restored, or removed as spam. It holds only safe fields (no reporter, note, or photo),
-    // so every signed-in user can read it. An entry can be written only together with the
-    // matching change to the report, and it must copy the report's category and risk.
+    // restored, or removed as spam. It holds only safe fields (no note or photo), so every
+    // signed-in user can read it. The reporter's name appears only on a resolved entry, and
+    // only when the reporter turned on creditName. An entry can be written only together
+    // with the matching change to the report, and it must copy the report's category and risk.
     match /transparency/{incidentId} {
       function incidentPath() {
         return /databases/$(database)/documents/incidents/$(incidentId);
       }
 
       function entryShapeOk(e) {
-        return e.keys().hasOnly(['category', 'riskLevel', 'kind', 'reason', 'crew', 'resolutionNote', 'at'])
+        return e.keys().hasOnly(['category', 'riskLevel', 'kind', 'reason', 'crew', 'resolutionNote', 'at', 'reporterName'])
           && e.keys().hasAll(['category', 'riskLevel', 'kind', 'reason', 'crew', 'resolutionNote', 'at'])
           && e.kind in ['RESOLVED', 'QUARANTINED', 'RESTORED', 'PURGED']
           && e.reason in ['', 'COMMUNITY_VOTES', 'SENTINEL_FLAG']
           && e.crew is string && e.crew.size() <= 60
-          && e.resolutionNote is string && e.resolutionNote.size() <= 300;
+          && e.resolutionNote is string && e.resolutionNote.size() <= 300
+          && (!e.keys().hasAny(['reporterName']) || e.kind == 'RESOLVED');
+      }
+
+      // The optional credit must be the reporter's current name, and the reporter must have opted in.
+      function reporterNameOk(e, report) {
+        let reporter = getAfter(/databases/$(database)/documents/users/$(report.reporterUid)).data;
+        return !e.keys().hasAny(['reporterName'])
+          || (reporter.get('creditName', false) == true
+              && reporter.get('displayName', '') is string
+              && reporter.get('displayName', '') != ''
+              && e.reporterName == reporter.displayName);
       }
 
       function copies(e, report) {
@@ -262,7 +286,8 @@ service cloud.firestore {
           && copies(e, after)
           && e.crew == after.get('assignedCrew', '')
           && e.resolutionNote == after.get('resolutionNote', '')
-          && e.at == after.resolvedAt;
+          && e.at == after.resolvedAt
+          && reporterNameOk(e, after);
       }
 
       // Written by staff together with restoring a quarantined report to the map.

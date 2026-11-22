@@ -61,6 +61,9 @@ class FakeProfileRepository implements ProfileRepository {
 
   @override
   Future<void> setDisplayName(String uid, String name) async => displayNames[uid] = name;
+
+  @override
+  Future<void> setCreditName(String uid, bool value) async {}
 }
 
 /// A repository whose stored profile has earned a level.
