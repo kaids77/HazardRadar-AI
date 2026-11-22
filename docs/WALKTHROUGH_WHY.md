@@ -421,7 +421,9 @@ These are checked when the app starts a session (`LevelPolicy.dueUpgrade`) and t
 ### 9.1 Report transparency (every user, since 21 Nov)
 **What you see:** at the bottom of My Reports, a **Report transparency** heading, chips **All**, **Resolved (n)** and **Quarantined (n)**, and the 30 newest city-wide entries. A resolved entry shows the HZD id, category, risk, date, **Crew:** and **City note:**. A quarantined entry shows the reason ("Community votes: marked fixed or fake" or "Flagged as spam or duplicate by a Sentinel"). Restored and removed entries say "Restored by a moderator" and "Removed as spam".
 
-**Why it is a separate list:** other users cannot read quarantined reports, because they may contain spam text. The log lives in its own collection, `transparency/{incidentId}`, and holds only safe fields: category, risk, what happened, reason, crew, city note and date. It never holds the reporter, the note, or the photo, and it never shows which staff account resolved a report.
+**Why it is a separate list:** other users cannot read quarantined reports, because they may contain spam text. The log lives in its own collection, `transparency/{incidentId}`, and holds only safe fields: category, risk, what happened, reason, crew, city note and date. It never holds the reporter's id, the note, or the photo, and it never shows which staff account resolved a report.
+
+**"Reported by" on resolved entries (since 22 Nov):** a resolved entry shows "Reported by [name]" only when the reporter turned on **Settings > Show my name on my resolved reports** before staff resolved it. The switch is off by default. Quarantined, restored and removed entries never carry a name, so nobody is publicly linked to a disputed report (Data Privacy Act, RA 10173). The rules accept the name only on a resolved entry, and only when it equals the reporter's saved name with the switch on. Turning the switch off stops new credits; entries already written keep the name.
 
 **Why it can be trusted:** an entry can only be written in the same transaction as the real change (a vote reaching -3, a Sentinel flag, a staff resolve, a restore, or an admin purge). The rules check that its category and risk copy the report and, for resolved reports, that the crew, note and date match. Nobody can delete an entry. A later event on the same report replaces its entry, so the list shows the latest outcome.
 
@@ -439,6 +441,7 @@ Sections from top to bottom: Account, Appearance, Data, City staff. Pull down to
 - **Change photo** (Google and staff accounts): a bottom sheet with **Take a photo** (front camera), **Choose from gallery**, and **Remove photo** (only when you have one). Green "Photo saved." or "Photo removed."
 - **Level details** (signed-in accounts): opens the Account sheet with your points, progress, and what your level can do (section 11).
 - **Sign in with Google** (guests only, red-orange button): opens the Google upgrade.
+- **Show my name on my resolved reports** (Google and staff accounts, since 22 Nov): a switch, off by default. Green "Your name will show on your reports the city resolves." or "Your name will no longer be added to resolved reports." See section 9.1 for what it does. Guests have no saved name, so they do not see it; a blocked account can still turn it off.
 
 **Why the photo is small and separate:** the picker resizes the photo to 256 px and compresses it to at most 29 KB (`ImageAvatarPicker`). It is saved as Base64 in its own document, `avatars/{uid}`, not inside `users/{uid}`. The admin user list streams up to 200 profile documents, and keeping photos out of them keeps that list fast. The rules let only you write your photo (at most 40,000 Base64 characters, and not while banned or suspended). Only you and staff can read it.
 
@@ -507,6 +510,7 @@ Sub-tabs: **Queue** and **Quarantine** for all staff. **Users** and **Analytics*
 - Risk filter chips: All, High, Medium, Low.
 - Order: High first, then Medium, then Low; oldest first inside each level, so the longest-waiting urgent ticket is on top.
 - Each **ticket** shows category/risk, status, HZD number, AI summary, coordinates, time (PHT), net votes, and the crew.
+- **Reported by** (since 22 Nov): "Reported by [name] · [level] · [status if not Active]". Without a saved name it says "Guest" or "Name not set yet", never an id. Tapping it opens the user page (section 12.3); dispatchers see that page read-only, because only admins manage accounts. Staff can already read profiles under the rules, so no new access was added.
 - **Start work** (Active tickets): asks for a crew name (can be left empty), then sets IN_PROGRESS. **Resolve** (In-progress tickets): asks for a required note (max 300 characters), sets RESOLVED, and credits the reporter +10 CTP in the same write. The status can only move forward one step: Active, In progress, Resolved. There is no skip and no reopen.
 - **Crew** edits the crew name (max 60 characters). **Override AI** lets staff correct category and risk when the AI got it wrong.
 - Resolved tickets leave the queue because the query lists only open statuses. Quarantined tickets are filtered out of this list and handled in the Quarantine tab.
@@ -514,8 +518,9 @@ Sub-tabs: **Queue** and **Quarantine** for all staff. **Users** and **Analytics*
 
 ### 12.2 Quarantine
 - A storage meter: estimated photo storage against the free 1 GiB, and about how many more uploads fit. It turns red-orange at 80%.
-- Each quarantined report shows its details. **Restore and verify** puts it back on the public map. **Permanently purge** (admins only, with a confirmation) deletes the report, its photo, and its votes for good.
-- Restore and purge also write the transparency log ("Restored by a moderator" / "Removed as spam"). The purge record stays public, so the community can see spam was removed.
+- Each quarantined report shows its details and the same "Reported by" line as the Queue. **Restore and verify** puts it back on the public map. **Permanently purge** (admins only, with a confirmation) deletes the report, its photo, and its votes for good.
+- Restore and purge also write the transparency log ("Restored by a moderator" / "Removed as spam"). The purge record stays public, so the community can see spam was removed. It never names the reporter.
+- A purge also adds 1 to the reporter's `reportsRemoved` in the same transaction. The rules accept it only from an admin, only +1, and only when that user's quarantined report exists before the write and is gone after it, so each removal counts once.
 - **Sync transparency log** (admins): adds entries for reports resolved or quarantined before the log existed, in small batches. Running it again adds nothing and says "The transparency log is up to date."
 
 ### 12.3 Users (admin)
@@ -525,7 +530,9 @@ Sub-tabs: **Queue** and **Quarantine** for all staff. **Users** and **Analytics*
 
 **Tap a row** to open the user page (`UserDetailScreen`):
 - the photo (staff can read `avatars/{uid}`), name, role, and a status badge (red-orange for Suspended or Banned, amber for Warned),
-- trust points, reports, resolved, accuracy, and the suspension end time,
+- trust points, reports, resolved, accuracy, and the suspension end time, under a **Report history** heading,
+- **Quarantined now** and **Removed as spam** (since 22 Nov). Quarantined now is counted live from the user's reports that are hidden and not resolved (two equality-only count queries, so no extra index). Removed as spam is the `reportsRemoved` counter (section 12.2),
+- a **Suggested:** box from the moderation guideline in `docs/STAFF_SETUP.md`: 0 or 1 quarantined or removed means "No action"; 2 or more on an Active account "Warn"; 3 or more on a Warned account "Suspend for 7 days"; 5 or more after a suspension "Consider a ban". It moves one step at a time, and restored or resolved reports never count. It is only a hint: the app never changes an account by itself. Pull down to recount,
 - **Actions:** Role, Account status (Active, Warned, Suspended, Banned), and the **No daily report limit (emergencies)** switch. Suspending asks for 1, 3, 7, or 30 days.
 
 Each change shows a green "Role saved." / "Status saved." / "Limit setting saved." or a red error. The page follows the live user list, so the new values appear as soon as Firestore saves them.
@@ -561,6 +568,9 @@ Computed on the phone from the newest 500 reports: resolution rate, mean time to
 | Safe route clearance | at least 40 m from High and Medium hazards when possible | Proxy |
 | Staff password | at least 8 characters; needs Email/Password enabled | Firebase Auth and phone |
 | Transparency entry | only with the matching vote, flag, resolve, restore, or purge; copies category and risk; no deletes | Rules |
+| Reporter credit | name only on resolved entries, only with `creditName` on, and equal to the saved name | Rules |
+| Removed-as-spam count | +1 only in the admin purge of that user's quarantined report | Rules |
+| Suggested moderation action | hint from quarantined + removed counts and account status; never applied automatically | Phone |
 | Safe vs risky route | green when it stays 40 m or more from High/Medium hazards, red otherwise | Proxy and phone |
 
 Why so much is in the rules: the project is on the Firebase Spark plan, which has no Cloud Functions, so there is no server code to trust. Firestore security rules are the only code the client cannot change.
@@ -648,7 +658,7 @@ They appear in two forms. Pop-up messages at the bottom of the screen use `showS
 
 **How it works:** colors that change with the mode come from `AppPalette` (read as `context.palette.paper / ink / sage`). Colors that never change stay in `AppColors`. If a screen ever shows dark text on the dark background, it is a spot that still uses a fixed `AppColors.ink`. Report the screen.
 
-## 17. Change log: what was fixed on 20 and 21 Nov 2026
+## 17. Change log: what was fixed on 20 to 22 Nov 2026
 
 | Commit | What changed |
 |---|---|
@@ -661,11 +671,13 @@ They appear in two forms. Pop-up messages at the bottom of the screen use `showS
 | `ee4acb3` | Light/dark mode, colored messages, name prompt, profile photo, name and photo in the top bar and Settings, staff password for Google admins, user list plus user page. Rules: `avatars/{uid}`. |
 | `b35080d` | Removed "Sign in with Google" from City staff. |
 | `db7f817` | "Level details" now shows points, progress, and what your level can do. |
-
 | `285774e` | Vote outcomes: green "Vote recorded.", "Verified…", or the quarantine message right after a vote. |
 | `5c41571` | Public transparency log (`transparency/{incidentId}`) written with each vote, flag, resolve, restore, and purge. |
 | `18512dd` | Report transparency section in My Reports; admin Sync transparency log button. |
 | `0784875` | Radar AI knows active, in progress, resolved, and quarantined reports; "Report status" quick prompt. |
 | `70fca15` | Safe route drawn green; the shortest route drawn red when it passes a hazard; color key in the panel. |
+| `1543083` | Queue and Quarantine cards show "Reported by [name] · [level]"; dispatchers get a read-only user page. |
+| `a9f21d1` | User page: Report history (quarantined now, removed as spam) and a suggested moderation action. Rules: `reportsRemoved`. |
+| `36a64c0` | Opt-in "Reported by" on resolved transparency entries; Settings switch. Rules: `creditName`, `reporterName`. |
 
-Test counts after these changes: Flutter 185, proxy 46, rules 79.
+Test counts after these changes: Flutter 192, proxy 46, rules 94.

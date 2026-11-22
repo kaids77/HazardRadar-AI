@@ -18,7 +18,7 @@ Run the commands from the project folder (the one with `pubspec.yaml`). `adb` is
 3. Run the app on the phone: `flutter run --dart-define-from-file=dart_defines.json`
    - Web: add `-d chrome` in a second terminal.
 4. Firebase console, once:
-   - **Firestore Database > Rules:** paste `firestore.rules` and click **Publish**. Required since 20 Nov for profile photos, and again since 21 Nov for the transparency log. Without it, voting, flagging, resolving, restoring and purging fail. A greyed-out Publish button means it's already up to date.
+   - **Firestore Database > Rules:** paste `firestore.rules` and click **Publish**. Required since 20 Nov for profile photos, again since 21 Nov for the transparency log, and again since 22 Nov for the removed-as-spam count and the name credit. Without it, voting, flagging, resolving, restoring and purging fail. A greyed-out Publish button means it's already up to date.
    - **Firestore Database > Indexes > Composite:** both indexes show **Enabled** (`incidents`: visibility, status, createdAt; and `incidents`: reporterUid, createdAt).
    - Optional, for "Set staff password": **Authentication > Sign-in method > Email/Password** turned on.
 5. After code changes, press `R` (capital R, hot restart) in each `flutter run` terminal. Restart the proxy (`Ctrl+C`, `npm start`) after proxy changes.
@@ -106,7 +106,7 @@ Run the commands from the project folder (the one with `pubspec.yaml`). `adb` is
     - **Report transparency** (bottom of the tab, every user, guests too): chips **All**, **Resolved (n)**, **Quarantined (n)**.
     - A resolved entry shows the HZD id, category, risk, date, **Crew:** name, and **City note:**.
     - A quarantined entry shows the reason: "Community votes: marked fixed or fake" or "Flagged as spam or duplicate by a Sentinel". Restored and removed entries say so.
-    - It never shows who reported it, the note, or the photo.
+    - It never shows the note or the photo. A resolved entry says "Reported by [name]" only when that reporter turned the credit on (step 47a). Quarantined, restored and removed entries never show a name.
 
 ## I. Settings
 42. **Account:** a 64 px photo or initials, your name, and "[level title] · Level N".
@@ -117,6 +117,7 @@ Run the commands from the project folder (the one with `pubspec.yaml`). `adb` is
 45. **Level details:** opens the Account sheet with your level, points, progress (or "City staff level. Set by an admin."), and a "What you can do" list for your level.
 46. **Guests:** see a red-orange **Sign in with Google** button in the Account section instead of Edit name and Change photo.
 47. **Appearance:** Light is selected by default. Tap **Dark** and the whole app turns dark except the map tiles. Close and reopen the app, and it should still be dark. Tap **Light** to go back.
+    - **47a. Show my name on my resolved reports** (Google and staff accounts, under the Account buttons): off by default. Turn it on and a green "Your name will show on your reports the city resolves." appears. Have staff resolve one of your reports, and its Report transparency entry shows "Reported by [your name]". Turn it off and a green "Your name will no longer be added to resolved reports." appears. Guests do not see this switch.
 48. **Data saver:** turn it on, open a pin, and the photo should show a "Load photo" button.
 49. **City staff (signed in with Google):** your name and email in a sage box.
     - **Check staff access:** green "Staff access is on…" or red "No staff role on this account yet…"
@@ -132,13 +133,17 @@ Run the commands from the project folder (the one with `pubspec.yaml`). `adb` is
 ## K. Dispatch (ADMIN account)
 52. **Queue:** KPI blocks and risk chips. Tickets are sorted High first, oldest first.
 53. **Ticket actions:** Start work, Resolve (the note is required), Crew and Override AI. Each shows a green or red message.
+    - Each ticket shows "Reported by [name] · [level]" (or "Guest" / "Name not set yet", never an id). Tapping it opens the user page. A dispatcher sees it read-only with a red "Only admins can change accounts…".
 54. **Quarantine:** a storage meter, Restore, and Purge with a confirmation.
+    - Each card also shows "Reported by [name] · [level]".
+    - Purging adds 1 to that reporter's **Removed as spam** count (step 56).
     - Restore and Purge also update Report transparency ("Restored by a moderator" / "Removed as spam").
     - Admins: **Sync transparency log** adds older resolved and quarantined reports once. A second run says "The transparency log is up to date."
     - Resolving a ticket in the Queue adds a Resolved entry with the crew and note.
 55. **Users list:** a search box and one row per user with initials, name and role only. Your row ends with "(you)". Users without a name show "Guest" (Level 1) or "Name not set yet", never "Unnamed user".
 56. **User page:** tap a row.
-    - It shows the photo, name, role, status badge, points, reports, resolved and accuracy.
+    - It shows the photo, name, role, status badge, and **Report history**: points, reports, resolved, accuracy, **Quarantined now** and **Removed as spam**.
+    - A **Suggested:** box follows the moderation guideline in `docs/STAFF_SETUP.md` (for example "Suggested: Warn" for an Active user with 2 quarantined or removed reports). It ends with "A hint only. The app never warns, suspends, or bans anyone by itself." Pull down to recount.
     - Actions: Role, Account status (suspension asks for 1, 3, 7 or 30 days) and the no-daily-limit switch. Each shows a green "… saved." message.
     - On your own page the actions are greyed out, with a red "You cannot change your own account."
 57. **Analytics:** the numbers, hotspots and AI health.

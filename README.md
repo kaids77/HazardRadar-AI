@@ -93,26 +93,32 @@ runs on free tiers: Firebase Spark, Groq, and OpenStreetMap.
   Neighborhood Sentinels can flag spam and duplicates.
 * **Report Transparency:** at the bottom of My Reports, every user sees city-wide reports the city
   resolved (with the crew and the city's note) and reports moderators took off the map (quarantined
-  with the reason, restored, or removed as spam), with Resolved and Quarantined counts.
+  with the reason, restored, or removed as spam), with Resolved and Quarantined counts. A resolved
+  entry shows "Reported by [name]" only if that reporter turned the credit on in Settings.
 * **Civic Trust Points and Levels:** 10 points per report and 10 more when the city resolves it.
   Levels unlock higher daily limits, heavier votes, and moderation tools.
 * **Profiles:** after Google sign-in the app asks for your name. Your name and a square profile photo
   (or initials) show in the top bar and Settings, and you can change both.
 * **Settings:** level details (points, progress, what your level can do), Light or Dark appearance
-  (Light by default, saved on the device), and a data saver that loads photos only on tap.
+  (Light by default, saved on the device), a data saver that loads photos only on tap, and, for
+  accounts, **Show my name on my resolved reports** (off by default).
 * **Clear Feedback:** success messages are green with a check icon; errors and blocked actions are
   red-orange with a warning icon, in both light and dark mode.
 
 ### City Staff Console (Dispatch tab, in the same app)
 * **Dispatch Queue (dispatchers and admins):** open tickets ordered High first and oldest first, with
   KPIs and risk filters. Start work with a crew, resolve with a note (credits the reporter), edit the
-  crew, or override the AI rating. Status moves one way: Active, In progress, Resolved.
-* **Quarantine Review (dispatchers and admins):** disputed and flagged reports, with restore, an
-  admin-only permanent purge, and a photo storage meter against the free 1 GiB. Admins also get
-  **Sync transparency log**, which adds reports resolved or quarantined before the public log existed.
-* **User Management (admins):** a list of names and roles. Each user's page shows stats and lets an
-  admin change role and level, account status (Warned, Suspended until a date, Banned), and the
-  emergency no-daily-limit switch. Admins cannot change their own account.
+  crew, or override the AI rating. Status moves one way: Active, In progress, Resolved. Each ticket
+  shows "Reported by [name] · [level]", which opens that user's page (read-only for dispatchers).
+* **Quarantine Review (dispatchers and admins):** disputed and flagged reports with their reporter,
+  restore, an admin-only permanent purge, and a photo storage meter against the free 1 GiB. Admins
+  also get **Sync transparency log**, which adds reports resolved or quarantined before the public
+  log existed.
+* **User Management (admins):** a list of names and roles. Each user's page shows stats, a report
+  history (quarantined now, removed as spam), and a suggested action from the moderation guideline
+  (see [docs/STAFF_SETUP.md](docs/STAFF_SETUP.md)). The suggestion is a hint only; the admin changes
+  role and level, account status (Warned, Suspended until a date, Banned), and the emergency
+  no-daily-limit switch. Admins cannot change their own account.
 * **City Analytics (admins):** resolution rate, mean time to resolve, active counts by risk, category
   share, 1 km hotspot cells, and how many reports the AI classified.
 * **Staff Sign-In:** city-issued email and password accounts, or Google accounts with a staff role.
@@ -134,9 +140,10 @@ runs on free tiers: Firebase Spark, Groq, and OpenStreetMap.
 * **Photos in Firestore:** report photos (150 KB or less) and profile photos (29 KB or less) are Base64
   JPEG documents, so no paid Storage bucket is needed.
 * **Public Transparency Log:** `transparency/{incidentId}` holds only safe fields (category, risk, what
-  happened, reason, crew, city note, date). Each entry is written in the same transaction as the vote,
-  flag, resolve, restore, or purge, and the rules check that it matches the report.
-* **Tested Rules:** 79 emulator tests check allowed and denied cases for the rules.
+  happened, reason, crew, city note, date, and the reporter's name only on resolved entries they opted
+  in to). Each entry is written in the same transaction as the vote, flag, resolve, restore, or purge,
+  and the rules check that it matches the report.
+* **Tested Rules:** 94 emulator tests check allowed and denied cases for the rules.
 
 ---
 
@@ -317,9 +324,9 @@ Build a web release with `flutter build web --dart-define-from-file=dart_defines
 | What | Command | Count at `70fca15` |
 |---|---|---|
 | Static analysis | `flutter analyze` | 0 issues |
-| Flutter tests | `flutter test --no-pub` | 185 |
+| Flutter tests | `flutter test --no-pub` | 192 |
 | Proxy tests | `cd proxy; npm test` | 46 |
-| Firestore rules tests | `cd rules-test; npm install; npm run emulator:test` | 79 |
+| Firestore rules tests | `cd rules-test; npm install; npm run emulator:test` | 94 |
 
 - The rules tests start a local Firestore emulator on port 8085 (project `demo-hazardradar`) and never
   touch the real database.
@@ -358,12 +365,12 @@ Manual test path: [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md).
 
 | Path | Contents |
 |---|---|
-| `users/{uid}` | `role` (CITIZEN, VERIFIER, DISPATCHER, ADMIN), `tier` (1 to 5), `accountStatus`, `suspendedUntil`, `rateLimitOverride`, `reportDay`, `reportCount`, `ctp` (trust points), `reportsTotal`, `reportsResolved`, `displayName`, `focusBadge` |
+| `users/{uid}` | `role` (CITIZEN, VERIFIER, DISPATCHER, ADMIN), `tier` (1 to 5), `accountStatus`, `suspendedUntil`, `rateLimitOverride`, `reportDay`, `reportCount`, `ctp` (trust points), `reportsTotal`, `reportsResolved`, `reportsRemoved` (removed as spam), `displayName`, `creditName` (opt-in public credit), `focusBadge` |
 | `avatars/{uid}` | `imageBase64` (29 KB JPEG or less), `updatedAt` |
 | `incidents/{id}` | `reporterUid`, `reporterTier`, `category`, `riskLevel`, `aiSummary`, `recommendedAction`, `aiProcessed`, `note`, `latitude`, `longitude`, `geohash`, `photoBytes`, `status` (ACTIVE, IN_PROGRESS, RESOLVED), `visibility` (PUBLIC, QUARANTINED), `netVotes`, `assignedCrew`, `resolutionNote`, timestamps |
 | `incidents/{id}/photo/main` | `imageBase64` (150 KB JPEG or less), `mimeType`, `reporterUid` |
 | `incidents/{id}/votes/{uid}` | `value` (plus or minus 1 or 2), `createdAt` |
-| `transparency/{incidentId}` | public log entry: `category`, `riskLevel`, `kind` (RESOLVED, QUARANTINED, RESTORED, PURGED), `reason` (COMMUNITY_VOTES, SENTINEL_FLAG), `crew`, `resolutionNote`, `at`. Readable by every signed-in user; never holds the reporter, note, or photo |
+| `transparency/{incidentId}` | public log entry: `category`, `riskLevel`, `kind` (RESOLVED, QUARANTINED, RESTORED, PURGED), `reason` (COMMUNITY_VOTES, SENTINEL_FLAG), `crew`, `resolutionNote`, `at`, and `reporterName` only on RESOLVED entries whose reporter opted in. Readable by every signed-in user; never holds the uid, note, or photo |
 
 Categories: Pothole, Electrical, Flooding, Obstruction, Lighting, Other. Reports are shown with a short
 reference such as `HZD-4F9A2C` (the first 6 characters of the document id).
@@ -425,6 +432,7 @@ The map tiles keep a cream tint at 55% color in both modes.
 | "Could not save the photo" | Rules with `avatars/{uid}` not published | Republish `firestore.rules` |
 | Voting, flagging, resolving, restoring, or purging fails with "Could not…" | Rules with `transparency/{incidentId}` not published (since 21 Nov) | Republish `firestore.rules` |
 | Radar AI can't answer how many are resolved or quarantined | Proxy not restarted after 21 Nov, or the log is empty | Restart the proxy; admins run **Sync transparency log** once |
+| Purging a report or the "Show my name" switch fails after the 22 Nov update | Rules with `reportsRemoved` and `creditName` not published | Republish `firestore.rules` |
 | Safe route still shows a single sage line | Proxy not restarted after 21 Nov | Restart the proxy |
 | Staff email form rejects your Gmail | Google accounts have no password | Settings > City staff > Set staff password (needs Email/Password enabled) |
 | No Dispatch tab for an admin | `role` isn't exactly `ADMIN`, or you are on a different account | Fix the profile document, then switch tabs to reload |

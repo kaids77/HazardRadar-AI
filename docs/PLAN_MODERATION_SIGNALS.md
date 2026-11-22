@@ -3,6 +3,8 @@
 Written 21 Nov 2026, approved as recommended ("proceed with what is more recommended, as long as there is
 no conflict"). Each task is one commit.
 
+**Status: done.** Task 1 `1543083`, Task 2 `a9f21d1`, Task 3 `36a64c0`, Task 4 is the docs commit.
+
 ## Principles (to avoid privacy conflicts)
 - Reporter names are shown **to staff only** (Queue, Quarantine, user page). Staff can already read
   profiles under `firestore.rules`.
