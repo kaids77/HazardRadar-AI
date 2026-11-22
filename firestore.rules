@@ -171,9 +171,27 @@ service cloud.firestore {
           && request.resource.data.displayName.size() <= 40;
       }
 
+      // An admin counts a report removed as spam (+1 reportsRemoved) only in the same
+      // write that deletes that user's quarantined report (lastRemovedId). The report must
+      // exist before and be gone after, so each removal is counted once.
+      function isRemovalCount() {
+        let after = request.resource.data;
+        let report = /databases/$(database)/documents/incidents/$(after.lastRemovedId);
+        return hasRole('ADMIN')
+          && !isBlocked()
+          && after.diff(resource.data).affectedKeys().hasOnly(['reportsRemoved', 'lastRemovedId'])
+          && after.lastRemovedId is string
+          && after.lastRemovedId.matches('^[A-Za-z0-9]{1,40}$')
+          && after.reportsRemoved == resource.data.get('reportsRemoved', 0) + 1
+          && exists(report)
+          && !existsAfter(report)
+          && get(report).data.reporterUid == uid
+          && get(report).data.visibility == 'QUARANTINED';
+      }
+
       allow update: if isAdminUserUpdate() || isDisplayNameUpdate()
           || isGoogleUpgrade() || isReportCounterUpdate() || isResolveCredit()
-          || isMeritUpgrade() || isFocusBadgeChoice();
+          || isMeritUpgrade() || isFocusBadgeChoice() || isRemovalCount();
 
       allow delete: if false;
     }

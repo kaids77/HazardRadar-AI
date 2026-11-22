@@ -67,6 +67,9 @@ class _Users implements UserAdminRepository {
 
   @override
   Future<void> setRateLimitOverride(String uid, bool value) async {}
+
+  @override
+  Future<int> quarantinedReports(String uid) async => 0;
 }
 
 Future<_Repo> _pump(

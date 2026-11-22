@@ -100,12 +100,25 @@ class FirestoreModerationRepository implements ModerationRepository {
         await batch.commit();
       }
       // The report goes last, so a failure part-way leaves it in the queue to purge again.
-      // The public log keeps a "removed as spam" record, written in the same transaction.
+      // The public log keeps a "removed as spam" record, and the reporter's profile counts
+      // the removal (reportsRemoved), both in the same transaction.
       await _db.runTransaction((transaction) async {
         final data = (await transaction.get(ref)).data();
+        final reporterUid = data?['reporterUid'];
+        final reporterRef = reporterUid is String && data?['visibility'] == Incident.visibilityQuarantined
+            ? _db.collection('users').doc(reporterUid)
+            : null;
+        final reporter = reporterRef == null ? null : await transaction.get(reporterRef);
         transaction.delete(ref);
         final log = _logEntry(data, TransparencyEntry.kindPurged);
         if (log != null) transaction.set(_log.doc(incident.id), log);
+        if (reporter != null && reporter.exists) {
+          final removed = reporter.data()?['reportsRemoved'];
+          transaction.update(reporter.reference, {
+            'reportsRemoved': (removed is int ? removed : 0) + 1,
+            'lastRemovedId': incident.id,
+          });
+        }
       });
       deleted = refs.length + 1;
     });

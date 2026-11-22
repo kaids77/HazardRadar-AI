@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hazardradarai/models/user_profile.dart';
+import 'package:hazardradarai/services/moderation_policy.dart';
 import 'package:hazardradarai/services/user_admin_repository.dart';
 import 'package:hazardradarai/theme/app_theme.dart';
 import 'package:hazardradarai/ui/dispatch/user_manager_screen.dart';
@@ -19,10 +20,17 @@ const _bob = UserProfile(
 );
 
 class _Repo implements UserAdminRepository {
+  _Repo({this.users = const [_admin, _bob], this.quarantined = 0});
+
+  final List<UserProfile> users;
+  final int quarantined;
   final calls = <String>[];
 
   @override
-  Stream<List<UserProfile>> watchUsers({int limit = 200}) => Stream.value(const [_admin, _bob]);
+  Stream<List<UserProfile>> watchUsers({int limit = 200}) => Stream.value(users);
+
+  @override
+  Future<int> quarantinedReports(String uid) async => quarantined;
 
   @override
   Future<void> setRole(String uid, RoleOption option) async => calls.add('role $uid ${option.role} ${option.tier}');
@@ -37,11 +45,11 @@ class _Repo implements UserAdminRepository {
 
 final _now = DateTime.utc(2026, 11, 18, 2);
 
-Future<_Repo> _pump(WidgetTester tester) async {
+Future<_Repo> _pump(WidgetTester tester, {_Repo? repository}) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final repo = _Repo();
+  final repo = repository ?? _Repo();
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.light(),
@@ -121,6 +129,49 @@ void main() {
     await tester.tap(find.byType(Switch).last);
     await tester.pumpAndSettle();
     expect(repo.calls, ['override bob-uid true']);
+  });
+
+  testWidgets('the user page shows report history and a suggested action', (tester) async {
+    const warnedBob = UserProfile(
+      uid: 'bob-uid',
+      role: 'CITIZEN',
+      tier: 2,
+      accountStatus: 'WARNED',
+      displayName: 'Bob Santos',
+      reportsTotal: 6,
+      reportsRemoved: 1,
+    );
+    await _pump(tester, repository: _Repo(users: const [_admin, warnedBob], quarantined: 2));
+    await _openBob(tester);
+
+    expect(find.text('Report history'), findsOneWidget);
+    expect(find.text('Quarantined now'), findsOneWidget);
+    expect(find.text('Removed as spam'), findsOneWidget);
+    expect(find.text('Suggested: Suspend for 7 days'), findsOneWidget);
+    expect(find.text('3 reports quarantined or removed after a warning.'), findsOneWidget);
+    expect(find.text('A hint only. The app never warns, suspends, or bans anyone by itself.'), findsOneWidget);
+  });
+
+  group('suggestModeration', () {
+    ModerationSuggestion s(String status, int quarantined, int removed) =>
+        suggestModeration(accountStatus: status, quarantined: quarantined, removed: removed);
+
+    test('no action below 2 quarantined or removed reports', () {
+      expect(s('ACTIVE', 0, 0).title, 'No action');
+      expect(s('ACTIVE', 1, 0).title, 'No action');
+      expect(s('WARNED', 0, 1).isAction, isFalse);
+    });
+
+    test('escalates one step at a time', () {
+      expect(s('ACTIVE', 1, 1).title, 'Warn');
+      expect(s('ACTIVE', 6, 0).title, 'Warn');
+      expect(s('WARNED', 2, 0).title, 'Keep the warning');
+      expect(s('WARNED', 2, 1).title, 'Suspend for 7 days');
+      expect(s('SUSPENDED', 3, 1).title, 'Keep the suspension');
+      expect(s('SUSPENDED', 3, 2).title, 'Consider a ban');
+      expect(s('SUSPENDED', 3, 2).isAction, isTrue);
+      expect(s('BANNED', 9, 9).title, 'Already banned');
+    });
   });
 }
 
