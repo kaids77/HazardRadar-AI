@@ -16,6 +16,7 @@ class TicketCard extends StatelessWidget {
     required this.onResolve,
     required this.onCrew,
     required this.onOverride,
+    this.reporterLine,
   });
 
   final Incident incident;
@@ -24,6 +25,9 @@ class TicketCard extends StatelessWidget {
   final VoidCallback onResolve;
   final VoidCallback onCrew;
   final VoidCallback onOverride;
+
+  /// "Reported by …" for staff. Null hides it.
+  final Widget? reporterLine;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +74,7 @@ class TicketCard extends StatelessWidget {
             style: textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
           ),
           Text('Crew: ${incident.assignedCrew ?? 'not assigned'}', style: textTheme.bodySmall),
+          ?reporterLine,
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,

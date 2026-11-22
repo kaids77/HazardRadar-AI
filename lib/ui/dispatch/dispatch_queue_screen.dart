@@ -4,34 +4,57 @@ import 'package:flutter/material.dart';
 
 import '../../models/incident.dart';
 import '../../models/user_profile.dart';
+import '../../services/avatar_repository.dart';
 import '../../services/dispatch_repository.dart';
+import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
 import '../common/pull_to_refresh.dart';
 import 'dispatch_dialogs.dart';
+import 'reporter_line.dart';
 import 'ticket_card.dart';
 
 /// Dispatch tab A: the city's open tickets, highest risk and oldest first.
 class DispatchQueueScreen extends StatefulWidget {
-  const DispatchQueueScreen({super.key, required this.profile, required this.dispatch});
+  const DispatchQueueScreen({super.key, required this.profile, required this.dispatch, this.users, this.avatars});
 
   final UserProfile profile;
   final DispatchRepository dispatch;
+
+  /// Profiles for the "Reported by" line. Null shows the reporter's level only.
+  final UserAdminRepository? users;
+  final AvatarRepository? avatars;
 
   @override
   State<DispatchQueueScreen> createState() => _DispatchQueueScreenState();
 }
 
-class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
+class _DispatchQueueScreenState extends State<DispatchQueueScreen> with ReporterLookup {
   late Stream<List<Incident>> _queue = widget.dispatch.watchQueue();
   ({int resolved, int quarantined})? _closed;
   String? _risk;
   final Set<String> _busy = {};
 
   @override
+  UserAdminRepository? get reporterSource => widget.users;
+
+  @override
+  UserProfile get viewer => widget.profile;
+
+  @override
+  AvatarRepository? get reporterAvatars => widget.avatars;
+
+  @override
   void initState() {
     super.initState();
     _loadCounts();
+    startReporterLookup();
+  }
+
+  @override
+  void dispose() {
+    stopReporterLookup();
+    super.dispose();
   }
 
   /// Pull-to-refresh: re-subscribes the queue (revives it after an error) and reloads the counts.
@@ -150,6 +173,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
                   onResolve: () => _resolve(incident),
                   onCrew: () => _crew(incident),
                   onOverride: () => _override(incident),
+                  reporterLine: reporterLineFor(incident),
                 ),
                 const SizedBox(height: 10),
               ],

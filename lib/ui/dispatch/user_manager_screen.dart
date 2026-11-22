@@ -128,13 +128,18 @@ class UserDetailScreen extends StatefulWidget {
     required this.users,
     this.avatars,
     this.clock = DateTime.now,
+    this.canEdit = true,
   });
 
+  /// The staff member viewing the page (an admin, or a dispatcher when [canEdit] is false).
   final UserProfile admin;
   final String uid;
   final UserAdminRepository users;
   final AvatarRepository? avatars;
   final DateTime Function() clock;
+
+  /// False for dispatchers: the page is read-only, because only admins manage accounts.
+  final bool canEdit;
 
   @override
   State<UserDetailScreen> createState() => _UserDetailScreenState();
@@ -224,7 +229,7 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   Widget _details(BuildContext context, UserProfile user) {
     final textTheme = Theme.of(context).textTheme;
     final isSelf = user.uid == widget.admin.uid;
-    final enabled = !isSelf && !_busy;
+    final enabled = widget.canEdit && !isSelf && !_busy;
     final now = widget.clock();
     final until = user.suspendedUntil;
     final label = userLabel(user);
@@ -279,7 +284,10 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
         const Divider(),
         const SizedBox(height: 8),
         Text('Actions', style: textTheme.titleMedium),
-        if (isSelf) ...[
+        if (!widget.canEdit) ...[
+          const SizedBox(height: 8),
+          const FeedbackMessage.error('Only admins can change accounts. Ask an admin to act on this user.'),
+        ] else if (isSelf) ...[
           const SizedBox(height: 8),
           const FeedbackMessage.error('You cannot change your own account.'),
         ],

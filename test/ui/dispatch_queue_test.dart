@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hazardradarai/models/incident.dart';
 import 'package:hazardradarai/models/user_profile.dart';
 import 'package:hazardradarai/services/dispatch_repository.dart';
+import 'package:hazardradarai/services/user_admin_repository.dart';
 import 'package:hazardradarai/theme/app_theme.dart';
 import 'package:hazardradarai/ui/dispatch/dispatch_screen.dart';
 
@@ -51,7 +52,29 @@ class _Repo implements DispatchRepository {
 
 const _dispatcher = UserProfile(uid: 'disp', role: 'DISPATCHER', tier: 4, accountStatus: 'ACTIVE');
 
-Future<_Repo> _pump(WidgetTester tester, List<Incident> items, {UserProfile profile = _dispatcher}) async {
+class _Users implements UserAdminRepository {
+  @override
+  Stream<List<UserProfile>> watchUsers({int limit = 200}) => Stream.value(const [
+        UserProfile(uid: 'rep', role: 'CITIZEN', tier: 2, accountStatus: 'WARNED', displayName: 'Bob Santos'),
+        _dispatcher,
+      ]);
+
+  @override
+  Future<void> setRole(String uid, RoleOption option) async {}
+
+  @override
+  Future<void> setStatus(String uid, String status, {DateTime? until}) async {}
+
+  @override
+  Future<void> setRateLimitOverride(String uid, bool value) async {}
+}
+
+Future<_Repo> _pump(
+  WidgetTester tester,
+  List<Incident> items, {
+  UserProfile profile = _dispatcher,
+  UserAdminRepository? users,
+}) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -59,14 +82,34 @@ Future<_Repo> _pump(WidgetTester tester, List<Incident> items, {UserProfile prof
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.light(),
-      home: Scaffold(body: DispatchScreen(profile: profile, dispatch: repo)),
+      home: Scaffold(body: DispatchScreen(profile: profile, dispatch: repo, users: users)),
     ),
   );
   await tester.pumpAndSettle();
   return repo;
 }
 
+void reporterTests() {
+  testWidgets('staff see who reported each ticket; a dispatcher opens a read-only user page', (tester) async {
+    await _pump(tester, [_i('a', 'High')], users: _Users());
+
+    expect(find.text('Reported by Bob Santos · Civic Scout · WARNED'), findsOneWidget);
+    expect(find.text('rep'), findsNothing);
+
+    await tester.tap(find.text('Reported by Bob Santos · Civic Scout · WARNED'));
+    await tester.pumpAndSettle();
+    expect(find.text('Only admins can change accounts. Ask an admin to act on this user.'), findsOneWidget);
+  });
+
+  testWidgets('without profiles the ticket shows the reporter level only', (tester) async {
+    await _pump(tester, [_i('a', 'High')]);
+    expect(find.text('Reported by a Commuter Observer'), findsOneWidget);
+  });
+}
+
 void main() {
+  reporterTests();
+
   group('DispatchPolicy', () {
     test('sorts High to Low, then oldest first', () {
       final sorted = DispatchPolicy.sortQueue([

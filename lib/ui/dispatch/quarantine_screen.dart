@@ -4,18 +4,32 @@ import 'package:flutter/material.dart';
 
 import '../../models/incident.dart';
 import '../../models/user_profile.dart';
+import '../../services/avatar_repository.dart';
 import '../../services/dispatch_repository.dart';
 import '../../services/moderation_repository.dart';
+import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/incident_evidence.dart';
+import 'reporter_line.dart';
 import 'storage_meter.dart';
 
 /// Dispatch tab: quarantined reports. Staff restore them; admins purge them for good.
 class QuarantineScreen extends StatefulWidget {
-  const QuarantineScreen({super.key, required this.profile, required this.moderation, this.onSyncTransparency});
+  const QuarantineScreen({
+    super.key,
+    required this.profile,
+    required this.moderation,
+    this.onSyncTransparency,
+    this.users,
+    this.avatars,
+  });
+
+  /// Profiles for the "Reported by" line. Null shows the reporter's level only.
+  final UserAdminRepository? users;
+  final AvatarRepository? avatars;
 
   final UserProfile profile;
   final ModerationRepository moderation;
@@ -28,7 +42,22 @@ class QuarantineScreen extends StatefulWidget {
   State<QuarantineScreen> createState() => _QuarantineScreenState();
 }
 
-class _QuarantineScreenState extends State<QuarantineScreen> {
+class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup {
+  @override
+  UserAdminRepository? get reporterSource => widget.users;
+
+  @override
+  UserProfile get viewer => widget.profile;
+
+  @override
+  AvatarRepository? get reporterAvatars => widget.avatars;
+
+  @override
+  void dispose() {
+    stopReporterLookup();
+    super.dispose();
+  }
+
   late Stream<List<Incident>> _queue = widget.moderation.watchQuarantined();
   StorageEstimate? _storage;
   final Set<String> _busy = {};
@@ -54,6 +83,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
   void initState() {
     super.initState();
     _loadStorage();
+    startReporterLookup();
   }
 
   Future<void> _loadStorage() async {
@@ -165,6 +195,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
                       if (incident.note.isNotEmpty) Text('"${incident.note}"', style: textTheme.bodyMedium),
                       if (incident.createdAt != null)
                         Text(formatPhilippineTime(incident.createdAt!), style: textTheme.bodySmall),
+                      reporterLineFor(incident),
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,

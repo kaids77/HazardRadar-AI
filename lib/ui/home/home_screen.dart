@@ -330,6 +330,8 @@ class _HomeScreenState extends State<HomeScreen> {
           key: ValueKey(profile.uid),
           profile: profile,
           dispatch: dispatch,
+          users: _s.userAdmin,
+          avatars: _s.avatars,
           staffTabs: [
             if (_s.moderation case final moderation?)
               (
@@ -338,6 +340,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   profile: profile,
                   moderation: moderation,
                   onSyncTransparency: profile.isAdmin ? _s.transparencySync?.syncMissing : null,
+                  users: _s.userAdmin,
+                  avatars: _s.avatars,
                 ),
               ),
           ],
