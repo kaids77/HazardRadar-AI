@@ -1,6 +1,6 @@
 # HazardRadar AI: why every screen, action, and scenario behaves the way it does
 
-Written from the source code in `lib/`, `firestore.rules`, and `proxy/`. Last updated 20 Nov 2026, after commit `db7f817`.
+Written from the source code in `lib/`, `firestore.rules`, and `proxy/`. Last updated 21 Nov 2026, after commit `70fca15`.
 Each entry has three parts: **What you see**, **Why it happens** (the mechanism, with the file that does it), and **If it looks broken** (the usual cause). Use the last part when you report a bug.
 
 Section 17 lists what changed during the 20 Nov testing session. Read it first if you tested an older build.
@@ -22,7 +22,7 @@ Contents
 14. Scenario table: "I did X and Y happened"
 15. Things in the code that look like quirks (check these first when testing)
 16. Colors, messages, and light/dark mode
-17. Change log: what was fixed on 20 Nov 2026
+17. Change log: what was fixed on 20 and 21 Nov 2026
 
 ---
 
@@ -254,6 +254,13 @@ Every blocked or failed vote message above appears as a red-orange block under t
 
 **After voting:** both buttons are disabled for that sheet (`_voted`). "You already voted on this report." appears if the vote document already existed, for example from another device.
 
+**The result shows right away (since 21 Nov).** The vote transaction returns the new net total (`VoteRepository.cast`), and the sheet uses it at once instead of the number it had when it opened:
+- **+3 or more:** green "Verified. Enough commuters confirmed this hazard is still there.", the **Verified hazard** badge appears, and the tally reads "Verified by the community".
+- **-3 or lower:** green "Thanks. Enough commuters marked this report as fixed or fake, so it is now hidden from the map and sent to a moderator for review." The buttons stay off, and the Flag button disappears. The same transaction writes a public transparency entry (section 9.1).
+- **Anything else:** green "Vote recorded." with the updated "N more to verify".
+
+All three are green because the vote itself worked; quarantine is the community doing its job, not an error.
+
 **Quarantined reports** show a black "Community disputed report" panel and disable voting. You only see this if you own the report or are staff.
 
 ### 5.8 "Flag as spam or duplicate (Sentinel)"
@@ -323,7 +330,9 @@ Hidden on step 1. On other steps it goes back one step. The phone's system back 
 **Where:** the sage "Ask Radar AI" button next to the search box. Hidden when there is no proxy.
 
 ### 7.1 What it sends
-Your question (max 500 characters), the **20 hazards nearest to the middle of the map** (id, category, risk, summary only), up to 6 earlier messages, and the selected mode. Reporter ids and notes never leave the phone.
+Your question (max 500 characters), the **20 hazards nearest to the middle of the map** (id, category, risk, status, summary only), up to 6 earlier messages, the selected mode, and a **report status summary**. Reporter ids and notes never leave the phone.
+
+**Report status summary (since 21 Nov).** Active and in-progress counts come from the loaded map pins. Resolved and quarantined counts, and the 10 newest resolved or moderated reports (HZD id, category, what happened, reason, crew), come from the public transparency log. The proxy checks every number and label against fixed limits and adds a fixed explanation of each status to the prompt, so Radar AI can answer "How many are in progress?", "What was resolved recently?", "Which crew fixed HZD-…?" or "What does quarantined mean?". If the log cannot be read within 3 seconds, the question is still sent without it. The **Report status** quick prompt asks the counts in one tap.
 
 **Why the map centre, not your GPS:** you can pan to another area and ask about it. The 20-hazard cap and 6-message history keep the request small and cheap.
 
@@ -366,7 +375,11 @@ The conversation survives closing the sheet and switching tabs, because the cont
    - If every route passes closer than 40 m, it takes the closest hazard and asks OSRM for extra routes through points placed **90 m** beside it on four sides (north, east, south, west). Then it picks again. It does this at most twice.
    - Detours much longer than the direct way are ignored (more than 1.7 times as long, and more than 1 km extra), because nobody walks 3 km around one pothole.
    - A hazard right at your start or at your destination cannot be avoided, so it is skipped.
-5. The route is drawn as a thick sage line with an ink outline, the camera zooms to fit it, and the panel shows, for example, "1.3 km · 18 min walk · stays 140 m from High and Medium hazards" (or "no High or Medium hazards nearby").
+5. The route is drawn with an ink outline and the camera zooms to fit it. The panel shows, for example, "1.3 km · 18 min walk · stays 140 m from High and Medium hazards" (or "no High or Medium hazards nearby"), plus a small color key.
+   - **Green:** the suggested route, when it keeps at least 40 m from every High and Medium hazard.
+   - **Red underneath:** the shortest route the router offered, when it passes within 40 m of one. The proxy returns it as `direct` next to the chosen route, so you can see what the detour avoids.
+   - When the shortest route is already safe, the proxy sends no `direct` route and only the green line shows.
+   - When no route keeps clear, the one route is drawn **red**. Colors are fixed, so they look the same in light and dark mode.
 6. If no safe route exists, the panel says so plainly: "Warning: passes within 12 m of a hazard. No safer route found." It never pretends the route is safe.
 
 The phone waits up to **30 seconds** for a route, longer than the 8 seconds used for chat and triage, because the extra rounds take time.
@@ -404,6 +417,15 @@ These are checked when the app starts a session (`LevelPolicy.dueUpgrade`) and t
 **Pull down** reloads your profile and re-subscribes the list. A red "Could not load your reports. Pull down to try again." appears when the stream errored (most often a missing index on reporterUid ASC + createdAt DESC).
 
 **Why your list is only yours:** the query filters on your uid, and the rules allow you to read your own reports even when they are private or quarantined.
+
+### 9.1 Report transparency (every user, since 21 Nov)
+**What you see:** at the bottom of My Reports, a **Report transparency** heading, chips **All**, **Resolved (n)** and **Quarantined (n)**, and the 30 newest city-wide entries. A resolved entry shows the HZD id, category, risk, date, **Crew:** and **City note:**. A quarantined entry shows the reason ("Community votes: marked fixed or fake" or "Flagged as spam or duplicate by a Sentinel"). Restored and removed entries say "Restored by a moderator" and "Removed as spam".
+
+**Why it is a separate list:** other users cannot read quarantined reports, because they may contain spam text. The log lives in its own collection, `transparency/{incidentId}`, and holds only safe fields: category, risk, what happened, reason, crew, city note and date. It never holds the reporter, the note, or the photo, and it never shows which staff account resolved a report.
+
+**Why it can be trusted:** an entry can only be written in the same transaction as the real change (a vote reaching -3, a Sentinel flag, a staff resolve, a restore, or an admin purge). The rules check that its category and risk copy the report and, for resolved reports, that the crew, note and date match. Nobody can delete an entry. A later event on the same report replaces its entry, so the list shows the latest outcome.
+
+**If it looks broken:** "Could not load the transparency log" means the rules were not republished. An empty list on an older project means nothing was resolved or quarantined since 21 Nov; an admin can run **Sync transparency log** (section 12.2).
 
 ---
 
@@ -493,6 +515,8 @@ Sub-tabs: **Queue** and **Quarantine** for all staff. **Users** and **Analytics*
 ### 12.2 Quarantine
 - A storage meter: estimated photo storage against the free 1 GiB, and about how many more uploads fit. It turns red-orange at 80%.
 - Each quarantined report shows its details. **Restore and verify** puts it back on the public map. **Permanently purge** (admins only, with a confirmation) deletes the report, its photo, and its votes for good.
+- Restore and purge also write the transparency log ("Restored by a moderator" / "Removed as spam"). The purge record stays public, so the community can see spam was removed.
+- **Sync transparency log** (admins): adds entries for reports resolved or quarantined before the log existed, in small batches. Running it again adds nothing and says "The transparency log is up to date."
 
 ### 12.3 Users (admin)
 **The list:** a search box ("Search by name"), then one row per user with initials, the name, and the role (level title). Your own row ends with "(you)". Nothing else is on the row, so the list scans quickly.
@@ -536,6 +560,8 @@ Computed on the phone from the newest 500 reports: resolution rate, mean time to
 | Profile photo | at most 29 KB JPEG (40,000 Base64 characters); owner writes; owner and staff read | Rules and phone |
 | Safe route clearance | at least 40 m from High and Medium hazards when possible | Proxy |
 | Staff password | at least 8 characters; needs Email/Password enabled | Firebase Auth and phone |
+| Transparency entry | only with the matching vote, flag, resolve, restore, or purge; copies category and risk; no deletes | Rules |
+| Safe vs risky route | green when it stays 40 m or more from High/Medium hazards, red otherwise | Proxy and phone |
 
 Why so much is in the rules: the project is on the Firebase Spark plan, which has no Cloud Functions, so there is no server code to trust. Firestore security rules are the only code the client cannot change.
 
@@ -574,6 +600,10 @@ Why so much is in the rules: the project is on the Firebase Spark plan, which ha
 | Admin taps a user row | User page with stats and actions | List shows name and role only |
 | Use the staff form with your Gmail | Red "Wrong email or password." | No password on a Google account. Use "Set staff password" first |
 | New code doesn't seem to show up | Old buttons and texts still visible | Press `R` (hot restart), not `r`. Restart the proxy for proxy changes |
+| A vote takes a report to -3 | Green "…hidden from the map and sent to a moderator", pin disappears, entry in Report transparency | Vote transaction quarantines and logs it |
+| Every vote or resolve fails after the 21 Nov update | Red "Could not…" messages | Rules not republished, so the transparency write is refused |
+| Ask Radar AI "How many are in progress?" | A number that matches the map | Status summary sent with the question |
+| Route over a hazard | Red shortest line, green safe line on top | Proxy returns both routes |
 
 ---
 
@@ -618,7 +648,7 @@ They appear in two forms. Pop-up messages at the bottom of the screen use `showS
 
 **How it works:** colors that change with the mode come from `AppPalette` (read as `context.palette.paper / ink / sage`). Colors that never change stay in `AppColors`. If a screen ever shows dark text on the dark background, it is a spot that still uses a fixed `AppColors.ink`. Report the screen.
 
-## 17. Change log: what was fixed on 20 Nov 2026
+## 17. Change log: what was fixed on 20 and 21 Nov 2026
 
 | Commit | What changed |
 |---|---|
@@ -632,4 +662,10 @@ They appear in two forms. Pop-up messages at the bottom of the screen use `showS
 | `b35080d` | Removed "Sign in with Google" from City staff. |
 | `db7f817` | "Level details" now shows points, progress, and what your level can do. |
 
-Test counts after these changes: Flutter 173, proxy 44, rules 68.
+| `285774e` | Vote outcomes: green "Vote recorded.", "Verified…", or the quarantine message right after a vote. |
+| `5c41571` | Public transparency log (`transparency/{incidentId}`) written with each vote, flag, resolve, restore, and purge. |
+| `18512dd` | Report transparency section in My Reports; admin Sync transparency log button. |
+| `0784875` | Radar AI knows active, in progress, resolved, and quarantined reports; "Report status" quick prompt. |
+| `70fca15` | Safe route drawn green; the shortest route drawn red when it passes a hazard; color key in the panel. |
+
+Test counts after these changes: Flutter 185, proxy 46, rules 79.

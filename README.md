@@ -4,7 +4,7 @@
 > *See the risk before you walk into it.*
 
 **Status:** in active testing (Mobile Programming I project). Not deployed yet; it runs locally.
-Last updated 20 Nov 2026; describes the app at commit `db7f817`.
+Last updated 21 Nov 2026; describes the app at commit `70fca15`.
 
 ![Flutter](https://img.shields.io/badge/Flutter-3.38-02569B.svg?logo=flutter)
 ![Dart](https://img.shields.io/badge/Dart-3.10-0175C2.svg?logo=dart)
@@ -76,15 +76,24 @@ runs on free tiers: Firebase Spark, Groq, and OpenStreetMap.
   before publishing. If the AI is unreachable, an on-device keyword classifier answers, and the app
   sends the note to the AI again on a later launch.
 * **Radar AI Assistant:** a chat grounded in the 20 hazards nearest the map center, with risk
-  analysis, recommendations, a 3-question commuter interview, and safe-detour modes. Only incident id,
-  category, risk, and summary are sent; reporter ids and notes stay on the phone. Map actions are
-  accepted only for incidents the app sent.
+  analysis, recommendations, a 3-question commuter interview, and safe-detour modes. It also knows the
+  city-wide report statuses (active, in progress, resolved, quarantined) and the newest resolved or
+  moderated reports with their crews, so it can answer "How many are in progress?" or "Which crew fixed
+  HZD-…?". A "Report status" quick prompt asks exactly that. Only incident id, category, risk, status,
+  and summary are sent; reporter ids and notes stay on the phone. Map actions are accepted only for
+  incidents the app sent.
 * **Hazard-Avoiding Walking Route:** pick a destination within 10 km. The route keeps at least 40 m
-  from High and Medium hazards when the streets allow it, detours around the hazard that blocks the
-  way, and says plainly when no safer route exists.
+  from High and Medium hazards when the streets allow it and detours around the hazard that blocks the
+  way. The suggested safe route is drawn **green**. When the shortest way passes a hazard, it is drawn
+  **red** underneath, and a small key explains both. When no safer route exists, the route is red and
+  the panel says so plainly.
 * **Community Verification:** Google-linked users vote "Still here" or "Fixed or fake" within 200 m.
-  +3 net votes mark a report verified; -3 hides it for moderator review. Neighborhood Sentinels can
-  flag spam and duplicates.
+  The sheet shows the result right away in green: "Vote recorded.", "Verified…" at +3 net votes (the
+  Verified badge appears), or, at -3, that the report is now hidden and sent to a moderator.
+  Neighborhood Sentinels can flag spam and duplicates.
+* **Report Transparency:** at the bottom of My Reports, every user sees city-wide reports the city
+  resolved (with the crew and the city's note) and reports moderators took off the map (quarantined
+  with the reason, restored, or removed as spam), with Resolved and Quarantined counts.
 * **Civic Trust Points and Levels:** 10 points per report and 10 more when the city resolves it.
   Levels unlock higher daily limits, heavier votes, and moderation tools.
 * **Profiles:** after Google sign-in the app asks for your name. Your name and a square profile photo
@@ -99,7 +108,8 @@ runs on free tiers: Firebase Spark, Groq, and OpenStreetMap.
   KPIs and risk filters. Start work with a crew, resolve with a note (credits the reporter), edit the
   crew, or override the AI rating. Status moves one way: Active, In progress, Resolved.
 * **Quarantine Review (dispatchers and admins):** disputed and flagged reports, with restore, an
-  admin-only permanent purge, and a photo storage meter against the free 1 GiB.
+  admin-only permanent purge, and a photo storage meter against the free 1 GiB. Admins also get
+  **Sync transparency log**, which adds reports resolved or quarantined before the public log existed.
 * **User Management (admins):** a list of names and roles. Each user's page shows stats and lets an
   admin change role and level, account status (Warned, Suspended until a date, Banned), and the
   emergency no-daily-limit switch. Admins cannot change their own account.
@@ -123,7 +133,10 @@ runs on free tiers: Firebase Spark, Groq, and OpenStreetMap.
 * **Anonymous-First Accounts:** every install starts as a guest. Linking Google keeps the guest's data.
 * **Photos in Firestore:** report photos (150 KB or less) and profile photos (29 KB or less) are Base64
   JPEG documents, so no paid Storage bucket is needed.
-* **Tested Rules:** 68 emulator tests check allowed and denied cases for the rules.
+* **Public Transparency Log:** `transparency/{incidentId}` holds only safe fields (category, risk, what
+  happened, reason, crew, city note, date). Each entry is written in the same transaction as the vote,
+  flag, resolve, restore, or purge, and the rules check that it matches the report.
+* **Tested Rules:** 79 emulator tests check allowed and denied cases for the rules.
 
 ---
 
@@ -301,12 +314,12 @@ Build a web release with `flutter build web --dart-define-from-file=dart_defines
 
 ## 9. Testing
 
-| What | Command | Count at `db7f817` |
+| What | Command | Count at `70fca15` |
 |---|---|---|
 | Static analysis | `flutter analyze` | 0 issues |
-| Flutter tests | `flutter test --no-pub` | 173 |
-| Proxy tests | `cd proxy; npm test` | 44 |
-| Firestore rules tests | `cd rules-test; npm install; npm run emulator:test` | 68 |
+| Flutter tests | `flutter test --no-pub` | 185 |
+| Proxy tests | `cd proxy; npm test` | 46 |
+| Firestore rules tests | `cd rules-test; npm install; npm run emulator:test` | 79 |
 
 - The rules tests start a local Firestore emulator on port 8085 (project `demo-hazardradar`) and never
   touch the real database.
@@ -350,6 +363,7 @@ Manual test path: [`docs/WALKTHROUGH.md`](docs/WALKTHROUGH.md).
 | `incidents/{id}` | `reporterUid`, `reporterTier`, `category`, `riskLevel`, `aiSummary`, `recommendedAction`, `aiProcessed`, `note`, `latitude`, `longitude`, `geohash`, `photoBytes`, `status` (ACTIVE, IN_PROGRESS, RESOLVED), `visibility` (PUBLIC, QUARANTINED), `netVotes`, `assignedCrew`, `resolutionNote`, timestamps |
 | `incidents/{id}/photo/main` | `imageBase64` (150 KB JPEG or less), `mimeType`, `reporterUid` |
 | `incidents/{id}/votes/{uid}` | `value` (plus or minus 1 or 2), `createdAt` |
+| `transparency/{incidentId}` | public log entry: `category`, `riskLevel`, `kind` (RESOLVED, QUARANTINED, RESTORED, PURGED), `reason` (COMMUNITY_VOTES, SENTINEL_FLAG), `crew`, `resolutionNote`, `at`. Readable by every signed-in user; never holds the reporter, note, or photo |
 
 Categories: Pothole, Electrical, Flooding, Obstruction, Lighting, Other. Reports are shown with a short
 reference such as `HZD-4F9A2C` (the first 6 characters of the document id).
@@ -409,6 +423,9 @@ The map tiles keep a cream tint at 55% color in both modes.
 | Both phone and web can't reach Radar AI | Proxy not running, or bad `GROQ_API_KEY` | `npm start` in `proxy/`; check `/health` and the proxy log |
 | Ask Radar AI and Safe route buttons missing | No valid `PROXY_URL` | Fix `dart_defines.json`, then a full restart |
 | "Could not save the photo" | Rules with `avatars/{uid}` not published | Republish `firestore.rules` |
+| Voting, flagging, resolving, restoring, or purging fails with "Could not…" | Rules with `transparency/{incidentId}` not published (since 21 Nov) | Republish `firestore.rules` |
+| Radar AI can't answer how many are resolved or quarantined | Proxy not restarted after 21 Nov, or the log is empty | Restart the proxy; admins run **Sync transparency log** once |
+| Safe route still shows a single sage line | Proxy not restarted after 21 Nov | Restart the proxy |
 | Staff email form rejects your Gmail | Google accounts have no password | Settings > City staff > Set staff password (needs Email/Password enabled) |
 | No Dispatch tab for an admin | `role` isn't exactly `ADMIN`, or you are on a different account | Fix the profile document, then switch tabs to reload |
 | Old buttons or texts still show | App still running the old code | Press `R` (hot restart), or `q` and `flutter run` again |

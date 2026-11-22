@@ -1,7 +1,10 @@
 # Implementation plan: vote outcomes, report transparency, status-aware Radar AI, colored routes
 
 Written 21 Nov 2026. Each task below is one commit. Tasks are ordered so each one builds on the previous.
-Status: **waiting for approval of the decisions in section 2.**
+Status: **done.** All five decisions were approved as recommended. Commits: Task 1 `285774e`, Task 2
+`5c41571`, Task 3 `18512dd`, Task 4 `0784875`, Task 5 `70fca15`, Task 6 (this documentation update).
+Note: the Flutter tests cannot reach Firestore, so the repository writes of Task 2 are covered by the
+rules emulator tests, which send the same writes the app does.
 
 ## 1. What you asked for
 
