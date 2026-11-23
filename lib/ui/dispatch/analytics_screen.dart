@@ -5,6 +5,7 @@ import '../../services/analytics.dart';
 import '../../services/moderation_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import 'storage_meter.dart';
 
@@ -24,6 +25,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   CityAnalytics? _data;
   StorageEstimate? _storage;
   bool _error = false;
+  int _page = 0;
 
   @override
   void initState() {
@@ -67,6 +69,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
     if (data == null) return const Center(child: CircularProgressIndicator());
     final mttr = data.meanTimeToResolve;
+    final hotspots = paginate(data.hotspots, page: _page);
     return PullToRefresh(
       onRefresh: _load,
       child: ListView(
@@ -105,12 +108,18 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 4),
           if (data.hotspots.isEmpty)
             Text('No open reports.', style: textTheme.bodySmall)
-          else
-            for (final (index, spot) in data.hotspots.indexed)
+          else ...[
+            for (final (index, spot) in hotspots.items.indexed)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Text('${index + 1}. ${spot.geohash} · ${spot.count} open', style: textTheme.bodyMedium?.copyWith(fontFamily: 'monospace')),
+                child: Text(
+                  '${hotspots.start + index + 1}. ${spot.geohash} · ${spot.count} open',
+                  style: textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
+                ),
               ),
+            const SizedBox(height: 8),
+            PaginationBar(page: hotspots, onPageChanged: (next) => setState(() => _page = next)),
+          ],
           const SizedBox(height: 16),
           Text('AI health', style: textTheme.titleMedium),
           const SizedBox(height: 6),

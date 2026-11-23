@@ -173,6 +173,25 @@ void main() {
       expect(s('BANNED', 9, 9).title, 'Already banned');
     });
   });
+
+  testWidgets('paginates users 5 per page', (tester) async {
+    final many = [
+      for (var i = 1; i <= 6; i++)
+        UserProfile(uid: 'u$i', role: 'CITIZEN', tier: 2, accountStatus: 'ACTIVE', displayName: 'User $i'),
+    ];
+    await _pump(tester, repository: _Repo(users: many));
+
+    expect(find.text('Page 1 of 2 (1–5 of 6)'), findsOneWidget);
+    expect(find.text('User 1'), findsOneWidget);
+    expect(find.text('User 6'), findsNothing);
+
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Page 2 of 2 (6–6 of 6)'), findsOneWidget);
+    expect(find.text('User 1'), findsNothing);
+    expect(find.text('User 6'), findsOneWidget);
+  });
 }
 
 Future<void> _openBob(WidgetTester tester) async {

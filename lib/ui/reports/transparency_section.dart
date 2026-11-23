@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../models/transparency_entry.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/status_style.dart';
 import '../map/incident_evidence.dart';
 import '../map/risk_style.dart';
@@ -42,6 +43,7 @@ class TransparencySection extends StatefulWidget {
 
 class _TransparencySectionState extends State<TransparencySection> {
   TransparencyFilter _filter = TransparencyFilter.all;
+  int _page = 0;
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +75,10 @@ class _TransparencySectionState extends State<TransparencySection> {
                   ChoiceChip(
                     label: Text('${f.label}${count(f)}'),
                     selected: _filter == f,
-                    onSelected: (_) => setState(() => _filter = f),
+                    onSelected: (_) => setState(() {
+                      _filter = f;
+                      _page = 0;
+                    }),
                   ),
               ],
             );
@@ -101,10 +106,12 @@ class _TransparencySectionState extends State<TransparencySection> {
                 style: textTheme.bodyMedium,
               );
             }
+            final page = paginate(shown, page: _page);
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                for (final entry in shown) ...[_EntryCard(entry: entry), const SizedBox(height: 8)],
+                for (final entry in page.items) ...[_EntryCard(entry: entry), const SizedBox(height: 8)],
+                PaginationBar(page: page, onPageChanged: (next) => setState(() => _page = next)),
               ],
             );
           },

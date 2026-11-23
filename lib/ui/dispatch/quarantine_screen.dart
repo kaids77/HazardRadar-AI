@@ -10,6 +10,7 @@ import '../../services/moderation_repository.dart';
 import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/incident_evidence.dart';
@@ -60,6 +61,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
 
   late Stream<List<Incident>> _queue = widget.moderation.watchQuarantined();
   StorageEstimate? _storage;
+  int _page = 0;
   final Set<String> _busy = {};
   bool _syncing = false;
 
@@ -138,6 +140,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
       stream: _queue,
       builder: (context, snapshot) {
         final items = snapshot.data ?? const <Incident>[];
+        final page = paginate(items, page: _page);
         return PullToRefresh(
           onRefresh: () async {
             setState(() => _queue = widget.moderation.watchQuarantined());
@@ -174,8 +177,8 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (items.isEmpty)
               const Text('Nothing in quarantine.')
-            else
-              for (final incident in items) ...[
+            else ...[
+              for (final incident in page.items) ...[
                 Container(
                   decoration: BoxDecoration(border: Border.fromBorderSide(BorderSide(color: context.palette.ink))),
                   padding: const EdgeInsets.all(12),
@@ -224,6 +227,8 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
                 ),
                 const SizedBox(height: 10),
               ],
+              PaginationBar(page: page, onPageChanged: (next) => setState(() => _page = next)),
+            ],
           ],
           ),
         );

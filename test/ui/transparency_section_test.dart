@@ -87,4 +87,30 @@ void main() {
     await _pump(tester, const []);
     expect(find.text('No resolved or quarantined reports yet.'), findsOneWidget);
   });
+
+  testWidgets('paginates transparency entries 5 per page', (tester) async {
+    final many = [
+      for (var i = 1; i <= 6; i++)
+        TransparencyEntry(
+          incidentId: 'log00$i',
+          category: 'Pothole',
+          riskLevel: 'Medium',
+          kind: TransparencyEntry.kindResolved,
+          reporterName: 'Charlie M',
+        ),
+    ];
+    await _pump(tester, many);
+
+    expect(find.text('Page 1 of 2 (1–5 of 6)'), findsOneWidget);
+    expect(find.text('Pothole · HZD-LOG001'), findsOneWidget);
+    expect(find.text('Pothole · HZD-LOG006'), findsNothing);
+
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Page 2 of 2 (6–6 of 6)'), findsOneWidget);
+    expect(find.text('Pothole · HZD-LOG001'), findsNothing);
+    expect(find.text('Pothole · HZD-LOG006'), findsOneWidget);
+    expect(find.text('Reported by Charlie M'), findsOneWidget);
+  });
 }

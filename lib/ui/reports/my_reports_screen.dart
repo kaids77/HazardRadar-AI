@@ -8,6 +8,7 @@ import '../../services/my_reports_repository.dart';
 import '../../services/transparency_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/risk_style.dart';
@@ -65,6 +66,7 @@ class MyReportsScreen extends StatefulWidget {
 class _MyReportsScreenState extends State<MyReportsScreen> {
   late Stream<List<Incident>> _mine;
   ReportFilter _filter = ReportFilter.all;
+  int _page = 0;
 
   /// The public transparency log, or null when the build has none.
   Stream<List<TransparencyEntry>>? _log;
@@ -91,6 +93,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     // The uid changes when a Google account that already had a profile is linked.
     if (oldWidget.profile.uid != widget.profile.uid) {
       _mine = widget.reports.watchMine(widget.profile.uid);
+      _page = 0;
     }
   }
 
@@ -110,6 +113,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
       builder: (context, snapshot) {
         final all = snapshot.data ?? const <Incident>[];
         final shown = all.where(_filter.matches).toList();
+        final page = paginate(shown, page: _page);
         return PullToRefresh(
           onRefresh: _reload,
           child: ListView(
@@ -138,7 +142,10 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                   ChoiceChip(
                     label: Text('${filter.label} (${all.where(filter.matches).length})'),
                     selected: _filter == filter,
-                    onSelected: (_) => setState(() => _filter = filter),
+                    onSelected: (_) => setState(() {
+                      _filter = filter;
+                      _page = 0;
+                    }),
                   ),
               ],
             ),
@@ -152,11 +159,13 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                 all.isEmpty ? 'You have not filed a report yet.' : 'No reports in this filter.',
                 style: Theme.of(context).textTheme.bodyMedium,
               )
-            else
-              for (final incident in shown) ...[
+            else ...[
+              for (final incident in page.items) ...[
                 _HistoryCard(incident: incident),
                 const SizedBox(height: 8),
               ],
+              PaginationBar(page: page, onPageChanged: (next) => setState(() => _page = next)),
+            ],
             if (_log != null && _logCounts != null) ...[
               const SizedBox(height: 20),
               const Divider(),

@@ -48,7 +48,7 @@ class CityAnalytics {
     return counted <= 0 ? 0 : resolved / counted;
   }
 
-  static CityAnalytics compute(List<Incident> incidents, DateTime now, {int hotspotCount = 5}) {
+  static CityAnalytics compute(List<Incident> incidents, DateTime now, {int hotspotCount = 50}) {
     final today = philippineDay(now);
     int countWhere(bool Function(Incident) test) => incidents.where(test).length;
     bool open(Incident i) => !i.isQuarantined && i.status == Incident.statusActive;

@@ -9,6 +9,7 @@ import '../../services/dispatch_repository.dart';
 import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import 'dispatch_dialogs.dart';
 import 'reporter_line.dart';
@@ -33,6 +34,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
   late Stream<List<Incident>> _queue = widget.dispatch.watchQueue();
   ({int resolved, int quarantined})? _closed;
   String? _risk;
+  int _page = 0;
   final Set<String> _busy = {};
 
   @override
@@ -130,6 +132,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
       builder: (context, snapshot) {
         final open = [for (final i in snapshot.data ?? const <Incident>[]) if (!i.isQuarantined) i];
         final shown = DispatchPolicy.sortQueue(_risk == null ? open : open.where((i) => i.riskLevel == _risk));
+        final page = paginate(shown, page: _page);
         final closed = _closed;
         return PullToRefresh(
           onRefresh: _reload,
@@ -153,7 +156,10 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
                   ChoiceChip(
                     label: Text(risk ?? 'All'),
                     selected: _risk == risk,
-                    onSelected: (_) => setState(() => _risk = risk),
+                    onSelected: (_) => setState(() {
+                      _risk = risk;
+                      _page = 0;
+                    }),
                   ),
               ],
             ),
@@ -164,8 +170,8 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (shown.isEmpty)
               const Text('No open tickets. The streets are clear.')
-            else
-              for (final incident in shown) ...[
+            else ...[
+              for (final incident in page.items) ...[
                 TicketCard(
                   incident: incident,
                   busy: _busy.contains(incident.id),
@@ -177,6 +183,8 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
                 ),
                 const SizedBox(height: 10),
               ],
+              PaginationBar(page: page, onPageChanged: (next) => setState(() => _page = next)),
+            ],
           ],
           ),
         );

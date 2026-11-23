@@ -9,6 +9,7 @@ import '../../services/moderation_policy.dart';
 import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../common/user_avatar.dart';
@@ -39,6 +40,7 @@ class UserManagerScreen extends StatefulWidget {
 class _UserManagerScreenState extends State<UserManagerScreen> {
   late Stream<List<UserProfile>> _users = widget.users.watchUsers();
   String _query = '';
+  int _page = 0;
 
   void _open(UserProfile user) {
     Navigator.of(context).push(
@@ -61,6 +63,7 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
       stream: _users,
       builder: (context, snapshot) {
         final shown = searchUsers(snapshot.data ?? const [], _query);
+        final page = paginate(shown, page: _page);
         return PullToRefresh(
           onRefresh: () async => setState(() => _users = widget.users.watchUsers()),
           child: ListView(
@@ -68,7 +71,10 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               TextField(
-                onChanged: (value) => setState(() => _query = value),
+                onChanged: (value) => setState(() {
+                  _query = value;
+                  _page = 0;
+                }),
                 decoration: InputDecoration(
                   hintText: 'Search by name',
                   prefixIcon: Icon(Icons.search, color: palette.ink),
@@ -82,9 +88,12 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
                 const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
               else if (shown.isEmpty)
                 const Text('No users match.')
-              else
-                for (final user in shown)
+              else ...[
+                for (final user in page.items)
                   _UserRow(user: user, isSelf: user.uid == widget.admin.uid, onTap: () => _open(user)),
+                const SizedBox(height: 12),
+                PaginationBar(page: page, onPageChanged: (next) => setState(() => _page = next)),
+              ],
             ],
           ),
         );
