@@ -114,3 +114,18 @@ test('staff sync an older resolved report with the opted-in name', async () => {
   await assertFails(setDoc(doc(db, 'transparency/fanOld'), { ...log, reporterName: 'Wrong Name' }));
   await assertSucceeds(setDoc(doc(db, 'transparency/fanOld'), { ...log, reporterName: 'Bob Santos' }));
 });
+
+test('a reporter updates their own resolved entry when toggling their name credit', async () => {
+  const fanDb = googleUser(env, 'fan');
+  const shyDb = googleUser(env, 'shy');
+  const log = entry({ crew: 'Crew 7', at: resolvedAt });
+
+  // The reporter can add their opted-in name to their own already-resolved report.
+  await assertSucceeds(setDoc(doc(fanDb, 'transparency/fanOld'), { ...log, reporterName: 'Bob Santos' }));
+  // Another citizen cannot write someone else's resolved report.
+  await assertFails(setDoc(doc(shyDb, 'transparency/fanOld'), log));
+  // Turning the credit off lets the reporter remove their name from their resolved entry.
+  await assertSucceeds(updateDoc(doc(fanDb, 'users/fan'), { creditName: false }));
+  await assertFails(setDoc(doc(fanDb, 'transparency/fanOld'), { ...log, reporterName: 'Bob Santos' }));
+  await assertSucceeds(setDoc(doc(fanDb, 'transparency/fanOld'), log));
+});

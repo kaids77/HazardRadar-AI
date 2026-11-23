@@ -117,7 +117,7 @@ class SettingsScreen extends StatelessWidget {
                 title: const Text('Show my name on my resolved reports'),
                 subtitle: Text(
                   'Your name appears in Report transparency only on reports the city resolved. '
-                  'Turning it off stops new credits.',
+                  'Turning it off hides your name.',
                   style: textTheme.bodySmall,
                 ),
                 value: profile.creditName,

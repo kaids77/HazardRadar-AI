@@ -276,11 +276,15 @@ service cloud.firestore {
                   && (isStaff() || after.flaggedBy == request.auth.uid)));
       }
 
-      // Written by staff in the resolve transaction, or later by staff for an older resolved report.
+      // Written by staff in the resolve transaction, or later by staff or the reporter
+      // for an already-resolved report (to sync or toggle the reporter's name credit).
       // The crew and the note are copied from the report; the date is the report's resolvedAt.
       function isResolvedEntry(e) {
         let after = getAfter(incidentPath()).data;
-        return isStaff() && !isBlocked()
+        let isReporter = signedIn()
+          && after.reporterUid == request.auth.uid
+          && (!isBlocked() || !e.keys().hasAny(['reporterName']));
+        return ((isStaff() && !isBlocked()) || isReporter)
           && e.kind == 'RESOLVED' && e.reason == ''
           && after.status == 'RESOLVED'
           && copies(e, after)

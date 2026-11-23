@@ -59,7 +59,9 @@ class TransparencySync {
   /// Returns how many entries were added.
   Future<int> syncMissing() async {
     try {
-      final existing = {for (final doc in (await _db.collection(TransparencyEntry.collection).get()).docs) doc.id};
+      final existing = {
+        for (final doc in (await _db.collection(TransparencyEntry.collection).get()).docs) doc.id: doc.data(),
+      };
       final incidents = _db.collection('incidents');
       final resolved = await incidents.where('status', isEqualTo: Incident.statusResolved).get();
       final quarantined = await incidents.where('visibility', isEqualTo: Incident.visibilityQuarantined).get();
@@ -67,25 +69,32 @@ class TransparencySync {
       final writes = <(DocumentReference<Map<String, dynamic>>, Map<String, Object>)>[];
       final toResolve = [
         for (final doc in resolved.docs)
-          if (!existing.contains(doc.id) &&
-              doc.data()['resolvedAt'] is Timestamp &&
-              doc.data()['visibility'] == Incident.visibilityPublic)
+          if (doc.data()['resolvedAt'] is Timestamp &&
+              doc.data()['visibility'] != Incident.visibilityQuarantined)
             doc,
       ];
       final credits = await _credits({for (final doc in toResolve) _string(doc.data()['reporterUid'])});
       for (final doc in toResolve) {
         final data = doc.data();
+        final credit = credits[_string(data['reporterUid'])];
+        final current = existing[doc.id];
+        final currentCredit = current?['reporterName'] is String ? current!['reporterName'] as String : null;
+        if (current != null &&
+            current['kind'] == TransparencyEntry.kindResolved &&
+            currentCredit == credit) {
+          continue;
+        }
         final entry = _entry(data, TransparencyEntry.kindResolved,
             crew: _string(data['assignedCrew']),
             note: _string(data['resolutionNote']),
-            reporterName: credits[_string(data['reporterUid'])]);
+            reporterName: credit);
         if (entry != null) {
           writes.add((_db.collection(TransparencyEntry.collection).doc(doc.id), {...entry, 'at': data['resolvedAt'] as Timestamp}));
         }
       }
       for (final doc in quarantined.docs) {
         final data = doc.data();
-        if (existing.contains(doc.id)) continue;
+        if (existing.containsKey(doc.id)) continue;
         final flagged = _string(data['flaggedBy']).isNotEmpty;
         final votes = data['netVotes'];
         if (!flagged && !(votes is int && votes <= -3)) continue;

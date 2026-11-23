@@ -209,8 +209,8 @@ class _HomeScreenState extends State<HomeScreen> {
       await _s.session.profiles.setCreditName(profile.uid, on);
       await _refresh();
       _success(on
-          ? 'Your name will show on your reports the city resolves.'
-          : 'Your name will no longer be added to resolved reports.');
+          ? 'Your name now shows on your resolved reports.'
+          : 'Your name is hidden on your resolved reports.');
     } catch (_) {
       _error('Could not save this setting. Try again.');
     }
