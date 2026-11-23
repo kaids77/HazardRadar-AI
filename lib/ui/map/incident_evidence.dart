@@ -147,14 +147,20 @@ class VoteTally extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final label = netVotes >= Incident.verifiedThreshold
+    final verified = netVotes >= Incident.verifiedThreshold;
+    final label = verified
         ? 'Verified by the community'
         : '${Incident.verifiedThreshold - netVotes} more to verify';
     return Row(
       children: [
         Text('Community votes', style: textTheme.labelLarge),
         const Spacer(),
-        Text('${netVotes > 0 ? '+' : ''}$netVotes net · $label', style: textTheme.bodySmall),
+        Text(
+          '${netVotes > 0 ? '+' : ''}$netVotes net · $label',
+          style: verified
+              ? textTheme.bodySmall?.copyWith(color: AppColors.riskLow, fontWeight: FontWeight.w700)
+              : textTheme.bodySmall,
+        ),
       ],
     );
   }

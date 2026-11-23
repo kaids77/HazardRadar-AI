@@ -35,6 +35,9 @@ class TicketCard extends StatelessWidget {
     final status = statusStyle(context, incident);
     final created = incident.createdAt;
     final active = incident.status == Incident.statusActive;
+    final verified = incident.isVerified;
+    final mono = textTheme.bodySmall?.copyWith(fontFamily: 'monospace');
+    final votesText = '${incident.netVotes >= 0 ? '+' : ''}${incident.netVotes} votes${verified ? ' · Verified' : ''}';
     return Container(
       decoration: BoxDecoration(
         color: context.palette.paper,
@@ -60,6 +63,8 @@ class TicketCard extends StatelessWidget {
               ),
               FlatBadge(label: status.label, background: status.background, foreground: status.foreground),
               FlatBadge(label: incident.reference, background: context.palette.sage, foreground: context.palette.ink),
+              if (verified)
+                const FlatBadge(label: 'Verified', background: AppColors.riskLow, foreground: AppColors.cream),
               if (!incident.aiProcessed)
                 FlatBadge(label: 'Offline triage', background: context.palette.sage, foreground: context.palette.ink),
             ],
@@ -67,11 +72,20 @@ class TicketCard extends StatelessWidget {
           const SizedBox(height: 8),
           Text(incident.aiSummary, style: textTheme.bodyLarge),
           const SizedBox(height: 4),
-          Text(
-            '${incident.latitude.toStringAsFixed(5)}, ${incident.longitude.toStringAsFixed(5)}'
-            '${created == null ? '' : ' · ${formatPhilippineTime(created)}'}'
-            ' · ${incident.netVotes >= 0 ? '+' : ''}${incident.netVotes} votes',
-            style: textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
+          Text.rich(
+            TextSpan(
+              style: mono,
+              children: [
+                TextSpan(
+                  text: '${incident.latitude.toStringAsFixed(5)}, ${incident.longitude.toStringAsFixed(5)}'
+                      '${created == null ? '' : ' · ${formatPhilippineTime(created)}'} · ',
+                ),
+                TextSpan(
+                  text: votesText,
+                  style: verified ? mono?.copyWith(color: AppColors.riskLow, fontWeight: FontWeight.w700) : mono,
+                ),
+              ],
+            ),
           ),
           Text('Crew: ${incident.assignedCrew ?? 'not assigned'}', style: textTheme.bodySmall),
           ?reporterLine,

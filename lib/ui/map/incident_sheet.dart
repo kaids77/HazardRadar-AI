@@ -275,7 +275,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
               ),
               FlatBadge(label: '${incident.reference} · ${status.label}', background: status.background, foreground: status.foreground),
               if (_netVotes >= Incident.verifiedThreshold && !_quarantinedNow)
-                FlatBadge(label: 'Verified hazard', background: context.palette.ink, foreground: context.palette.paper),
+                const FlatBadge(label: 'Verified hazard', background: AppColors.riskLow, foreground: AppColors.cream),
             ],
           ),
           if (incident.isQuarantined) ...[const SizedBox(height: 12), const DisputedWarning()],

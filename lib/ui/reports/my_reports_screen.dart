@@ -386,6 +386,8 @@ class _HistoryCard extends StatelessWidget {
                 background: riskColor(incident.riskLevel),
                 foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
               ),
+              if (incident.isVerified)
+                const FlatBadge(label: 'Verified', background: AppColors.riskLow, foreground: AppColors.cream),
               if (!incident.aiProcessed)
                 FlatBadge(label: 'Pending AI review', background: context.palette.sage, foreground: context.palette.ink),
             ],
@@ -393,6 +395,13 @@ class _HistoryCard extends StatelessWidget {
           const SizedBox(height: 6),
           Text('${incident.category} · ${incident.reference}', style: textTheme.titleSmall),
           Text(incident.aiSummary, style: textTheme.bodyMedium),
+          if (incident.isVerified) ...[
+            const SizedBox(height: 4),
+            Text(
+              '+${incident.netVotes} votes · Verified by the community',
+              style: textTheme.bodySmall?.copyWith(color: AppColors.riskLow, fontWeight: FontWeight.w700),
+            ),
+          ],
           if (incident.resolutionNote != null) ...[
             const SizedBox(height: 6),
             Text('City note: ${incident.resolutionNote}', style: textTheme.bodyMedium),

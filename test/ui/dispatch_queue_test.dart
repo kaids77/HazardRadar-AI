@@ -8,7 +8,7 @@ import 'package:hazardradarai/services/user_admin_repository.dart';
 import 'package:hazardradarai/theme/app_theme.dart';
 import 'package:hazardradarai/ui/dispatch/dispatch_screen.dart';
 
-Incident _i(String id, String risk, {String status = 'ACTIVE', DateTime? at, String visibility = 'PUBLIC'}) =>
+Incident _i(String id, String risk, {String status = 'ACTIVE', DateTime? at, String visibility = 'PUBLIC', int votes = 0}) =>
     Incident(
       id: id,
       category: 'Pothole',
@@ -16,7 +16,7 @@ Incident _i(String id, String risk, {String status = 'ACTIVE', DateTime? at, Str
       aiSummary: 'Summary $id',
       latitude: 10.3,
       longitude: 123.9,
-      netVotes: 0,
+      netVotes: votes,
       reporterUid: 'rep',
       status: status,
       visibility: visibility,
@@ -220,5 +220,12 @@ void main() {
     expect(find.text('Page 2 of 2 (6–6 of 6)'), findsOneWidget);
     expect(find.text('Summary t1'), findsNothing);
     expect(find.text('Summary t6'), findsOneWidget);
+  });
+
+  testWidgets('a verified ticket shows the green Verified badge and +N votes · Verified label', (tester) async {
+    await _pump(tester, [_i('v', 'Medium', votes: 4)]);
+
+    expect(find.text('Verified'), findsOneWidget);
+    expect(find.textContaining('+4 votes · Verified'), findsOneWidget);
   });
 }
