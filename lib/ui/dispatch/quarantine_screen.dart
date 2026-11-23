@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../models/incident.dart';
@@ -15,7 +13,6 @@ import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/incident_evidence.dart';
 import 'reporter_line.dart';
-import 'storage_meter.dart';
 
 /// Dispatch tab: quarantined reports. Staff restore them; admins purge them for good.
 class QuarantineScreen extends StatefulWidget {
@@ -59,16 +56,10 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
     super.dispose();
   }
 
-  late Stream<List<Incident>> _queue = _watchQuarantined();
-  StorageEstimate? _storage;
+  late Stream<List<Incident>> _queue = widget.moderation.watchQuarantined();
   int _page = 0;
   final Set<String> _busy = {};
   bool _syncing = false;
-
-  Stream<List<Incident>> _watchQuarantined() => widget.moderation.watchQuarantined().map((items) {
-        unawaited(_loadStorage());
-        return items;
-      });
 
   Future<void> _syncLog() async {
     final sync = widget.onSyncTransparency;
@@ -89,17 +80,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
   @override
   void initState() {
     super.initState();
-    _loadStorage();
     startReporterLookup();
-  }
-
-  Future<void> _loadStorage() async {
-    try {
-      final estimate = await widget.moderation.storage();
-      if (mounted) setState(() => _storage = estimate);
-    } catch (_) {
-      // The meter is informational.
-    }
   }
 
   Future<void> _run(Incident incident, Future<void> Function() action, String done) async {
@@ -107,7 +88,6 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
     try {
       await action();
       _toast(done);
-      unawaited(_loadStorage());
     } on DispatchFailed catch (failure) {
       _toast(failure.message, error: true);
     } catch (_) {
@@ -148,16 +128,13 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
         final page = paginate(items, page: _page);
         return PullToRefresh(
           onRefresh: () async {
-            setState(() => _queue = _watchQuarantined());
-            await _loadStorage();
+            setState(() => _queue = widget.moderation.watchQuarantined());
           },
           child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            StorageMeter(estimate: _storage),
             if (widget.onSyncTransparency != null) ...[
-              const SizedBox(height: 12),
               OutlinedButton(
                 onPressed: _syncing ? null : _syncLog,
                 style: OutlinedButton.styleFrom(
@@ -172,8 +149,8 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
                 'Adds reports resolved or quarantined before the public log existed. Safe to run more than once.',
                 style: textTheme.bodySmall,
               ),
+              const SizedBox(height: 16),
             ],
-            const SizedBox(height: 16),
             Text('Quarantined reports (${items.length})', style: textTheme.titleMedium),
             const SizedBox(height: 8),
             if (snapshot.hasError)
