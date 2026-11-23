@@ -195,7 +195,7 @@ class _AccountStatusBadge extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FlatBadge(label: 'Status: $status', background: background, foreground: foreground),
+        FlatBadge(label: status, background: background, foreground: foreground),
         if (detail != null) ...[
           const SizedBox(height: 4),
           Text(detail, style: textTheme.bodySmall),
