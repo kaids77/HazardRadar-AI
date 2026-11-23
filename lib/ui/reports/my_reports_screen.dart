@@ -90,9 +90,10 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
   @override
   void didUpdateWidget(MyReportsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // The uid changes when a Google account that already had a profile is linked.
+    // The uid changes when a Google account that already had a profile is linked or signed out.
     if (oldWidget.profile.uid != widget.profile.uid) {
       _mine = widget.reports.watchMine(widget.profile.uid);
+      _subscribeLog();
       _page = 0;
     }
   }

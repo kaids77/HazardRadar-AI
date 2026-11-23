@@ -106,6 +106,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   MapFilter _filter = MapFilter.all;
   String _query = '';
   Timer? _searchDebounce;
+  Timer? _retryTimer;
 
   /// True while waiting for the user to tap a destination for a safe route.
   bool _pickingDestination = false;
@@ -196,6 +197,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   @override
   void didUpdateWidget(MapScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile.uid != widget.profile.uid || (_loadError && oldWidget.profile != widget.profile)) {
+      _subscribe();
+    }
     if (oldWidget.profile != widget.profile) {
       unawaited(_locate(followIfMoved: true));
     }
@@ -205,18 +209,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// load-error label calls this to start a fresh one. Seen ids are kept, so the
   /// re-sent snapshot never raises a false "new high-risk report" banner.
   void _subscribe() {
+    _retryTimer?.cancel();
     _subscription?.cancel();
     if (_loadError) setState(() => _loadError = false);
     _subscription = widget.incidents.watchActivePublic().listen(_onIncidents, onError: (Object error) {
-      if (mounted) {
-        // Debug only: the full text (with any Firebase index link) also goes to the
-        // flutter run terminal, where the link can be clicked.
-        if (kDebugMode) debugPrint('Radar map load error: $error');
-        setState(() {
-          _loadError = true;
-          _loadErrorDetail = '$error';
+      if (!mounted) return;
+      final text = '$error';
+      // Signing out briefly sets auth to null before the new guest session starts, which
+      // cancels the old stream with permission-denied. Retry once quietly after auth settles.
+      if (text.contains('permission-denied') && _retryTimer == null) {
+        _retryTimer = Timer(const Duration(milliseconds: 600), () {
+          _retryTimer = null;
+          if (mounted) _subscribe();
         });
+        return;
       }
+      if (kDebugMode) debugPrint('Radar map load error: $error');
+      setState(() {
+        _loadError = true;
+        _loadErrorDetail = text;
+      });
     });
   }
 
@@ -260,6 +272,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _retryTimer?.cancel();
     _searchDebounce?.cancel();
     _subscription?.cancel();
     _moves?.cancel();
