@@ -138,7 +138,13 @@ class _ChatSheetState extends State<ChatSheet> {
                         child: ChoiceChip(
                           label: Text(mode.label),
                           selected: widget.controller.mode == mode,
-                          onSelected: (selected) => widget.controller.setMode(selected ? mode : null),
+                          onSelected: widget.controller.waiting
+                              ? null
+                              : (selected) => widget.controller.selectMode(
+                                    selected ? mode : null,
+                                    incidents: widget.incidents(),
+                                    around: widget.around(),
+                                  ),
                         ),
                       ),
                   ],

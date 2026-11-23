@@ -105,6 +105,27 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Selects a mode chip in the UI: starts the commuter interview for [ChatMode.commuter],
+  /// or immediately asks Radar AI for [ChatMode.analysis], [ChatMode.recommendations],
+  /// and [ChatMode.detour] so tapping any mode chip produces an immediate response.
+  Future<void> selectMode(
+    ChatMode? mode, {
+    required List<Incident> incidents,
+    required LatLng around,
+  }) async {
+    if (_waiting) return;
+    setMode(mode);
+    final question = switch (mode) {
+      ChatMode.analysis => 'Give me a risk analysis of the hazards around me.',
+      ChatMode.recommendations => 'Give me safety recommendations for the hazards around me.',
+      ChatMode.detour => 'Which hazards around me should I avoid for a safe detour?',
+      ChatMode.commuter || null => null,
+    };
+    if (question != null) {
+      await send(question, incidents: incidents, around: around);
+    }
+  }
+
   /// Clears the conversation, mode, and interview.
   void reset() {
     _messages

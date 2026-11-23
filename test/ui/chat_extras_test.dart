@@ -155,4 +155,30 @@ void main() {
     expect(find.text('Area risk'), findsOneWidget);
     expect(find.byTooltip('Start over'), findsOneWidget);
   });
+
+  testWidgets('tapping Risk analysis, Recommendations, or Safe detour immediately asks Radar AI', (tester) async {
+    final service = _Recorder();
+    final chat = ChatController(service);
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.light(),
+        home: Scaffold(body: ChatSheet(controller: chat, incidents: () => const [], around: () => _here)),
+      ),
+    );
+
+    await tester.tap(find.text('Risk analysis'));
+    await tester.pumpAndSettle();
+    expect(service.asked.last.mode, ChatMode.analysis);
+    expect(find.text('Answer 1'), findsOneWidget);
+
+    await tester.tap(find.text('Recommendations'));
+    await tester.pumpAndSettle();
+    expect(service.asked.last.mode, ChatMode.recommendations);
+    expect(find.text('Answer 2'), findsOneWidget);
+
+    await tester.tap(find.text('Safe detour'));
+    await tester.pumpAndSettle();
+    expect(service.asked.last.mode, ChatMode.detour);
+    expect(find.text('Pick a destination for a safe route'), findsOneWidget);
+  });
 }
