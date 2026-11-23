@@ -30,6 +30,12 @@ class GeolocatorLocationService implements LocationProvider {
   /// Mandaue City, Cebu (approximate city center). Used when GPS is unavailable.
   static const LatLng fallbackCenter = LatLng(10.3236, 123.9322);
 
+  static const Duration _fixTimeout = Duration(seconds: 5);
+
+  /// Latest reading from [currentFix] or [watchFix], used on Web when a second
+  /// concurrent `getCurrentPosition` call times out while the stream is active.
+  LocationFix? _lastFix;
+
   @override
   Future<LatLng> currentOrFallback() async => await current() ?? fallbackCenter;
 
@@ -41,11 +47,16 @@ class GeolocatorLocationService implements LocationProvider {
     try {
       if (!await _permitted()) return null;
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: _fixTimeout,
+        ),
       );
-      return _toFix(position);
+      final fix = _toFix(position);
+      _lastFix = fix;
+      return fix;
     } catch (_) {
-      return null;
+      return _lastFix;
     }
   }
 
@@ -59,7 +70,11 @@ class GeolocatorLocationService implements LocationProvider {
     // Only report moves of 15 m or more, so a phone sitting still does not wake the map.
     yield* Geolocator.getPositionStream(
       locationSettings: const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 15),
-    ).map(_toFix).handleError((Object _) {});
+    ).map((position) {
+      final fix = _toFix(position);
+      _lastFix = fix;
+      return fix;
+    }).handleError((Object _) {});
   }
 
   static Future<bool> _permitted() async {

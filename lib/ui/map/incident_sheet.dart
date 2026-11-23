@@ -24,6 +24,7 @@ Future<void> showIncidentSheet(
   required IncidentRepository incidents,
   required VoteRepository votes,
   required LocationProvider location,
+  LatLng? initialPosition,
   bool autoLoadPhoto = true,
   Future<UserProfile?> Function()? onUpgrade,
 }) {
@@ -50,6 +51,7 @@ Future<void> showIncidentSheet(
           incidents: incidents,
           votes: votes,
           location: location,
+          initialPosition: initialPosition,
           autoLoadPhoto: autoLoadPhoto,
           onUpgrade: onUpgrade,
           scrollController: scrollController,
@@ -69,6 +71,7 @@ class IncidentSheet extends StatefulWidget {
     required this.incidents,
     required this.votes,
     required this.location,
+    this.initialPosition,
     this.autoLoadPhoto = true,
     this.onUpgrade,
     this.scrollController,
@@ -80,6 +83,10 @@ class IncidentSheet extends StatefulWidget {
   final IncidentRepository incidents;
   final VoteRepository votes;
   final LocationProvider location;
+
+  /// Fallback GPS position already known by the map, used when Web geolocation
+  /// times out while a position stream is already running.
+  final LatLng? initialPosition;
 
   /// False when data saver is on: the photo loads only after a tap.
   final bool autoLoadPhoto;
@@ -127,8 +134,16 @@ class _IncidentSheetState extends State<IncidentSheet> {
     });
   }
 
+  static const Duration _locationTimeout = Duration(seconds: 3);
+
   Future<double?> _measureDistance() async {
-    final here = await widget.location.current();
+    LatLng? here;
+    try {
+      here = await widget.location.current().timeout(_locationTimeout, onTimeout: () => widget.initialPosition);
+    } catch (_) {
+      here = widget.initialPosition;
+    }
+    here ??= widget.initialPosition;
     if (here == null) return null;
     final there = LatLng(widget.incident.latitude, widget.incident.longitude);
     return const Distance().as(LengthUnit.Meter, here, there);
@@ -300,6 +315,10 @@ class _IncidentSheetState extends State<IncidentSheet> {
           EvidenceDetails(incident: incident),
           const SizedBox(height: 16),
           VoteTally(netVotes: _netVotes),
+          if (_message != null) ...[
+            const SizedBox(height: 8),
+            FeedbackMessage(_message!.text, tone: _message!.tone),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
@@ -332,10 +351,6 @@ class _IncidentSheetState extends State<IncidentSheet> {
               style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
               child: const Text('Flag as spam or duplicate (Sentinel)'),
             ),
-          ],
-          if (_message != null) ...[
-            const SizedBox(height: 8),
-            FeedbackMessage(_message!.text, tone: _message!.tone),
           ],
         ],
       ),

@@ -418,6 +418,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       incidents: widget.incidents,
       votes: widget.votes,
       location: widget.location,
+      initialPosition: _fix?.position,
       autoLoadPhoto: !(widget.settings?.dataSaver ?? false),
       onUpgrade: widget.onUpgrade,
     );
