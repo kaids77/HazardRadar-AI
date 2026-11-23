@@ -73,7 +73,7 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final MapController _map = MapController();
   late final TileProvider _tiles = cachedTileProvider();
   StreamSubscription<List<Incident>>? _subscription;
@@ -174,14 +174,31 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final chat = widget.chat;
     if (chat != null) _chat = ChatController(chat, statusSummary: _statusSummary);
     _subscribe();
-    // Start following the commuter only after the first fix, so the two permission
-    // requests never overlap, and only when location is actually available.
-    _locate().then((_) {
-      if (mounted && _fix != null) _moves = widget.location.watchFix().listen(_onMove);
+    // Start following the commuter only after the first fix request finishes, so the two
+    // permission prompts never overlap. Always listen so a later GPS lock updates the map.
+    _locate(followIfMoved: true).then((_) {
+      if (mounted) _moves = widget.location.watchFix().listen(_onMove);
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_locate(followIfMoved: true));
+      _moves ??= widget.location.watchFix().listen(_onMove);
+    }
+  }
+
+  @override
+  void didUpdateWidget(MapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile != widget.profile) {
+      unawaited(_locate(followIfMoved: true));
+    }
   }
 
   /// (Re)subscribes to the live pins. A Firestore stream stops after an error, so the
@@ -242,6 +259,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _searchDebounce?.cancel();
     _subscription?.cancel();
     _moves?.cancel();
@@ -250,12 +268,23 @@ class _MapScreenState extends State<MapScreen> {
     super.dispose();
   }
 
+  /// Distance in meters that triggers recentering the map when a fresher GPS fix arrives
+  /// (for example moving from home to school, or replacing a cached fix with a live one).
+  static const double _relocateMeters = 30;
+
   void _onMove(LocationFix fix) {
     if (!mounted) return;
+    final previous = _fix?.position;
+    final next = fix.position;
+    final valid = philippinesBounds.contains(next);
+    final moved = valid &&
+        (previous == null || const Distance().as(LengthUnit.Meter, previous, next) >= _relocateMeters);
     setState(() {
       _fix = fix;
+      if (valid) _center = next;
       _updateNearby();
     });
+    if (moved) _moveCamera(next);
   }
 
   /// Call inside setState. Shows the closest unannounced High hazard within 100 m,
@@ -285,17 +314,36 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Future<void> _locate() async {
+  Future<void> _locate({bool followIfMoved = false}) async {
     final fix = await widget.location.currentFix();
     if (!mounted) return;
+    final previous = _fix?.position;
     final position = fix?.position;
+    final valid = position != null && philippinesBounds.contains(position);
+    final hadCenter = _center != null;
+    final moved = valid &&
+        (previous == null || const Distance().as(LengthUnit.Meter, previous, position) >= _relocateMeters);
     setState(() {
       _fix = fix;
-      _center ??= position != null && philippinesBounds.contains(position)
-          ? position
-          : GeolocatorLocationService.fallbackCenter;
+      if (valid) {
+        _center = position;
+      } else {
+        _center ??= GeolocatorLocationService.fallbackCenter;
+      }
       _updateNearby();
     });
+    if (valid && hadCenter && (moved || followIfMoved)) {
+      _moveCamera(position);
+    }
+  }
+
+  void _moveCamera(LatLng target) {
+    try {
+      final zoom = _map.camera.zoom;
+      _map.move(target, zoom < _initialZoom ? _initialZoom : zoom);
+    } catch (_) {
+      // The map controller is not attached before the first FlutterMap build.
+    }
   }
 
   void _onIncidents(List<Incident> incidents) {
@@ -325,14 +373,25 @@ class _MapScreenState extends State<MapScreen> {
     _map.move(position, 16);
   }
 
+  /// The user's live GPS position when available, falling back to the map center.
+  LatLng _currentPosition() {
+    final pos = _fix?.position;
+    if (pos != null && philippinesBounds.contains(pos)) return pos;
+    return _center ?? GeolocatorLocationService.fallbackCenter;
+  }
+
   Future<void> _openChat() async {
     final chat = _chat;
     if (chat == null) return;
+    unawaited(_locate(followIfMoved: true));
     final action = await showChatSheet(
       context,
       controller: chat,
       incidents: () => _latest,
-      around: () => _map.camera.center,
+      around: () {
+        unawaited(_locate());
+        return _currentPosition();
+      },
     );
     if (!mounted || action == null) return;
     switch (action) {

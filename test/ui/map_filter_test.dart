@@ -194,9 +194,9 @@ void detourTests() {
 
     expect(detour.to, isNotNull);
     expect(find.textContaining('stays 120 m from High and Medium hazards'), findsOneWidget);
-    // Red risky shortest route underneath, green suggested route on top, and a key for both.
+    // Green suggested route underneath, semi-transparent red risky shortest route on top, and a key for both.
     final lines = tester.widget<PolylineLayer>(find.byType(PolylineLayer)).polylines;
-    expect(lines.map((l) => l.color), [routeRiskyColor, routeSafeColor]);
+    expect(lines.map((l) => l.color), [routeSafeColor, routeRiskyColor.withValues(alpha: 0.6)]);
     expect(find.text('Suggested safe route'), findsOneWidget);
     expect(find.text('Passes a hazard'), findsOneWidget);
     await tester.tap(find.text('Clear route'));

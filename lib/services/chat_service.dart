@@ -55,6 +55,13 @@ class ProxyChatService implements ChatService {
     }
 
     final nearest = nearestIncidents(incidents, around, limit: maxIncidents);
+    const distance = Distance();
+    String summaryWithDistance(Incident incident) {
+      final meters = distance.as(LengthUnit.Meter, around, LatLng(incident.latitude, incident.longitude)).round();
+      final away = meters < 1000 ? '${meters}m from user' : '${(meters / 1000).toStringAsFixed(1)}km from user';
+      return '[$away] ${incident.aiSummary}';
+    }
+
     final recent = history.length > maxHistoryTurns ? history.sublist(history.length - maxHistoryTurns) : history;
     final Object? json;
     try {
@@ -68,7 +75,7 @@ class ProxyChatService implements ChatService {
               'category': incident.category,
               'riskLevel': incident.riskLevel,
               'status': incident.status,
-              'aiSummary': incident.aiSummary,
+              'aiSummary': summaryWithDistance(incident),
             },
         ],
         'history': [

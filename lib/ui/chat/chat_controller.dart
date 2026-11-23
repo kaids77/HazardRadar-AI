@@ -80,6 +80,12 @@ class ChatController extends ChangeNotifier {
   String? _error;
   ChatMode? _mode;
 
+  /// Where the user was when they asked their last question. Moving more than
+  /// [relocateMeters] (for example from home to school) starts fresh context so
+  /// Radar AI does not repeat answers from the old location.
+  LatLng? _lastAround;
+  static const double relocateMeters = 200;
+
   /// Answers so far while the commuter interview runs, or null when it is not running.
   List<String>? _interview;
 
@@ -107,6 +113,7 @@ class ChatController extends ChangeNotifier {
     _mode = null;
     _interview = null;
     _error = null;
+    _lastAround = null;
     notifyListeners();
   }
 
@@ -154,11 +161,19 @@ class ChatController extends ChangeNotifier {
     final trimmed = text.trim();
     if (trimmed.isEmpty || _waiting) return;
 
+    final previousAround = _lastAround;
+    final relocated = previousAround != null &&
+        const Distance().as(LengthUnit.Meter, previousAround, around) > relocateMeters;
+    _lastAround = around;
+
     // Earlier turns, without the greeting and the interview prompts, as context.
-    final history = [
-      for (final message in _messages.skip(1))
-        if (message.choices.isEmpty) ChatTurn(fromUser: message.fromUser, text: message.text),
-    ];
+    // Dropped when the commuter moved to a new area so old location answers do not linger.
+    final history = relocated
+        ? const <ChatTurn>[]
+        : [
+            for (final message in _messages.skip(1))
+              if (message.choices.isEmpty) ChatTurn(fromUser: message.fromUser, text: message.text),
+          ];
     if (showQuestion) _messages.add(ChatMessage.user(trimmed));
     _waiting = true;
     _error = null;

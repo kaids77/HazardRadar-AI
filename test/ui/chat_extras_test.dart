@@ -60,6 +60,17 @@ void main() {
     expect(second.map((t) => (t.fromUser, t.text)), [(true, 'Is Rizal safe?'), (false, 'Answer 1')]);
   });
 
+  test('moving to a new location (>200 m away, like home to school) drops old location history', () async {
+    final service = _Recorder();
+    final chat = ChatController(service);
+    const school = LatLng(10.3500, 123.9500);
+
+    await chat.send('Hazards near home?', incidents: const [], around: _here);
+    await chat.send('Hazards near school?', incidents: const [], around: school);
+
+    expect(service.asked[1].history, isEmpty);
+  });
+
   test('history is capped at six turns', () async {
     final service = _Recorder();
     final chat = ChatController(service);
