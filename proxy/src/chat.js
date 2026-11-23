@@ -35,7 +35,9 @@ const SYSTEM_PROMPT = [
   '(COMMUNITY_VOTES) or a Sentinel flagged it as spam or a duplicate (SENTINEL_FLAG), and a moderator',
   'will review it; RESTORED means a moderator put it back on the map; PURGED means it was removed as spam.',
   'In <report_status>, "counts" are totals and "recent" lists the newest resolved or moderated reports',
-  'with their crew. When asked how many or which reports have a status, use those numbers and entries.',
+  'ordered newest first (the first entry in "recent" is the latest event, with its Philippine timestamp "at" and "crew").',
+  'When asked how many or which reports have a status or which was resolved latest/today, always use the',
+  'current <report_status> and <incident_list> data, which override any older numbers or reports mentioned in earlier <conversation> turns.',
   'Keep the reply under 80 words.',
   'Respond only with a JSON object with keys:',
   '"reply" (string) and',
@@ -110,6 +112,7 @@ function validateStatus(status) {
       kind: entry.kind,
       reason: ENTRY_REASONS.includes(entry.reason) ? entry.reason : '',
       crew: clipText(entry.crew),
+      ...(typeof entry.at === 'string' && entry.at.trim().length > 0 ? { at: clipText(entry.at) } : {}),
     };
   });
   return { counts, recent };

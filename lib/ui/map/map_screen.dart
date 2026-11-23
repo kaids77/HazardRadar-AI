@@ -11,6 +11,7 @@ import 'package:latlong2/latlong.dart';
 import '../../geo/philippines.dart';
 import '../../models/chat.dart';
 import '../../models/incident.dart';
+import '../../models/transparency_entry.dart';
 import '../../models/user_profile.dart';
 import '../../services/app_settings.dart';
 import '../../services/chat_service.dart';
@@ -77,8 +78,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final MapController _map = MapController();
   late final TileProvider _tiles = cachedTileProvider();
   StreamSubscription<List<Incident>>? _subscription;
+  StreamSubscription<List<TransparencyEntry>>? _transparencySub;
   StreamSubscription<LocationFix>? _moves;
   ChatController? _chat;
+
+  /// Latest transparency entries kept warm from the live Firestore stream so Radar AI
+  /// always sees newly resolved or quarantined reports immediately.
+  List<TransparencyEntry> _recentTransparency = const [];
 
   LatLng? _center;
   LocationFix? _fix;
@@ -157,9 +163,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final inProgress = _latest.where((i) => i.status == Incident.statusInProgress).length;
     final log = widget.transparency;
     if (log == null) return ReportStatusSummary(active: active, inProgress: inProgress);
+    var recent = _recentTransparency;
     try {
+      if (recent.isEmpty) {
+        recent = await log.watchRecent(limit: ReportStatusSummary.maxRecent).first;
+        _recentTransparency = recent;
+      }
       final counts = await log.counts();
-      final recent = await log.watchRecent(limit: ReportStatusSummary.maxRecent).first;
       return ReportStatusSummary(
         active: active,
         inProgress: inProgress,
@@ -168,7 +178,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         recent: recent,
       );
     } on Object {
-      return ReportStatusSummary(active: active, inProgress: inProgress);
+      return ReportStatusSummary(
+        active: active,
+        inProgress: inProgress,
+        resolved: recent.isEmpty ? null : recent.where((e) => e.isResolved).length,
+        quarantined: recent.isEmpty ? null : recent.where((e) => e.kind == TransparencyEntry.kindQuarantined).length,
+        recent: recent,
+      );
     }
   }
 
@@ -211,7 +227,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _subscribe() {
     _retryTimer?.cancel();
     _subscription?.cancel();
+    _transparencySub?.cancel();
     if (_loadError) setState(() => _loadError = false);
+    final log = widget.transparency;
+    if (log != null) {
+      _transparencySub = log.watchRecent(limit: ReportStatusSummary.maxRecent).listen(
+        (entries) {
+          if (mounted) _recentTransparency = entries;
+        },
+        onError: (_) {},
+      );
+    }
     _subscription = widget.incidents.watchActivePublic().listen(_onIncidents, onError: (Object error) {
       if (!mounted) return;
       final text = '$error';
@@ -275,6 +301,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _retryTimer?.cancel();
     _searchDebounce?.cancel();
     _subscription?.cancel();
+    _transparencySub?.cancel();
     _moves?.cancel();
     _chat?.dispose();
     _map.dispose();

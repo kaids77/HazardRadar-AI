@@ -56,7 +56,7 @@ class ChatController extends ChangeNotifier {
   /// A failure or a slow answer only leaves the status out; the question still goes.
   final Future<ReportStatusSummary?> Function()? statusSummary;
 
-  static const Duration _statusTimeout = Duration(seconds: 3);
+  static const Duration _statusTimeout = Duration(seconds: 6);
 
   Future<ReportStatusSummary?> _status() async {
     final build = statusSummary;

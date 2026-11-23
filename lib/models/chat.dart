@@ -1,3 +1,4 @@
+import '../ui/map/incident_evidence.dart' show formatPhilippineTime;
 import 'transparency_entry.dart';
 
 /// Something the assistant offers to do. Only these two types exist; anything
@@ -149,7 +150,14 @@ class ReportStatusSummary {
         },
         'recent': [
           for (final e in recent.take(maxRecent))
-            {'reference': e.reference, 'category': e.category, 'kind': e.kind, 'reason': e.reason, 'crew': e.crew},
+            {
+              'reference': e.reference,
+              'category': e.category,
+              'kind': e.kind,
+              'reason': e.reason,
+              'crew': e.crew,
+              if (e.at != null) 'at': formatPhilippineTime(e.at!),
+            },
         ],
       };
 }
