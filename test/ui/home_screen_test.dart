@@ -189,7 +189,7 @@ void main() {
     expect(find.text('Send report'), findsNothing);
   });
 
-  testWidgets('a warned account sees the moderator warning', (tester) async {
+  testWidgets('a warned account sees the moderator warning and can close it with the X button', (tester) async {
     final session = SessionService(
       auth: _OkAuth(),
       profiles: _ProfileRepo((uid) => UserProfile(uid: uid, role: 'CITIZEN', tier: 2, accountStatus: 'WARNED')),
@@ -199,5 +199,8 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('warning from a moderator'), findsOneWidget);
+    await tester.tap(find.byTooltip('Dismiss warning'));
+    await tester.pump();
+    expect(find.textContaining('warning from a moderator'), findsNothing);
   });
 }

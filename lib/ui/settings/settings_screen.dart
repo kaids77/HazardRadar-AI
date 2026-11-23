@@ -6,7 +6,9 @@ import '../../models/user_profile.dart';
 import '../../services/app_settings.dart';
 import '../../theme/app_theme.dart';
 import '../common/pull_to_refresh.dart';
+import '../common/status_style.dart';
 import '../common/user_avatar.dart';
+import '../map/incident_evidence.dart';
 
 /// The Settings tab: account (name, photo, level), appearance, data, and staff.
 class SettingsScreen extends StatelessWidget {
@@ -83,6 +85,8 @@ class SettingsScreen extends StatelessWidget {
                     children: [
                       Text(shownName, style: textTheme.titleLarge, overflow: TextOverflow.ellipsis),
                       Text('${profile.tierTitle} · Level ${profile.tier}', style: textTheme.bodySmall),
+                      const SizedBox(height: 6),
+                      _AccountStatusBadge(profile: profile),
                     ],
                   ),
                 ),
@@ -162,4 +166,41 @@ class SettingsScreen extends StatelessWidget {
   }
 
   static const _heading = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22);
+}
+
+class _AccountStatusBadge extends StatelessWidget {
+  const _AccountStatusBadge({required this.profile});
+
+  final UserProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final status = profile.accountStatus;
+    final until = profile.suspendedUntil;
+    final (background, foreground) = switch (status) {
+      UserProfile.accountBanned || UserProfile.accountSuspended => (AppColors.redOrange, AppColors.onRedOrange),
+      UserProfile.accountWarned => (AppColors.riskMedium, AppColors.ink),
+      _ => (AppColors.riskLow, AppColors.cream),
+    };
+    final detail = switch (status) {
+      UserProfile.accountWarned => 'A moderator issued a warning on this account.',
+      UserProfile.accountSuspended =>
+        until == null
+            ? 'Reporting and voting are paused while this account is suspended.'
+            : 'Suspended until ${formatPhilippineTime(until)}.',
+      UserProfile.accountBanned => 'Reporting and voting are disabled on this account.',
+      _ => null,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FlatBadge(label: 'Status: $status', background: background, foreground: foreground),
+        if (detail != null) ...[
+          const SizedBox(height: 4),
+          Text(detail, style: textTheme.bodySmall),
+        ],
+      ],
+    );
+  }
 }

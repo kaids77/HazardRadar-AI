@@ -49,6 +49,7 @@ void main() {
   testWidgets('every section shows: account, appearance, data, and staff', (tester) async {
     await _pump(tester);
     expect(tester.takeException(), isNull);
+    expect(find.text('Status: ACTIVE'), findsOneWidget);
     expect(find.text('Edit name'), findsOneWidget);
     expect(find.text('Change photo'), findsOneWidget);
     expect(find.text('Appearance'), findsOneWidget);

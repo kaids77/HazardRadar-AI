@@ -55,6 +55,9 @@ class _HomeScreenState extends State<HomeScreen> {
   /// True while the name dialog is open, so two triggers never stack two dialogs.
   bool _askingName = false;
 
+  /// True after the user closes the moderator warning banner with the X button.
+  bool _warnedDismissed = false;
+
   HomeServices get _s => widget.services;
 
   @override
@@ -74,10 +77,17 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_watchedUid == profile.uid && _profileSub != null) return;
     _profileSub?.cancel();
     _watchedUid = profile.uid;
+    _warnedDismissed = false;
     _profileSub = _s.session.profiles.watchProfile(profile.uid).listen((live) {
       if (!mounted) return;
       final previousTier = _latest?.tier;
-      setState(() => _latest = live);
+      final previousStatus = _latest?.accountStatus;
+      setState(() {
+        _latest = live;
+        if (previousStatus != UserProfile.accountWarned && live.accountStatus == UserProfile.accountWarned) {
+          _warnedDismissed = false;
+        }
+      });
       unawaited(_syncAvatar(live));
       if (previousTier != null && live.tier > previousTier) {
         _success('Level up: you are now a ${live.tierTitle}.');
@@ -333,7 +343,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _tabs(UserProfile profile) {
     final radar = Column(
       children: [
-        if (profile.accountStatus == UserProfile.accountWarned) const _WarnedBanner(),
+        if (profile.accountStatus == UserProfile.accountWarned && !_warnedDismissed)
+          _WarnedBanner(onDismiss: () => setState(() => _warnedDismissed = true)),
         Expanded(
           child: MapScreen(
             incidents: _s.incidents,
@@ -565,18 +576,31 @@ class _Frame extends StatelessWidget {
 }
 
 class _WarnedBanner extends StatelessWidget {
-  const _WarnedBanner();
+  const _WarnedBanner({required this.onDismiss});
+
+  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       color: AppColors.riskMedium,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Text(
-        'Your account has a warning from a moderator. Further false reports can lead to a suspension.',
-        // Fixed ink on the fixed amber fill, in light and dark mode.
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.ink),
+      padding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Your account has a warning from a moderator. Further false reports can lead to a suspension.',
+              // Fixed ink on the fixed amber fill, in light and dark mode.
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.ink),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Dismiss warning',
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close, color: AppColors.ink, size: 20),
+          ),
+        ],
       ),
     );
   }
