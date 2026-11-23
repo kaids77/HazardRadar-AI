@@ -59,11 +59,16 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
     super.dispose();
   }
 
-  late Stream<List<Incident>> _queue = widget.moderation.watchQuarantined();
+  late Stream<List<Incident>> _queue = _watchQuarantined();
   StorageEstimate? _storage;
   int _page = 0;
   final Set<String> _busy = {};
   bool _syncing = false;
+
+  Stream<List<Incident>> _watchQuarantined() => widget.moderation.watchQuarantined().map((items) {
+        unawaited(_loadStorage());
+        return items;
+      });
 
   Future<void> _syncLog() async {
     final sync = widget.onSyncTransparency;
@@ -143,7 +148,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
         final page = paginate(items, page: _page);
         return PullToRefresh(
           onRefresh: () async {
-            setState(() => _queue = widget.moderation.watchQuarantined());
+            setState(() => _queue = _watchQuarantined());
             await _loadStorage();
           },
           child: ListView(

@@ -84,13 +84,20 @@ class FirestoreDispatchRepository implements DispatchRepository {
 
   /// One whereIn filter and no orderBy, so no composite index is needed. Sorted in the app.
   @override
-  Stream<List<Incident>> watchQueue({int limit = 300}) {
-    return _incidents
-        .where('status', whereIn: const [Incident.statusActive, Incident.statusInProgress])
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) => [for (final doc in snapshot.docs) ?Incident.tryFromFirestore(doc.id, doc.data())]);
-  }
+  Stream<List<Incident>> watchQueue({int limit = 300}) =>
+      Stream<List<Incident>>.multi((controller) {
+        final sub = _incidents
+            .where('status', whereIn: const [Incident.statusActive, Incident.statusInProgress])
+            .limit(limit)
+            .snapshots()
+            .map((snapshot) => [for (final doc in snapshot.docs) ?Incident.tryFromFirestore(doc.id, doc.data())])
+            .listen(
+              controller.add,
+              onError: controller.addError,
+              onDone: controller.close,
+            );
+        controller.onCancel = sub.cancel;
+      });
 
   @override
   Future<({int resolved, int quarantined})> closedCounts() async {

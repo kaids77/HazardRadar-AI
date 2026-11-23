@@ -63,11 +63,20 @@ class FirestoreUserAdminRepository implements UserAdminRepository {
   DocumentReference<Map<String, dynamic>> _user(String uid) => _db.collection('users').doc(uid);
 
   @override
-  Stream<List<UserProfile>> watchUsers({int limit = 200}) => _db
-      .collection('users')
-      .limit(limit)
-      .snapshots()
-      .map((s) => [for (final doc in s.docs) UserProfile.fromFirestore(doc.id, doc.data())]);
+  Stream<List<UserProfile>> watchUsers({int limit = 200}) =>
+      Stream<List<UserProfile>>.multi((controller) {
+        final sub = _db
+            .collection('users')
+            .limit(limit)
+            .snapshots()
+            .map((s) => [for (final doc in s.docs) UserProfile.fromFirestore(doc.id, doc.data())])
+            .listen(
+              controller.add,
+              onError: controller.addError,
+              onDone: controller.close,
+            );
+        controller.onCancel = sub.cancel;
+      });
 
   @override
   Future<void> setRole(String uid, RoleOption option) =>

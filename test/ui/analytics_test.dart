@@ -55,6 +55,9 @@ final _data = [
 class _Repo implements AnalyticsRepository {
   @override
   Future<List<Incident>> recent({int limit = 500}) async => _data;
+
+  @override
+  Stream<List<Incident>> watchRecent({int limit = 500}) => Stream.value(_data);
 }
 
 void main() {

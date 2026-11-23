@@ -27,23 +27,25 @@ class FirestoreIncidentRepository implements IncidentRepository {
   /// so a query without it would be denied. Needs a composite index on incidents:
   /// visibility ASC, status ASC, createdAt DESC. Firestore prints a link to create it.
   @override
-  Stream<List<Incident>> watchActivePublic({int limit = defaultLimit}) {
-    return _db
-        .collection(incidentsCollection)
-        .where('visibility', isEqualTo: Incident.visibilityPublic)
-        .where('status', whereIn: const [Incident.statusActive, Incident.statusInProgress])
-        .orderBy('createdAt', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) {
-          final incidents = <Incident>[];
-          for (final doc in snapshot.docs) {
-            final incident = Incident.tryFromFirestore(doc.id, doc.data());
-            if (incident != null) incidents.add(incident);
-          }
-          return incidents;
-        });
-  }
+  Stream<List<Incident>> watchActivePublic({int limit = defaultLimit}) =>
+      Stream<List<Incident>>.multi((controller) {
+        final sub = _db
+            .collection(incidentsCollection)
+            .where('visibility', isEqualTo: Incident.visibilityPublic)
+            .where('status', whereIn: const [Incident.statusActive, Incident.statusInProgress])
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .snapshots()
+            .map((snapshot) => [
+                  for (final doc in snapshot.docs) ?Incident.tryFromFirestore(doc.id, doc.data()),
+                ])
+            .listen(
+              controller.add,
+              onError: controller.addError,
+              onDone: controller.close,
+            );
+        controller.onCancel = sub.cancel;
+      });
 
   @override
   Future<Uint8List?> loadPhoto(String incidentId) async {

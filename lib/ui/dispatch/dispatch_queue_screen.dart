@@ -31,11 +31,16 @@ class DispatchQueueScreen extends StatefulWidget {
 }
 
 class _DispatchQueueScreenState extends State<DispatchQueueScreen> with ReporterLookup {
-  late Stream<List<Incident>> _queue = widget.dispatch.watchQueue();
+  late Stream<List<Incident>> _queue = _watchQueue();
   ({int resolved, int quarantined})? _closed;
   String? _risk;
   int _page = 0;
   final Set<String> _busy = {};
+
+  Stream<List<Incident>> _watchQueue() => widget.dispatch.watchQueue().map((items) {
+        unawaited(_loadCounts());
+        return items;
+      });
 
   @override
   UserAdminRepository? get reporterSource => widget.users;
@@ -61,7 +66,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
 
   /// Pull-to-refresh: re-subscribes the queue (revives it after an error) and reloads the counts.
   Future<void> _reload() async {
-    setState(() => _queue = widget.dispatch.watchQueue());
+    setState(() => _queue = _watchQueue());
     await _loadCounts();
   }
 

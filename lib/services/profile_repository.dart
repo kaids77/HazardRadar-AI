@@ -11,6 +11,10 @@ abstract interface class ProfileRepository {
   /// Returns the profile for [uid], creating the Level 1 profile if it does not exist.
   Future<UserProfile> getOrCreateProfile(String uid);
 
+  /// Live updates to [uid]'s profile, so changes made on another device (or by staff)
+  /// render right away on web and mobile without a manual refresh.
+  Stream<UserProfile> watchProfile(String uid);
+
   /// Raises a Level 1 profile to Level 2 (Civic Scout). Profiles already at
   /// Level 2 or above are returned unchanged.
   Future<UserProfile> upgradeToCivicScout(String uid);
@@ -62,6 +66,21 @@ class FirestoreProfileRepository implements ProfileRepository {
     }
     return profile;
   }
+
+  @override
+  Stream<UserProfile> watchProfile(String uid) => Stream<UserProfile>.multi((controller) {
+        final sub = _db.collection(usersCollection).doc(uid).snapshots().listen(
+          (snapshot) {
+            final data = snapshot.data();
+            if (snapshot.exists && data != null) {
+              controller.add(UserProfile.fromFirestore(uid, data));
+            }
+          },
+          onError: (_) {},
+          onDone: controller.close,
+        );
+        controller.onCancel = sub.cancel;
+      });
 
   @override
   Future<UserProfile> upgradeToCivicScout(String uid) {

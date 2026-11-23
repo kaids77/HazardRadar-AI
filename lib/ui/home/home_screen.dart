@@ -48,6 +48,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Uint8List? _avatar;
   String? _avatarUid;
 
+  /// Live subscription to the current user's profile document in Firestore.
+  StreamSubscription<UserProfile>? _profileSub;
+  String? _watchedUid;
+
   /// True while the name dialog is open, so two triggers never stack two dialogs.
   bool _askingName = false;
 
@@ -58,6 +62,27 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     unawaited(_s.settings.load());
     _load();
+  }
+
+  @override
+  void dispose() {
+    _profileSub?.cancel();
+    super.dispose();
+  }
+
+  void _watchProfile(UserProfile profile) {
+    if (_watchedUid == profile.uid && _profileSub != null) return;
+    _profileSub?.cancel();
+    _watchedUid = profile.uid;
+    _profileSub = _s.session.profiles.watchProfile(profile.uid).listen((live) {
+      if (!mounted) return;
+      final previousTier = _latest?.tier;
+      setState(() => _latest = live);
+      unawaited(_syncAvatar(live));
+      if (previousTier != null && live.tier > previousTier) {
+        _success('Level up: you are now a ${live.tierTitle}.');
+      }
+    });
   }
 
   void _load() {
@@ -76,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Loads the photo and, for an account without a name, asks for one.
   void _afterLoad(UserProfile profile) {
     if (!mounted) return;
+    _watchProfile(profile);
     unawaited(_syncAvatar(profile));
     if (_needsName(profile)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -141,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final profile = await _s.session.start();
       if (!mounted) return profile;
       setState(() => _latest = profile);
+      _watchProfile(profile);
       unawaited(_syncAvatar(profile));
       if (previousTier != null && profile.tier > previousTier) {
         _success('Level up: you are now a ${profile.tierTitle}.');
@@ -231,6 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final upgraded = await showAccountSheet(context, profile: profile, session: _s.session, reason: reason);
     if (upgraded == null || !mounted) return null;
     setState(() => _latest = upgraded);
+    _watchProfile(upgraded);
     _success('Signed in with Google. You are now a ${upgraded.tierTitle}.');
     unawaited(_syncAvatar(upgraded));
     await _promptName(upgraded, required: true);
@@ -428,6 +456,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _latest = profile;
         _tab = 0;
       });
+      _watchProfile(profile);
       if (profile.isStaff) _success('Signed in as ${profile.tierTitle}.');
       unawaited(_syncAvatar(profile));
       if (_needsName(profile)) await _promptName(profile, required: true);
@@ -443,6 +472,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _latest = profile;
         _tab = 0;
       });
+      _watchProfile(profile);
       unawaited(_syncAvatar(profile));
       _success('Signed out. You are browsing as a guest.');
     } on StaffSignInFailed catch (failure) {

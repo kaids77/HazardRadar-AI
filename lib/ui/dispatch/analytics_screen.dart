@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/hazard_category.dart';
+import '../../models/incident.dart';
 import '../../services/analytics.dart';
 import '../../services/moderation_repository.dart';
 import '../../theme/app_theme.dart';
@@ -22,6 +25,7 @@ class AnalyticsScreen extends StatefulWidget {
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
+  StreamSubscription<List<Incident>>? _sub;
   CityAnalytics? _data;
   StorageEstimate? _storage;
   bool _error = false;
@@ -30,23 +34,45 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
+    _subscribe();
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  void _subscribe() {
+    _sub?.cancel();
     setState(() => _error = false);
-    try {
-      final incidents = await widget.analytics.recent();
-      if (mounted) setState(() => _data = CityAnalytics.compute(incidents, widget.clock()));
-    } catch (_) {
-      if (mounted) setState(() => _error = true);
-    }
+    _sub = widget.analytics.watchRecent().listen(
+      (incidents) {
+        if (!mounted) return;
+        setState(() {
+          _error = false;
+          _data = CityAnalytics.compute(incidents, widget.clock());
+        });
+        unawaited(_loadStorage());
+      },
+      onError: (_) {
+        if (mounted) setState(() => _error = true);
+      },
+    );
+  }
+
+  Future<void> _loadStorage() async {
     try {
       final storage = await widget.moderation?.storage();
       if (mounted && storage != null) setState(() => _storage = storage);
     } catch (_) {
       // Informational only.
     }
+  }
+
+  Future<void> _load() async {
+    _subscribe();
+    await _loadStorage();
   }
 
   @override

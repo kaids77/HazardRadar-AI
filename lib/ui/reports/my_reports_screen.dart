@@ -82,7 +82,17 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
   void _subscribeLog() {
     final repo = widget.transparency;
     if (repo == null) return;
-    _log = repo.watchRecent();
+    // Refresh the total counts every time the live stream emits a change, so web
+    // and mobile chip counts update automatically without a manual refresh.
+    _log = repo.watchRecent().map((entries) {
+      final counts = repo.counts().catchError((Object _) => (resolved: 0, quarantined: 0));
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _logCounts = counts);
+        });
+      }
+      return entries;
+    });
     // A failed count only hides the numbers; the list still loads.
     _logCounts = repo.counts().catchError((Object _) => (resolved: 0, quarantined: 0));
   }
