@@ -37,7 +37,7 @@ class TicketCard extends StatelessWidget {
     final active = incident.status == Incident.statusActive;
     final verified = incident.isVerified;
     final mono = textTheme.bodySmall?.copyWith(fontFamily: 'monospace');
-    final votesText = '${incident.netVotes >= 0 ? '+' : ''}${incident.netVotes} votes${verified ? ' · Verified' : ''}';
+    final votesText = '${incident.netVotes >= 0 ? '+' : ''}${incident.netVotes} votes';
     return Container(
       decoration: BoxDecoration(
         color: context.palette.paper,

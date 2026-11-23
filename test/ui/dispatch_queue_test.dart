@@ -222,10 +222,10 @@ void main() {
     expect(find.text('Summary t6'), findsOneWidget);
   });
 
-  testWidgets('a verified ticket shows the green Verified badge and +N votes · Verified label', (tester) async {
+  testWidgets('a verified ticket shows the green Verified badge and green vote count', (tester) async {
     await _pump(tester, [_i('v', 'Medium', votes: 4)]);
 
     expect(find.text('Verified'), findsOneWidget);
-    expect(find.textContaining('+4 votes · Verified'), findsOneWidget);
+    expect(find.textContaining('+4 votes'), findsOneWidget);
   });
 }
