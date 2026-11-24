@@ -9,8 +9,10 @@ import 'package:hazardradarai/models/user_profile.dart';
 import 'package:hazardradarai/services/incident_repository.dart';
 import 'package:hazardradarai/services/location_service.dart';
 import 'package:hazardradarai/services/session_service.dart';
+import 'package:hazardradarai/services/vote_policy.dart';
 import 'package:hazardradarai/services/vote_repository.dart';
 import 'package:hazardradarai/ui/account/account_sheet.dart';
+import 'package:hazardradarai/ui/common/feedback.dart';
 import 'package:hazardradarai/ui/map/incident_sheet.dart';
 
 import '../services/session_service_test.dart';
@@ -29,6 +31,18 @@ const _incident = Incident(
   reporterTier: 2,
 );
 
+/// Same report with no votes yet, for the verified and quarantined outcome tests.
+const _unverified = Incident(
+  id: 'inc-2',
+  category: 'Pothole',
+  riskLevel: 'Medium',
+  aiSummary: 'Deep pothole in the right lane.',
+  latitude: 10.3236,
+  longitude: 123.9322,
+  netVotes: 0,
+  reporterUid: 'reporter',
+);
+
 class _Incidents implements IncidentRepository {
   @override
   Stream<List<Incident>> watchActivePublic({int limit = 150}) => const Stream.empty();
@@ -41,10 +55,14 @@ class _Votes implements VoteRepository {
   final cast_ = <int>[];
   bool alreadyVoted = false;
 
+  /// The report's net votes before this user's vote, as the server would see it.
+  int startingNet = 0;
+
   @override
-  Future<void> cast({required String incidentId, required String uid, required int value}) async {
+  Future<int> cast({required String incidentId, required String uid, required int value}) async {
     if (alreadyVoted) throw const AlreadyVotedException();
     cast_.add(value);
+    return startingNet + value;
   }
 
   final flagged = <String>[];
@@ -80,6 +98,7 @@ Future<_Votes> _open(
   LatLng? position = const LatLng(10.3236, 123.9322),
   String uid = 'me',
   bool alreadyVoted = false,
+  int startingNet = 0,
   Future<UserProfile?> Function()? onUpgrade,
   Incident incident = _incident,
   bool autoLoadPhoto = true,
@@ -89,7 +108,9 @@ Future<_Votes> _open(
   tester.view.physicalSize = const Size(800, 2400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  final votes = _Votes()..alreadyVoted = alreadyVoted;
+  final votes = _Votes()
+    ..alreadyVoted = alreadyVoted
+    ..startingNet = startingNet;
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
@@ -240,6 +261,38 @@ void main() {
 
     expect(votes.cast_, [1]);
     expect(find.text('Vote recorded.'), findsOneWidget);
+  });
+
+  testWidgets('the vote that reaches +3 shows the verified outcome in green', (tester) async {
+    await _open(tester, tier: 2, incident: _unverified, startingNet: 2);
+    expect(find.text('Verified hazard'), findsNothing);
+
+    await tester.tap(find.text('Still here'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(VoteOutcomes.message(VoteOutcome.verified)), findsOneWidget);
+    expect(tester.widget<FeedbackMessage>(find.byType(FeedbackMessage)).tone, FeedbackTone.success);
+    expect(find.text('Verified hazard'), findsOneWidget);
+    expect(find.textContaining('+3 net · Verified by the community'), findsOneWidget);
+  });
+
+  testWidgets('the vote that reaches -3 explains the quarantine and locks the sheet', (tester) async {
+    await _open(tester, tier: 2, incident: _unverified, startingNet: -2);
+
+    await tester.tap(find.text('Fixed or fake'));
+    await tester.pumpAndSettle();
+
+    expect(find.text(VoteOutcomes.message(VoteOutcome.quarantined)), findsOneWidget);
+    expect(tester.widget<FeedbackMessage>(find.byType(FeedbackMessage)).tone, FeedbackTone.success);
+    expect(find.text('Verified hazard'), findsNothing);
+    expect(tester.widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Still here')).onPressed, isNull);
+  });
+
+  test('vote outcomes follow the +3 and -3 thresholds', () {
+    expect(VoteOutcomes.of(3), VoteOutcome.verified);
+    expect(VoteOutcomes.of(2), VoteOutcome.recorded);
+    expect(VoteOutcomes.of(-2), VoteOutcome.recorded);
+    expect(VoteOutcomes.of(-3), VoteOutcome.quarantined);
   });
 
   testWidgets('a tier 3 user casts a double negative vote', (tester) async {

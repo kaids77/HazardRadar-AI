@@ -6,7 +6,9 @@ import '../../models/user_profile.dart';
 import '../../services/app_settings.dart';
 import '../../theme/app_theme.dart';
 import '../common/pull_to_refresh.dart';
+import '../common/status_style.dart';
 import '../common/user_avatar.dart';
+import '../map/incident_evidence.dart';
 
 /// The Settings tab: account (name, photo, level), appearance, data, and staff.
 class SettingsScreen extends StatelessWidget {
@@ -20,6 +22,7 @@ class SettingsScreen extends StatelessWidget {
     this.onAccount,
     this.onEditName,
     this.onChangePhoto,
+    this.onCreditName,
     this.staffSection,
     this.onRefresh,
   });
@@ -43,6 +46,9 @@ class SettingsScreen extends StatelessWidget {
   /// Null hides the "Change photo" button.
   final VoidCallback? onChangePhoto;
 
+  /// Turns the public "Reported by" credit on or off. Null hides the switch (guests).
+  final ValueChanged<bool>? onCreditName;
+
   /// Extra section for staff sign-in or tools.
   final Widget? staffSection;
 
@@ -56,8 +62,8 @@ class SettingsScreen extends StatelessWidget {
     final shownName = name ?? profile.tierTitle;
     final outline = OutlinedButton.styleFrom(
       foregroundColor: palette.ink,
-      side: BorderSide(color: palette.ink),
-      shape: const RoundedRectangleBorder(),
+      side: BorderSide(color: palette.ink.withValues(alpha: 0.45), width: 1.2),
+      shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
     );
     return ListenableBuilder(
       listenable: settings,
@@ -77,8 +83,14 @@ class SettingsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(shownName, style: textTheme.titleLarge, overflow: TextOverflow.ellipsis),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(shownName, style: textTheme.titleLarge, maxLines: 1, softWrap: false),
+                      ),
                       Text('${profile.tierTitle} · Level ${profile.tier}', style: textTheme.bodySmall),
+                      const SizedBox(height: 6),
+                      _AccountStatusBadge(profile: profile),
                     ],
                   ),
                 ),
@@ -97,16 +109,32 @@ class SettingsScreen extends StatelessWidget {
                   hasAccount
                       ? TextButton(
                           onPressed: onAccount,
-                          style: TextButton.styleFrom(shape: const RoundedRectangleBorder()),
+                          style: TextButton.styleFrom(
+                            shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                          ),
                           child: const Text('Level details'),
                         )
                       : ElevatedButton(
                           onPressed: onAccount,
-                          style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder()),
+                          style: ElevatedButton.styleFrom(
+                            shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                          ),
                           child: const Text('Sign in with Google'),
                         ),
               ],
             ),
+            if (onCreditName != null)
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Show my name on my resolved reports'),
+                subtitle: Text(
+                  'Your name appears in Report transparency only on reports the city resolved. '
+                  'Turning it off hides your name.',
+                  style: textTheme.bodySmall,
+                ),
+                value: profile.creditName,
+                onChanged: onCreditName,
+              ),
             const SizedBox(height: 16),
             const Divider(),
             const SizedBox(height: 16),
@@ -114,6 +142,7 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
                 for (final (mode, label) in const [(ThemeMode.light, 'Light'), (ThemeMode.dark, 'Dark')])
                   ChoiceChip(
@@ -146,4 +175,41 @@ class SettingsScreen extends StatelessWidget {
   }
 
   static const _heading = TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22);
+}
+
+class _AccountStatusBadge extends StatelessWidget {
+  const _AccountStatusBadge({required this.profile});
+
+  final UserProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final status = profile.accountStatus;
+    final until = profile.suspendedUntil;
+    final color = switch (status) {
+      UserProfile.accountBanned || UserProfile.accountSuspended => AppColors.riskHigh,
+      UserProfile.accountWarned => AppColors.riskMedium,
+      _ => AppColors.riskLow,
+    };
+    final detail = switch (status) {
+      UserProfile.accountWarned => 'A moderator issued a warning on this account.',
+      UserProfile.accountSuspended =>
+        until == null
+            ? 'Reporting and voting are paused while this account is suspended.'
+            : 'Suspended until ${formatPhilippineTime(until)}.',
+      UserProfile.accountBanned => 'Reporting and voting are disabled on this account.',
+      _ => null,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FlatBadge.outlined(label: status, color: color),
+        if (detail != null) ...[
+          const SizedBox(height: 4),
+          Text(detail, style: textTheme.bodySmall),
+        ],
+      ],
+    );
+  }
 }

@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../models/hazard_category.dart';
+import '../../models/incident.dart';
 import '../../services/analytics.dart';
 import '../../services/moderation_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import 'storage_meter.dart';
 
@@ -21,30 +25,54 @@ class AnalyticsScreen extends StatefulWidget {
 }
 
 class _AnalyticsScreenState extends State<AnalyticsScreen> {
+  StreamSubscription<List<Incident>>? _sub;
   CityAnalytics? _data;
   StorageEstimate? _storage;
   bool _error = false;
+  int _page = 0;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _subscribe();
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  void _subscribe() {
+    _sub?.cancel();
     setState(() => _error = false);
-    try {
-      final incidents = await widget.analytics.recent();
-      if (mounted) setState(() => _data = CityAnalytics.compute(incidents, widget.clock()));
-    } catch (_) {
-      if (mounted) setState(() => _error = true);
-    }
+    _sub = widget.analytics.watchRecent().listen(
+      (incidents) {
+        if (!mounted) return;
+        setState(() {
+          _error = false;
+          _data = CityAnalytics.compute(incidents, widget.clock());
+        });
+        unawaited(_loadStorage());
+      },
+      onError: (_) {
+        if (mounted) setState(() => _error = true);
+      },
+    );
+  }
+
+  Future<void> _loadStorage() async {
     try {
       final storage = await widget.moderation?.storage();
       if (mounted && storage != null) setState(() => _storage = storage);
     } catch (_) {
       // Informational only.
     }
+  }
+
+  Future<void> _load() async {
+    _subscribe();
+    await _loadStorage();
   }
 
   @override
@@ -67,6 +95,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
     }
     if (data == null) return const Center(child: CircularProgressIndicator());
     final mttr = data.meanTimeToResolve;
+    final hotspots = paginate(data.hotspots, page: _page);
     return PullToRefresh(
       onRefresh: _load,
       child: ListView(
@@ -83,7 +112,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              _Block(label: 'Active high', value: '${data.activeHigh}', color: AppColors.redOrange, foreground: AppColors.onRedOrange),
+              _Block(label: 'Active high', value: '${data.activeHigh}', color: AppColors.riskHigh, foreground: AppColors.onError),
               _Block(label: 'Active medium', value: '${data.activeMedium}', color: AppColors.riskMedium, foreground: AppColors.ink),
               _Block(label: 'Active low', value: '${data.activeLow}', color: AppColors.riskLow, foreground: AppColors.cream),
             ],
@@ -105,18 +134,27 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 4),
           if (data.hotspots.isEmpty)
             Text('No open reports.', style: textTheme.bodySmall)
-          else
-            for (final (index, spot) in data.hotspots.indexed)
+          else ...[
+            for (final (index, spot) in hotspots.items.indexed)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
-                child: Text('${index + 1}. ${spot.geohash} · ${spot.count} open', style: textTheme.bodyMedium?.copyWith(fontFamily: 'monospace')),
+                child: Text(
+                  '${hotspots.start + index + 1}. ${spot.geohash} · ${spot.count} open',
+                  style: textTheme.bodyMedium?.copyWith(fontFamily: 'monospace'),
+                ),
               ),
+            const SizedBox(height: 8),
+            PaginationBar(page: hotspots, onPageChanged: (next) => setState(() => _page = next)),
+          ],
           const SizedBox(height: 16),
           Text('AI health', style: textTheme.titleMedium),
           const SizedBox(height: 6),
-          SizedBox(
-            height: 10,
-            child: LinearProgressIndicator(value: data.aiProcessedShare, backgroundColor: context.palette.sage, color: context.palette.ink),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 10,
+              child: LinearProgressIndicator(value: data.aiProcessedShare, backgroundColor: context.palette.sage, color: context.palette.ink),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -148,7 +186,11 @@ class _Block extends StatelessWidget {
     final foreground = this.foreground ?? context.palette.ink;
     return Expanded(
       child: Container(
-        color: color ?? context.palette.sage,
+        decoration: BoxDecoration(
+          color: color ?? context.palette.sage,
+          borderRadius: AppTheme.radiusMd,
+          border: Border.all(color: foreground.withValues(alpha: 0.22)),
+        ),
         margin: const EdgeInsets.only(right: 6),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         child: Column(
@@ -162,7 +204,7 @@ class _Block extends StatelessWidget {
   }
 }
 
-/// One flat stacked bar plus a legend. Plain widgets, no chart library.
+/// One rounded stacked bar plus a legend. Plain widgets, no chart library.
 class _CategoryBar extends StatelessWidget {
   const _CategoryBar({required this.counts});
 
@@ -172,7 +214,7 @@ class _CategoryBar extends StatelessWidget {
   /// text color, so it stays visible on either background.
   static Map<String, Color> _colors(BuildContext context) => {
     HazardCategory.pothole: AppColors.riskMedium,
-    HazardCategory.electrical: AppColors.redOrange,
+    HazardCategory.electrical: AppColors.riskHigh,
     HazardCategory.flooding: AppColors.inProgress,
     HazardCategory.obstruction: AppColors.riskLow,
     HazardCategory.lighting: AppColors.sage,
@@ -187,13 +229,16 @@ class _CategoryBar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: 18,
-          child: Row(
-            children: [
-              for (final entry in counts.entries)
-                if (entry.value > 0) Expanded(flex: entry.value, child: ColoredBox(color: _colors(context)[entry.key]!)),
-            ],
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            height: 18,
+            child: Row(
+              children: [
+                for (final entry in counts.entries)
+                  if (entry.value > 0) Expanded(flex: entry.value, child: ColoredBox(color: _colors(context)[entry.key]!)),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -205,7 +250,14 @@ class _CategoryBar extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(width: 12, height: 12, color: _colors(context)[entry.key]),
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: _colors(context)[entry.key],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                   const SizedBox(width: 4),
                   Text('${entry.key} ${(entry.value * 100 / total).round()}%', style: textTheme.bodySmall),
                 ],

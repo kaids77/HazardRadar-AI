@@ -159,4 +159,33 @@ void main() {
     expect(settings.dataSaver, isTrue);
     expect(store.values[AppSettings.dataSaverKey], isTrue);
   });
+
+  testWidgets('paginates reports 5 per page and resets to page 1 on filter change', (tester) async {
+    tester.view.physicalSize = const Size(900, 2400);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final many = [
+      for (var i = 1; i <= 7; i++) _incident('rep00$i', i <= 6 ? 'ACTIVE' : 'RESOLVED'),
+    ];
+    await _pump(tester, MyReportsScreen(profile: _profile(), reports: _Repo(many)));
+
+    expect(find.text('Page 1 of 2 (1–5 of 7)'), findsOneWidget);
+    expect(find.text('Pothole · HZD-REP001'), findsOneWidget);
+    expect(find.text('Pothole · HZD-REP005'), findsOneWidget);
+    expect(find.text('Pothole · HZD-REP006'), findsNothing);
+
+    await tester.tap(find.text('Next'));
+    await tester.pump();
+
+    expect(find.text('Page 2 of 2 (6–7 of 7)'), findsOneWidget);
+    expect(find.text('Pothole · HZD-REP001'), findsNothing);
+    expect(find.text('Pothole · HZD-REP006'), findsOneWidget);
+    expect(find.text('Pothole · HZD-REP007'), findsOneWidget);
+
+    await tester.tap(find.text('Resolved (1)'));
+    await tester.pump();
+
+    expect(find.text('Page 1 of 1 (1–1 of 1)'), findsOneWidget);
+    expect(find.text('Pothole · HZD-REP007'), findsOneWidget);
+  });
 }

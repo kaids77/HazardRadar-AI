@@ -139,7 +139,7 @@ class _ReportWizardScreenState extends State<ReportWizardScreen> {
               if (_error != null && !(_draft.step == WizardStep.review && _draft.triage == null))
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: FeedbackMessage.error(_error!),
+                  child: FeedbackMessage.error(_error!, onDismiss: () => setState(() => _error = null)),
                 ),
               _NavBar(
                 showBack: _draft.step != WizardStep.location,
@@ -210,8 +210,8 @@ class _NavBar extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                   foregroundColor: context.palette.ink,
-                  side: BorderSide(color: context.palette.ink),
-                  shape: const RoundedRectangleBorder(),
+                  side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                  shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
                 ),
                 child: const Text('Back'),
               ),
@@ -222,12 +222,18 @@ class _NavBar extends StatelessWidget {
             flex: 2,
             child: ElevatedButton(
               onPressed: onPrimary,
-              style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(52), shape: const RoundedRectangleBorder()),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+              ),
               child: busy
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onRedOrange),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
                     )
                   : Text(primaryLabel),
             ),

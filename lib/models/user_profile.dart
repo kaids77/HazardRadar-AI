@@ -17,6 +17,8 @@ class UserProfile {
     this.ctp = 0,
     this.reportsTotal = 0,
     this.reportsResolved = 0,
+    this.reportsRemoved = 0,
+    this.creditName = false,
     this.displayName,
     this.focusBadge,
   });
@@ -52,6 +54,13 @@ class UserProfile {
   final int ctp;
   final int reportsTotal;
   final int reportsResolved;
+
+  /// Reports an admin removed as spam. Raised only by isRemovalCount() in firestore.rules.
+  final int reportsRemoved;
+
+  /// The user chose to show their name on their resolved reports in the public
+  /// transparency log. Off by default.
+  final bool creditName;
   final String? displayName;
   final String? focusBadge;
 
@@ -98,6 +107,8 @@ class UserProfile {
       ctp: ctp ?? this.ctp,
       reportsTotal: reportsTotal ?? this.reportsTotal,
       reportsResolved: reportsResolved,
+      reportsRemoved: reportsRemoved,
+      creditName: creditName,
       displayName: displayName,
       focusBadge: focusBadge,
     );
@@ -116,6 +127,8 @@ class UserProfile {
       ctp: _int(data['ctp'], 0),
       reportsTotal: _int(data['reportsTotal'], 0),
       reportsResolved: _int(data['reportsResolved'], 0),
+      reportsRemoved: _int(data['reportsRemoved'], 0),
+      creditName: data['creditName'] == true,
       displayName: data['displayName'] is String ? data['displayName'] as String : null,
       focusBadge: data['focusBadge'] is String ? data['focusBadge'] as String : null,
     );

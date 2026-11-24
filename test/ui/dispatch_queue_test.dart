@@ -4,10 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hazardradarai/models/incident.dart';
 import 'package:hazardradarai/models/user_profile.dart';
 import 'package:hazardradarai/services/dispatch_repository.dart';
+import 'package:hazardradarai/services/user_admin_repository.dart';
 import 'package:hazardradarai/theme/app_theme.dart';
 import 'package:hazardradarai/ui/dispatch/dispatch_screen.dart';
 
-Incident _i(String id, String risk, {String status = 'ACTIVE', DateTime? at, String visibility = 'PUBLIC'}) =>
+Incident _i(String id, String risk, {String status = 'ACTIVE', DateTime? at, String visibility = 'PUBLIC', int votes = 0}) =>
     Incident(
       id: id,
       category: 'Pothole',
@@ -15,7 +16,7 @@ Incident _i(String id, String risk, {String status = 'ACTIVE', DateTime? at, Str
       aiSummary: 'Summary $id',
       latitude: 10.3,
       longitude: 123.9,
-      netVotes: 0,
+      netVotes: votes,
       reporterUid: 'rep',
       status: status,
       visibility: visibility,
@@ -51,7 +52,32 @@ class _Repo implements DispatchRepository {
 
 const _dispatcher = UserProfile(uid: 'disp', role: 'DISPATCHER', tier: 4, accountStatus: 'ACTIVE');
 
-Future<_Repo> _pump(WidgetTester tester, List<Incident> items, {UserProfile profile = _dispatcher}) async {
+class _Users implements UserAdminRepository {
+  @override
+  Stream<List<UserProfile>> watchUsers({int limit = 200}) => Stream.value(const [
+        UserProfile(uid: 'rep', role: 'CITIZEN', tier: 2, accountStatus: 'WARNED', displayName: 'Bob Santos'),
+        _dispatcher,
+      ]);
+
+  @override
+  Future<void> setRole(String uid, RoleOption option) async {}
+
+  @override
+  Future<void> setStatus(String uid, String status, {DateTime? until}) async {}
+
+  @override
+  Future<void> setRateLimitOverride(String uid, bool value) async {}
+
+  @override
+  Future<int> quarantinedReports(String uid) async => 0;
+}
+
+Future<_Repo> _pump(
+  WidgetTester tester,
+  List<Incident> items, {
+  UserProfile profile = _dispatcher,
+  UserAdminRepository? users,
+}) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -59,14 +85,34 @@ Future<_Repo> _pump(WidgetTester tester, List<Incident> items, {UserProfile prof
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.light(),
-      home: Scaffold(body: DispatchScreen(profile: profile, dispatch: repo)),
+      home: Scaffold(body: DispatchScreen(profile: profile, dispatch: repo, users: users)),
     ),
   );
   await tester.pumpAndSettle();
   return repo;
 }
 
+void reporterTests() {
+  testWidgets('staff see who reported each ticket; a dispatcher opens a read-only user page', (tester) async {
+    await _pump(tester, [_i('a', 'High')], users: _Users());
+
+    expect(find.text('Reported by Bob Santos · Civic Scout · WARNED'), findsOneWidget);
+    expect(find.text('rep'), findsNothing);
+
+    await tester.tap(find.text('Reported by Bob Santos · Civic Scout · WARNED'));
+    await tester.pumpAndSettle();
+    expect(find.text('Only admins can change accounts. Ask an admin to act on this user.'), findsOneWidget);
+  });
+
+  testWidgets('without profiles the ticket shows the reporter level only', (tester) async {
+    await _pump(tester, [_i('a', 'High')]);
+    expect(find.text('Reported by a Commuter Observer'), findsOneWidget);
+  });
+}
+
 void main() {
+  reporterTests();
+
   group('DispatchPolicy', () {
     test('sorts High to Low, then oldest first', () {
       final sorted = DispatchPolicy.sortQueue([
@@ -159,5 +205,27 @@ void main() {
 
     expect(find.text('Summary m'), findsOneWidget);
     expect(find.text('Summary a'), findsNothing);
+  });
+
+  testWidgets('paginates open tickets 5 per page', (tester) async {
+    await _pump(tester, [for (var i = 1; i <= 6; i++) _i('t$i', 'High', at: DateTime(2026, 1, i))]);
+
+    expect(find.text('Page 1 of 2 (1–5 of 6)'), findsOneWidget);
+    expect(find.text('Summary t1'), findsOneWidget);
+    expect(find.text('Summary t6'), findsNothing);
+
+    await tester.tap(find.text('Next'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Page 2 of 2 (6–6 of 6)'), findsOneWidget);
+    expect(find.text('Summary t1'), findsNothing);
+    expect(find.text('Summary t6'), findsOneWidget);
+  });
+
+  testWidgets('a verified ticket shows the green Verified badge and green vote count', (tester) async {
+    await _pump(tester, [_i('v', 'Medium', votes: 4)]);
+
+    expect(find.text('Verified'), findsOneWidget);
+    expect(find.textContaining('+4 votes'), findsOneWidget);
   });
 }

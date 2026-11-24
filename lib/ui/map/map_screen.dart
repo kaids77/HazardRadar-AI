@@ -11,12 +11,14 @@ import 'package:latlong2/latlong.dart';
 import '../../geo/philippines.dart';
 import '../../models/chat.dart';
 import '../../models/incident.dart';
+import '../../models/transparency_entry.dart';
 import '../../models/user_profile.dart';
 import '../../services/app_settings.dart';
 import '../../services/chat_service.dart';
 import '../../services/detour_service.dart';
 import '../../services/incident_repository.dart';
 import '../../services/location_service.dart';
+import '../../services/transparency_repository.dart';
 import '../../services/vote_repository.dart';
 import '../../theme/app_theme.dart';
 import '../chat/chat_controller.dart';
@@ -44,6 +46,7 @@ class MapScreen extends StatefulWidget {
     this.chat,
     this.onReport,
     this.detour,
+    this.transparency,
   });
 
   final IncidentRepository incidents;
@@ -64,16 +67,24 @@ class MapScreen extends StatefulWidget {
   /// Null when the build has no proxy. The Safe route button is hidden then.
   final DetourService? detour;
 
+  /// The public transparency log, so Radar AI can answer resolved and quarantined questions.
+  final TransparencyRepository? transparency;
+
   @override
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> {
+class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final MapController _map = MapController();
   late final TileProvider _tiles = cachedTileProvider();
   StreamSubscription<List<Incident>>? _subscription;
+  StreamSubscription<List<TransparencyEntry>>? _transparencySub;
   StreamSubscription<LocationFix>? _moves;
   ChatController? _chat;
+
+  /// Latest transparency entries kept warm from the live Firestore stream so Radar AI
+  /// always sees newly resolved or quarantined reports immediately.
+  List<TransparencyEntry> _recentTransparency = const [];
 
   LatLng? _center;
   LocationFix? _fix;
@@ -101,6 +112,7 @@ class _MapScreenState extends State<MapScreen> {
   MapFilter _filter = MapFilter.all;
   String _query = '';
   Timer? _searchDebounce;
+  Timer? _retryTimer;
 
   /// True while waiting for the user to tap a destination for a safe route.
   bool _pickingDestination = false;
@@ -133,7 +145,8 @@ class _MapScreenState extends State<MapScreen> {
       final route = await detour.route(from: from, to: destination, hazards: _latest);
       if (!mounted) return;
       setState(() => _route = route);
-      _map.fitCamera(CameraFit.coordinates(coordinates: route.path, padding: const EdgeInsets.all(60)));
+      final shown = [...route.path, ...?route.riskyDirect?.path];
+      _map.fitCamera(CameraFit.coordinates(coordinates: shown, padding: const EdgeInsets.all(60)));
     } on DetourUnavailable catch (failure) {
       if (mounted) _toast(failure.message);
     } catch (_) {
@@ -143,35 +156,105 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
+  /// Active and in-progress counts from the loaded pins, plus resolved and quarantined
+  /// totals and the newest entries from the public transparency log.
+  Future<ReportStatusSummary> _statusSummary() async {
+    final active = _latest.where((i) => i.status == Incident.statusActive).length;
+    final inProgress = _latest.where((i) => i.status == Incident.statusInProgress).length;
+    final log = widget.transparency;
+    if (log == null) return ReportStatusSummary(active: active, inProgress: inProgress);
+    var recent = _recentTransparency;
+    try {
+      if (recent.isEmpty) {
+        recent = await log.watchRecent(limit: ReportStatusSummary.maxRecent).first;
+        _recentTransparency = recent;
+      }
+      final counts = await log.counts();
+      return ReportStatusSummary(
+        active: active,
+        inProgress: inProgress,
+        resolved: counts.resolved,
+        quarantined: counts.quarantined,
+        recent: recent,
+      );
+    } on Object {
+      return ReportStatusSummary(
+        active: active,
+        inProgress: inProgress,
+        resolved: recent.isEmpty ? null : recent.where((e) => e.isResolved).length,
+        quarantined: recent.isEmpty ? null : recent.where((e) => e.kind == TransparencyEntry.kindQuarantined).length,
+        recent: recent,
+      );
+    }
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final chat = widget.chat;
-    if (chat != null) _chat = ChatController(chat);
+    if (chat != null) _chat = ChatController(chat, statusSummary: _statusSummary);
     _subscribe();
-    // Start following the commuter only after the first fix, so the two permission
-    // requests never overlap, and only when location is actually available.
-    _locate().then((_) {
-      if (mounted && _fix != null) _moves = widget.location.watchFix().listen(_onMove);
+    // Start following the commuter only after the first fix request finishes, so the two
+    // permission prompts never overlap. Always listen so a later GPS lock updates the map.
+    _locate(followIfMoved: true).then((_) {
+      if (mounted) _moves = widget.location.watchFix().listen(_onMove);
     });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_locate(followIfMoved: true));
+      _moves ??= widget.location.watchFix().listen(_onMove);
+    }
+  }
+
+  @override
+  void didUpdateWidget(MapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile.uid != widget.profile.uid || (_loadError && oldWidget.profile != widget.profile)) {
+      _subscribe();
+    }
+    if (oldWidget.profile != widget.profile) {
+      unawaited(_locate(followIfMoved: true));
+    }
   }
 
   /// (Re)subscribes to the live pins. A Firestore stream stops after an error, so the
   /// load-error label calls this to start a fresh one. Seen ids are kept, so the
   /// re-sent snapshot never raises a false "new high-risk report" banner.
   void _subscribe() {
+    _retryTimer?.cancel();
     _subscription?.cancel();
+    _transparencySub?.cancel();
     if (_loadError) setState(() => _loadError = false);
+    final log = widget.transparency;
+    if (log != null) {
+      _transparencySub = log.watchRecent(limit: ReportStatusSummary.maxRecent).listen(
+        (entries) {
+          if (mounted) _recentTransparency = entries;
+        },
+        onError: (_) {},
+      );
+    }
     _subscription = widget.incidents.watchActivePublic().listen(_onIncidents, onError: (Object error) {
-      if (mounted) {
-        // Debug only: the full text (with any Firebase index link) also goes to the
-        // flutter run terminal, where the link can be clicked.
-        if (kDebugMode) debugPrint('Radar map load error: $error');
-        setState(() {
-          _loadError = true;
-          _loadErrorDetail = '$error';
+      if (!mounted) return;
+      final text = '$error';
+      // Signing out briefly sets auth to null before the new guest session starts, which
+      // cancels the old stream with permission-denied. Retry once quietly after auth settles.
+      if (text.contains('permission-denied') && _retryTimer == null) {
+        _retryTimer = Timer(const Duration(milliseconds: 600), () {
+          _retryTimer = null;
+          if (mounted) _subscribe();
         });
+        return;
       }
+      if (kDebugMode) debugPrint('Radar map load error: $error');
+      setState(() {
+        _loadError = true;
+        _loadErrorDetail = text;
+      });
     });
   }
 
@@ -214,20 +297,34 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _retryTimer?.cancel();
     _searchDebounce?.cancel();
     _subscription?.cancel();
+    _transparencySub?.cancel();
     _moves?.cancel();
     _chat?.dispose();
     _map.dispose();
     super.dispose();
   }
 
+  /// Distance in meters that triggers recentering the map when a fresher GPS fix arrives
+  /// (for example moving from home to school, or replacing a cached fix with a live one).
+  static const double _relocateMeters = 30;
+
   void _onMove(LocationFix fix) {
     if (!mounted) return;
+    final previous = _fix?.position;
+    final next = fix.position;
+    final valid = philippinesBounds.contains(next);
+    final moved = valid &&
+        (previous == null || const Distance().as(LengthUnit.Meter, previous, next) >= _relocateMeters);
     setState(() {
       _fix = fix;
+      if (valid) _center = next;
       _updateNearby();
     });
+    if (moved) _moveCamera(next);
   }
 
   /// Call inside setState. Shows the closest unannounced High hazard within 100 m,
@@ -257,17 +354,36 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  Future<void> _locate() async {
+  Future<void> _locate({bool followIfMoved = false}) async {
     final fix = await widget.location.currentFix();
     if (!mounted) return;
+    final previous = _fix?.position;
     final position = fix?.position;
+    final valid = position != null && philippinesBounds.contains(position);
+    final hadCenter = _center != null;
+    final moved = valid &&
+        (previous == null || const Distance().as(LengthUnit.Meter, previous, position) >= _relocateMeters);
     setState(() {
       _fix = fix;
-      _center ??= position != null && philippinesBounds.contains(position)
-          ? position
-          : GeolocatorLocationService.fallbackCenter;
+      if (valid) {
+        _center = position;
+      } else {
+        _center ??= GeolocatorLocationService.fallbackCenter;
+      }
       _updateNearby();
     });
+    if (valid && hadCenter && (moved || followIfMoved)) {
+      _moveCamera(position);
+    }
+  }
+
+  void _moveCamera(LatLng target) {
+    try {
+      final zoom = _map.camera.zoom;
+      _map.move(target, zoom < _initialZoom ? _initialZoom : zoom);
+    } catch (_) {
+      // The map controller is not attached before the first FlutterMap build.
+    }
   }
 
   void _onIncidents(List<Incident> incidents) {
@@ -297,14 +413,25 @@ class _MapScreenState extends State<MapScreen> {
     _map.move(position, 16);
   }
 
+  /// The user's live GPS position when available, falling back to the map center.
+  LatLng _currentPosition() {
+    final pos = _fix?.position;
+    if (pos != null && philippinesBounds.contains(pos)) return pos;
+    return _center ?? GeolocatorLocationService.fallbackCenter;
+  }
+
   Future<void> _openChat() async {
     final chat = _chat;
     if (chat == null) return;
+    unawaited(_locate(followIfMoved: true));
     final action = await showChatSheet(
       context,
       controller: chat,
       incidents: () => _latest,
-      around: () => _map.camera.center,
+      around: () {
+        unawaited(_locate());
+        return _currentPosition();
+      },
     );
     if (!mounted || action == null) return;
     switch (action) {
@@ -331,6 +458,7 @@ class _MapScreenState extends State<MapScreen> {
       incidents: widget.incidents,
       votes: widget.votes,
       location: widget.location,
+      initialPosition: _fix?.position,
       autoLoadPhoto: !(widget.settings?.dataSaver ?? false),
       onUpgrade: widget.onUpgrade,
     );
@@ -380,13 +508,26 @@ class _MapScreenState extends State<MapScreen> {
             if (_route case final route?)
               PolylineLayer(
                 polylines: [
+                  // The route to take: green when it keeps clear of hazards or is a
+                  // safer alternative (even if not perfectly safe), red only when no
+                  // better route was found at all.
                   Polyline(
                     points: route.path,
                     strokeWidth: 6,
-                    color: context.palette.sage,
+                    color: (route.isSafe || route.riskyDirect != null) ? routeSafeColor : routeRiskyColor,
                     borderColor: context.palette.ink,
                     borderStrokeWidth: 1.5,
                   ),
+                  // The shortest route, in semi-transparent red when it passes a hazard.
+                  // Draw it on top so both routes are visible when they overlap.
+                  if (route.riskyDirect case final risky?)
+                    Polyline(
+                      points: risky.path,
+                      strokeWidth: 3,
+                      color: routeRiskyColor.withValues(alpha: 0.6),
+                      borderColor: context.palette.ink.withValues(alpha: 0.4),
+                      borderStrokeWidth: 0.5,
+                    ),
                 ],
               ),
             if (_fix != null)
@@ -422,15 +563,7 @@ class _MapScreenState extends State<MapScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(child: MapSearchField(onChanged: _onSearchChanged)),
-                  if (_chat != null) ...[
-                    const SizedBox(width: 8),
-                    _RadarButton(onPressed: _openChat),
-                  ],
-                ],
-              ),
+              MapSearchField(onChanged: _onSearchChanged),
               const SizedBox(height: 8),
               MapFilterChips(
                 incidents: _latest,
@@ -440,6 +573,17 @@ class _MapScreenState extends State<MapScreen> {
                   _flyToMatches();
                 },
               ),
+              if (_chat != null) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _RadarButton(onPressed: _openChat),
+                ),
+              ],
+              if (_pickingDestination || _routing || _route != null) ...[
+                const SizedBox(height: 8),
+                _routePanel(),
+              ],
               if (nearby != null) ...[
                 const SizedBox(height: 8),
                 NewHighRiskBanner(
@@ -501,30 +645,27 @@ class _MapScreenState extends State<MapScreen> {
             ],
           ),
         ),
-        if (_pickingDestination || _routing || _route != null)
-          Positioned(
-            left: 76,
-            right: 12,
-            bottom: 96,
-            child: _RoutePanel(
-              text: _routing
-                  ? 'Finding a safe walking route...'
-                  : _pickingDestination
-                      ? 'Tap your destination on the map.'
-                      : _route!.summary,
-              actionLabel: _routing ? null : (_pickingDestination ? 'Cancel' : 'Clear route'),
-              onAction: () => setState(() {
-                _pickingDestination = false;
-                _route = null;
-              }),
-            ),
-          ),
       ],
     );
   }
 
-  /// A flat square block with the pin count, in the color of the most severe member.
-  /// Square, unlike the round single pins, so the two never get confused.
+  /// The route status block: picking a destination, planning, or the planned route.
+  /// Shown under the filter chips, so it never covers the legend or the map buttons.
+  Widget _routePanel() => _RoutePanel(
+        text: _routing
+            ? 'Finding a safe walking route...'
+            : _pickingDestination
+                ? 'Tap your destination on the map.'
+                : _route!.summary,
+        actionLabel: _routing ? null : (_pickingDestination ? 'Cancel' : 'Clear route'),
+        route: _routing || _pickingDestination ? null : _route,
+        onAction: () => setState(() {
+          _pickingDestination = false;
+          _route = null;
+        }),
+      );
+
+  /// A rounded square block with the pin count, in the color of the most severe member.
   Marker _clusterMarker(PinCluster cluster) {
     final count = cluster.members.length;
     final risk = cluster.topRisk;
@@ -545,12 +686,13 @@ class _MapScreenState extends State<MapScreen> {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: riskColor(risk),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: context.palette.paper, width: 2),
               ),
               child: Text(
                 count > 99 ? '99+' : '$count',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: risk == 'High' ? AppColors.onRedOrange : AppColors.cream,
+                      color: risk == 'High' ? AppColors.onError : AppColors.cream,
                     ),
               ),
             ),
@@ -601,7 +743,11 @@ class _DebugError extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace', color: context.palette.ink);
     return Container(
-      color: context.palette.paper,
+      decoration: BoxDecoration(
+        color: context.palette.paper,
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.3)),
+      ),
       padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
       constraints: const BoxConstraints(maxHeight: 140),
       child: Row(
@@ -624,36 +770,88 @@ class _DebugError extends StatelessWidget {
   }
 }
 
-/// Flat route status block with one action (Cancel or Clear route).
+/// Route line colors. Fixed, so they read the same in light and dark mode.
+const Color routeSafeColor = AppColors.success;
+const Color routeRiskyColor = AppColors.riskHigh;
+
+/// Rounded route status block with one action (Cancel or Clear route). With a planned
+/// [route] it adds a key for the green and red lines on the map.
 class _RoutePanel extends StatelessWidget {
-  const _RoutePanel({required this.text, required this.actionLabel, required this.onAction});
+  const _RoutePanel({required this.text, required this.actionLabel, required this.onAction, this.route});
 
   final String text;
   final String? actionLabel;
   final VoidCallback onAction;
+  final DetourRoute? route;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final route = this.route;
+    final swatch = route == null ? context.palette.sage : ((route.isSafe || route.riskyDirect != null) ? routeSafeColor : routeRiskyColor);
     return Container(
-      color: context.palette.paper,
+      decoration: BoxDecoration(
+        color: context.palette.paper,
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.28), width: 1.2),
+      ),
       padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 12, height: 12, color: context.palette.sage, margin: const EdgeInsets.only(right: 8)),
-          Expanded(child: Text(text, style: Theme.of(context).textTheme.bodySmall)),
-          if (actionLabel != null)
-            TextButton(
-              onPressed: onAction,
-              style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
-              child: Text(actionLabel!),
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(color: swatch, borderRadius: BorderRadius.circular(4)),
+              ),
+              Expanded(child: Text(text, style: textTheme.bodySmall)),
+              if (actionLabel != null)
+                TextButton(
+                  onPressed: onAction,
+                  style: TextButton.styleFrom(
+                    foregroundColor: context.palette.ink,
+                    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusSm),
+                  ),
+                  child: Text(actionLabel!),
+                ),
+            ],
+          ),
+          if (route != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  if (route.isSafe || route.riskyDirect != null) _key(textTheme, routeSafeColor, 'Suggested safe route'),
+                  if (!route.isSafe || route.riskyDirect != null) _key(textTheme, routeRiskyColor, 'Passes a hazard'),
+                ],
+              ),
             ),
         ],
       ),
     );
   }
+
+  Widget _key(TextTheme textTheme, Color color, String label) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 18,
+            height: 4,
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+          ),
+          Text(label, style: textTheme.labelSmall),
+        ],
+      );
 }
 
-/// Flat sage block next to the search field.
+/// Rounded sage button below the filter chips on the right side.
 class _RadarButton extends StatelessWidget {
   const _RadarButton({required this.onPressed});
 
@@ -663,11 +861,24 @@ class _RadarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: context.palette.sage,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppTheme.radiusMd,
+        side: BorderSide(color: context.palette.ink.withValues(alpha: 0.35), width: 1.2),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onPressed,
+        borderRadius: AppTheme.radiusMd,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-          child: Text('Ask Radar AI', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: context.palette.ink)),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.radar, size: 18, color: context.palette.ink),
+              const SizedBox(width: 6),
+              Text('Ask Radar AI', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: context.palette.ink)),
+            ],
+          ),
         ),
       ),
     );

@@ -22,13 +22,18 @@ class WizardStepper extends StatelessWidget {
             children: [
               for (final s in WizardStep.values) ...[
                 Expanded(
-                  child: Container(
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
                     height: 6,
-                    color: s.index < step.index
-                        ? context.palette.ink
-                        : s == step
-                            ? AppColors.redOrange
-                            : context.palette.sage,
+                    decoration: BoxDecoration(
+                      color: s.index < step.index
+                          ? context.palette.ink
+                          : s == step
+                              ? Theme.of(context).colorScheme.primary
+                              : context.palette.sage,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
                   ),
                 ),
                 if (s != WizardStep.values.last) const SizedBox(width: 6),
@@ -46,7 +51,7 @@ class WizardStepper extends StatelessWidget {
   }
 }
 
-/// A small flat label/value block for telemetry such as accuracy or geohash.
+/// A small rounded label/value block for telemetry such as accuracy or geohash.
 class InfoChip extends StatelessWidget {
   const InfoChip({super.key, required this.label, required this.value});
 
@@ -57,7 +62,11 @@ class InfoChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      color: context.palette.sage,
+      decoration: BoxDecoration(
+        color: context.palette.sage,
+        borderRadius: AppTheme.radiusSm,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

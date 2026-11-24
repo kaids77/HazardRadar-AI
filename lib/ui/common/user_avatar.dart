@@ -30,11 +30,17 @@ class UserAvatar extends StatelessWidget {
     return Semantics(
       image: true,
       label: name == null ? 'Profile photo' : 'Profile photo of $name',
-      child: Container(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
         width: size,
         height: size,
-        decoration: BoxDecoration(color: palette.sage, border: Border.all(color: palette.ink)),
-        clipBehavior: Clip.hardEdge,
+        decoration: BoxDecoration(
+          color: palette.sage,
+          shape: BoxShape.circle,
+          border: Border.all(color: palette.ink.withValues(alpha: 0.35), width: 1.2),
+        ),
+        clipBehavior: Clip.antiAlias,
         alignment: Alignment.center,
         child: photo != null
             ? Image.memory(

@@ -50,7 +50,6 @@ class _NoteDialogState extends State<_NoteDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      shape: const RoundedRectangleBorder(),
       title: const Text('Resolve report'),
       content: TextField(
         controller: _note,
@@ -61,7 +60,7 @@ class _NoteDialogState extends State<_NoteDialog> {
           labelText: 'Resolution note',
           hintText: 'Patched by City Engineering Team B',
           errorText: _error,
-          border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
+          border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
         ),
       ),
       actions: [
@@ -93,7 +92,6 @@ class _CrewDialogState extends State<_CrewDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      shape: const RoundedRectangleBorder(),
       title: const Text('Assign a crew'),
       content: TextField(
         controller: _crew,
@@ -102,7 +100,7 @@ class _CrewDialogState extends State<_CrewDialog> {
         decoration: const InputDecoration(
           labelText: 'Crew',
           hintText: 'DPWH Patch Crew 4',
-          border: OutlineInputBorder(borderRadius: BorderRadius.zero),
+          border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
         ),
       ),
       actions: [
@@ -130,7 +128,6 @@ class _OverrideDialogState extends State<_OverrideDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      shape: const RoundedRectangleBorder(),
       title: const Text('Override AI rating'),
       content: Column(
         mainAxisSize: MainAxisSize.min,

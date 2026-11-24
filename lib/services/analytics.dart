@@ -48,7 +48,7 @@ class CityAnalytics {
     return counted <= 0 ? 0 : resolved / counted;
   }
 
-  static CityAnalytics compute(List<Incident> incidents, DateTime now, {int hotspotCount = 5}) {
+  static CityAnalytics compute(List<Incident> incidents, DateTime now, {int hotspotCount = 50}) {
     final today = philippineDay(now);
     int countWhere(bool Function(Incident) test) => incidents.where(test).length;
     bool open(Incident i) => !i.isQuarantined && i.status == Incident.statusActive;
@@ -102,6 +102,9 @@ class CityAnalytics {
 abstract interface class AnalyticsRepository {
   /// The newest reports of every status and visibility, up to [limit]. Staff only.
   Future<List<Incident>> recent({int limit = 500});
+
+  /// Live stream of the newest reports so Analytics updates automatically on web and mobile.
+  Stream<List<Incident>> watchRecent({int limit = 500});
 }
 
 class FirestoreAnalyticsRepository implements AnalyticsRepository {
@@ -115,6 +118,22 @@ class FirestoreAnalyticsRepository implements AnalyticsRepository {
     final snapshot = await _db.collection('incidents').orderBy('createdAt', descending: true).limit(limit).get();
     return [for (final doc in snapshot.docs) ?Incident.tryFromFirestore(doc.id, doc.data())];
   }
+
+  @override
+  Stream<List<Incident>> watchRecent({int limit = 500}) => Stream<List<Incident>>.multi((controller) {
+        final sub = _db
+            .collection('incidents')
+            .orderBy('createdAt', descending: true)
+            .limit(limit)
+            .snapshots()
+            .map((s) => [for (final doc in s.docs) ?Incident.tryFromFirestore(doc.id, doc.data())])
+            .listen(
+              controller.add,
+              onError: controller.addError,
+              onDone: controller.close,
+            );
+        controller.onCancel = sub.cancel;
+      });
 }
 
 /// "4.2 h", "35 min", or "2.5 days".

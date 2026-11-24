@@ -25,6 +25,7 @@ import 'services/report_repository.dart';
 import 'services/report_service.dart';
 import 'services/session_service.dart';
 import 'services/staff_auth.dart';
+import 'services/transparency_repository.dart';
 import 'services/triage_service.dart';
 import 'services/user_admin_repository.dart';
 import 'services/vote_repository.dart';
@@ -86,6 +87,8 @@ Future<void> main() async {
             : ReportEnricher(repository: FirestorePendingReportRepository(), proxy: proxyTriage),
         avatars: FirestoreAvatarRepository(),
         avatarPicker: ImageAvatarPicker(),
+        transparency: FirestoreTransparencyRepository(),
+        transparencySync: TransparencySync(),
       ),
     ),
   );

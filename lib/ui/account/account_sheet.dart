@@ -58,7 +58,7 @@ Future<UserProfile?> showAccountSheet(
     context: context,
     backgroundColor: context.palette.paper,
     elevation: 0,
-    shape: const RoundedRectangleBorder(),
+    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusSheet),
     isScrollControlled: true,
     builder: (_) => AccountSheet(profile: profile, session: session, reason: reason),
   );
@@ -137,9 +137,14 @@ class _AccountSheetState extends State<AccountSheet> {
 
   List<Widget> _linked(TextTheme textTheme) {
     final profile = widget.profile;
+    final name = profile.displayName?.trim();
     final progress = LevelPolicy.progress(profile);
     final target = progress.target;
     return [
+      if (name != null && name.isNotEmpty) ...[
+        Text(name, style: textTheme.titleMedium),
+        const SizedBox(height: 2),
+      ],
       Text('Level ${profile.tier}', style: textTheme.labelLarge),
       const SizedBox(height: 4),
       Text(profile.tierTitle, style: _title),
@@ -154,12 +159,15 @@ class _AccountSheetState extends State<AccountSheet> {
       ),
       const SizedBox(height: 16),
       if (target != null) ...[
-        SizedBox(
-          height: 8,
-          child: LinearProgressIndicator(
-            value: progress.fraction,
-            backgroundColor: context.palette.sage,
-            color: AppColors.redOrange,
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: SizedBox(
+            height: 8,
+            child: LinearProgressIndicator(
+              value: progress.fraction,
+              backgroundColor: context.palette.sage,
+              color: Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
         const SizedBox(height: 6),
@@ -184,7 +192,15 @@ class _AccountSheetState extends State<AccountSheet> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 7, right: 10), color: context.palette.ink),
+            Container(
+              width: 8,
+              height: 8,
+              margin: const EdgeInsets.only(top: 7, right: 10),
+              decoration: BoxDecoration(
+                color: context.palette.ink,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
             Expanded(child: Text(text, style: textTheme.bodyMedium)),
           ],
         ),
@@ -201,12 +217,18 @@ class _AccountSheetState extends State<AccountSheet> {
         const SizedBox(height: 16),
         ElevatedButton(
           onPressed: _busy ? null : _continueWithGoogle,
-          style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(52), shape: const RoundedRectangleBorder()),
+          style: ElevatedButton.styleFrom(
+            minimumSize: const Size.fromHeight(52),
+            shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+          ),
           child: _busy
-              ? const SizedBox(
+              ? SizedBox(
                   height: 20,
                   width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onRedOrange),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
                 )
               : const Text('Continue with Google'),
         ),
@@ -216,13 +238,13 @@ class _AccountSheetState extends State<AccountSheet> {
           style: TextButton.styleFrom(
             foregroundColor: context.palette.ink,
             minimumSize: const Size.fromHeight(44),
-            shape: const RoundedRectangleBorder(),
+            shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
           ),
           child: const Text('Continue as guest'),
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
-          FeedbackMessage.error(_error!),
+          FeedbackMessage.error(_error!, onDismiss: () => setState(() => _error = null)),
         ],
       ];
 

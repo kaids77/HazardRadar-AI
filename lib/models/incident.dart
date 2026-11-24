@@ -69,7 +69,9 @@ class Incident {
   bool get isVerified => netVotes >= verifiedThreshold;
 
   /// Short human reference, for example HZD-4F9A2C. Derived from the document id, no counter.
-  String get reference => 'HZD-${id.length >= 6 ? id.substring(0, 6) : id}'.toUpperCase();
+  String get reference => referenceFor(id);
+
+  static String referenceFor(String id) => 'HZD-${id.length >= 6 ? id.substring(0, 6) : id}'.toUpperCase();
 
   /// Returns null when required fields are missing or the coordinates are out of range.
   /// The map skips those documents instead of crashing.

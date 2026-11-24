@@ -7,6 +7,7 @@ import 'package:latlong2/latlong.dart';
 
 import 'package:hazardradarai/models/chat.dart';
 import 'package:hazardradarai/models/incident.dart';
+import 'package:hazardradarai/models/transparency_entry.dart';
 import 'package:hazardradarai/services/chat_service.dart';
 import 'package:hazardradarai/services/proxy_client.dart';
 import 'package:hazardradarai/ui/chat/chat_controller.dart';
@@ -75,8 +76,42 @@ void main() {
       expect(sent['message'], 'safe?');
       final incidents = sent['incidents'] as List;
       expect(incidents, hasLength(20));
-      expect((incidents.first as Map).keys.toSet(), {'id', 'category', 'riskLevel', 'aiSummary'});
+      expect((incidents.first as Map).keys.toSet(), {'id', 'category', 'riskLevel', 'status', 'aiSummary'});
       expect(jsonEncode(sent).contains('secret-uid'), isFalse);
+      expect(sent.containsKey('status'), isFalse);
+    });
+
+    test('sends the report status summary with only safe fields', () async {
+      late Map<String, dynamic> sent;
+      final service = _service(MockClient((request) async {
+        sent = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(jsonEncode({'reply': 'Two are in progress.', 'actions': []}), 200);
+      }));
+      const summary = ReportStatusSummary(
+        active: 4,
+        inProgress: 2,
+        resolved: 9,
+        quarantined: 1,
+        recent: [
+          TransparencyEntry(
+            incidentId: 'abc123xyz',
+            category: 'Pothole',
+            riskLevel: 'Medium',
+            kind: 'RESOLVED',
+            crew: 'Crew 4',
+            resolutionNote: 'Not sent to the AI.',
+          ),
+        ],
+      );
+
+      await service.ask('How many are in progress?', incidents: const [], around: _here, status: summary);
+
+      final status = sent['status'] as Map<String, dynamic>;
+      expect(status['counts'], {'active': 4, 'inProgress': 2, 'resolved': 9, 'quarantined': 1});
+      expect(status['recent'], [
+        {'reference': 'HZD-ABC123', 'category': 'Pothole', 'kind': 'RESOLVED', 'reason': '', 'crew': 'Crew 4'},
+      ]);
+      expect(jsonEncode(sent).contains('Not sent to the AI.'), isFalse);
     });
 
     test('turns proxy failures and empty replies into ChatUnavailable', () async {

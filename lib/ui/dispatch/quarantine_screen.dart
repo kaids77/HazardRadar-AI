@@ -1,47 +1,86 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../models/incident.dart';
 import '../../models/user_profile.dart';
+import '../../services/avatar_repository.dart';
 import '../../services/dispatch_repository.dart';
 import '../../services/moderation_repository.dart';
+import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/incident_evidence.dart';
-import 'storage_meter.dart';
+import 'reporter_line.dart';
 
 /// Dispatch tab: quarantined reports. Staff restore them; admins purge them for good.
 class QuarantineScreen extends StatefulWidget {
-  const QuarantineScreen({super.key, required this.profile, required this.moderation});
+  const QuarantineScreen({
+    super.key,
+    required this.profile,
+    required this.moderation,
+    this.onSyncTransparency,
+    this.users,
+    this.avatars,
+  });
+
+  /// Profiles for the "Reported by" line. Null shows the reporter's level only.
+  final UserAdminRepository? users;
+  final AvatarRepository? avatars;
 
   final UserProfile profile;
   final ModerationRepository moderation;
+
+  /// Admin tool: adds transparency log entries for older resolved and quarantined
+  /// reports. Resolves to how many were added. Null hides the button.
+  final Future<int> Function()? onSyncTransparency;
 
   @override
   State<QuarantineScreen> createState() => _QuarantineScreenState();
 }
 
-class _QuarantineScreenState extends State<QuarantineScreen> {
+class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup {
+  @override
+  UserAdminRepository? get reporterSource => widget.users;
+
+  @override
+  UserProfile get viewer => widget.profile;
+
+  @override
+  AvatarRepository? get reporterAvatars => widget.avatars;
+
+  @override
+  void dispose() {
+    stopReporterLookup();
+    super.dispose();
+  }
+
   late Stream<List<Incident>> _queue = widget.moderation.watchQuarantined();
-  StorageEstimate? _storage;
+  int _page = 0;
   final Set<String> _busy = {};
+  bool _syncing = false;
+
+  Future<void> _syncLog() async {
+    final sync = widget.onSyncTransparency;
+    if (sync == null || _syncing) return;
+    setState(() => _syncing = true);
+    try {
+      final added = await sync();
+      _toast(added == 0 ? 'The transparency log is up to date.' : 'Added $added older reports to the transparency log.');
+    } on DispatchFailed catch (failure) {
+      _toast(failure.message, error: true);
+    } catch (_) {
+      _toast('Could not sync the transparency log. Try again.', error: true);
+    } finally {
+      if (mounted) setState(() => _syncing = false);
+    }
+  }
 
   @override
   void initState() {
     super.initState();
-    _loadStorage();
-  }
-
-  Future<void> _loadStorage() async {
-    try {
-      final estimate = await widget.moderation.storage();
-      if (mounted) setState(() => _storage = estimate);
-    } catch (_) {
-      // The meter is informational.
-    }
+    startReporterLookup();
   }
 
   Future<void> _run(Incident incident, Future<void> Function() action, String done) async {
@@ -49,7 +88,6 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
     try {
       await action();
       _toast(done);
-      unawaited(_loadStorage());
     } on DispatchFailed catch (failure) {
       _toast(failure.message, error: true);
     } catch (_) {
@@ -67,7 +105,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: const RoundedRectangleBorder(),
+        shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusLg),
         title: Text('Permanently purge ${incident.reference}?'),
         content: const Text('The report, its photo, and its votes are deleted. This cannot be undone.'),
         actions: [
@@ -87,17 +125,32 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
       stream: _queue,
       builder: (context, snapshot) {
         final items = snapshot.data ?? const <Incident>[];
+        final page = paginate(items, page: _page);
         return PullToRefresh(
           onRefresh: () async {
             setState(() => _queue = widget.moderation.watchQuarantined());
-            await _loadStorage();
           },
           child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            StorageMeter(estimate: _storage),
-            const SizedBox(height: 16),
+            if (widget.onSyncTransparency != null) ...[
+              OutlinedButton(
+                onPressed: _syncing ? null : _syncLog,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: context.palette.ink,
+                  side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                  shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                ),
+                child: Text(_syncing ? 'Syncing...' : 'Sync transparency log'),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Adds reports resolved or quarantined before the public log existed. Safe to run more than once.',
+                style: textTheme.bodySmall,
+              ),
+              const SizedBox(height: 16),
+            ],
             Text('Quarantined reports (${items.length})', style: textTheme.titleMedium),
             const SizedBox(height: 8),
             if (snapshot.hasError)
@@ -106,16 +159,21 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (items.isEmpty)
               const Text('Nothing in quarantine.')
-            else
-              for (final incident in items) ...[
+            else ...[
+              for (final incident in page.items) ...[
                 Container(
-                  decoration: BoxDecoration(border: Border.fromBorderSide(BorderSide(color: context.palette.ink))),
+                  decoration: BoxDecoration(
+                    color: context.palette.paper,
+                    borderRadius: AppTheme.radiusMd,
+                    border: Border.all(color: context.palette.ink.withValues(alpha: 0.25), width: 1.2),
+                  ),
                   padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Wrap(
                         spacing: 6,
+                        runSpacing: 6,
                         children: [
                           FlatBadge(label: 'Quarantined', background: context.palette.ink, foreground: context.palette.paper),
                           FlatBadge(label: incident.reference, background: context.palette.sage, foreground: context.palette.ink),
@@ -127,9 +185,11 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
                       if (incident.note.isNotEmpty) Text('"${incident.note}"', style: textTheme.bodyMedium),
                       if (incident.createdAt != null)
                         Text(formatPhilippineTime(incident.createdAt!), style: textTheme.bodySmall),
-                      const SizedBox(height: 8),
+                      reporterLineFor(incident),
+                      const SizedBox(height: 10),
                       Wrap(
                         spacing: 8,
+                        runSpacing: 8,
                         children: [
                           OutlinedButton(
                             onPressed: _busy.contains(incident.id)
@@ -137,15 +197,15 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
                                 : () => _run(incident, () => widget.moderation.restore(incident), 'Restored to the map.'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: context.palette.ink,
-                              side: BorderSide(color: context.palette.ink),
-                              shape: const RoundedRectangleBorder(),
+                              side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                              shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
                             ),
                             child: const Text('Restore and verify'),
                           ),
                           if (widget.profile.isAdmin)
                             ElevatedButton(
                               onPressed: _busy.contains(incident.id) ? null : () => _purge(incident),
-                              style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder()),
+                              style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd)),
                               child: const Text('Permanently purge'),
                             ),
                         ],
@@ -155,6 +215,8 @@ class _QuarantineScreenState extends State<QuarantineScreen> {
                 ),
                 const SizedBox(height: 10),
               ],
+              PaginationBar(page: page, onPageChanged: (next) => setState(() => _page = next)),
+            ],
           ],
           ),
         );

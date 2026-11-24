@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../models/incident.dart';
 import '../models/user_profile.dart';
 import 'dispatch_repository.dart';
 
@@ -38,6 +39,10 @@ abstract interface class UserAdminRepository {
   /// [until] is required for SUSPENDED and cleared for every other status.
   Future<void> setStatus(String uid, String status, {DateTime? until});
   Future<void> setRateLimitOverride(String uid, bool value);
+
+  /// How many of the user's reports are quarantined right now, not counting any the
+  /// city already resolved. Staff only.
+  Future<int> quarantinedReports(String uid);
 }
 
 /// Case-insensitive search over display name and uid, then sorted by name.
@@ -58,11 +63,20 @@ class FirestoreUserAdminRepository implements UserAdminRepository {
   DocumentReference<Map<String, dynamic>> _user(String uid) => _db.collection('users').doc(uid);
 
   @override
-  Stream<List<UserProfile>> watchUsers({int limit = 200}) => _db
-      .collection('users')
-      .limit(limit)
-      .snapshots()
-      .map((s) => [for (final doc in s.docs) UserProfile.fromFirestore(doc.id, doc.data())]);
+  Stream<List<UserProfile>> watchUsers({int limit = 200}) =>
+      Stream<List<UserProfile>>.multi((controller) {
+        final sub = _db
+            .collection('users')
+            .limit(limit)
+            .snapshots()
+            .map((s) => [for (final doc in s.docs) UserProfile.fromFirestore(doc.id, doc.data())])
+            .listen(
+              controller.add,
+              onError: controller.addError,
+              onDone: controller.close,
+            );
+        controller.onCancel = sub.cancel;
+      });
 
   @override
   Future<void> setRole(String uid, RoleOption option) =>
@@ -82,6 +96,20 @@ class FirestoreUserAdminRepository implements UserAdminRepository {
   @override
   Future<void> setRateLimitOverride(String uid, bool value) =>
       _guard(() => _user(uid).update({'rateLimitOverride': value}));
+
+  // Equality filters only, so Firestore merges the single-field indexes (no composite index).
+  @override
+  Future<int> quarantinedReports(String uid) async {
+    final quarantined = _db
+        .collection('incidents')
+        .where('reporterUid', isEqualTo: uid)
+        .where('visibility', isEqualTo: Incident.visibilityQuarantined);
+    final counts = await Future.wait([
+      quarantined.count().get(),
+      quarantined.where('status', isEqualTo: Incident.statusResolved).count().get(),
+    ]);
+    return ((counts[0].count ?? 0) - (counts[1].count ?? 0)).clamp(0, 1 << 30);
+  }
 
   static Future<void> _guard(Future<void> Function() action) async {
     try {

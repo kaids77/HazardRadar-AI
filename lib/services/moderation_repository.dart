@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/incident.dart';
+import '../models/transparency_entry.dart';
 import 'dispatch_repository.dart';
 
 /// Estimated Firestore storage used by report photos, against the free 1 GiB.
@@ -66,16 +67,31 @@ class FirestoreModerationRepository implements ModerationRepository {
   CollectionReference<Map<String, dynamic>> get _incidents => _db.collection('incidents');
 
   @override
-  Stream<List<Incident>> watchQuarantined({int limit = 100}) => _incidents
-      .where('visibility', isEqualTo: Incident.visibilityQuarantined)
-      .limit(limit)
-      .snapshots()
-      .map((s) => [for (final doc in s.docs) ?Incident.tryFromFirestore(doc.id, doc.data())]);
+  Stream<List<Incident>> watchQuarantined({int limit = 100}) =>
+      Stream<List<Incident>>.multi((controller) {
+        final sub = _incidents
+            .where('visibility', isEqualTo: Incident.visibilityQuarantined)
+            .limit(limit)
+            .snapshots()
+            .map((s) => [for (final doc in s.docs) ?Incident.tryFromFirestore(doc.id, doc.data())])
+            .listen(
+              controller.add,
+              onError: controller.addError,
+              onDone: controller.close,
+            );
+        controller.onCancel = sub.cancel;
+      });
 
   @override
   Future<void> restore(Incident incident) => _guard(() async {
         if (!incident.isQuarantined) throw const DispatchFailed('This report is not quarantined.');
-        await _incidents.doc(incident.id).update({'visibility': Incident.visibilityPublic, 'netVotes': 0});
+        final ref = _incidents.doc(incident.id);
+        await _db.runTransaction((transaction) async {
+          final data = (await transaction.get(ref)).data();
+          transaction.update(ref, {'visibility': Incident.visibilityPublic, 'netVotes': 0});
+          final log = _logEntry(data, TransparencyEntry.kindRestored);
+          if (log != null) transaction.set(_log.doc(incident.id), log);
+        });
       });
 
   @override
@@ -93,10 +109,41 @@ class FirestoreModerationRepository implements ModerationRepository {
         await batch.commit();
       }
       // The report goes last, so a failure part-way leaves it in the queue to purge again.
-      await ref.delete();
+      // The public log keeps a "removed as spam" record, and the reporter's profile counts
+      // the removal (reportsRemoved), both in the same transaction.
+      await _db.runTransaction((transaction) async {
+        final data = (await transaction.get(ref)).data();
+        final reporterUid = data?['reporterUid'];
+        final reporterRef = reporterUid is String && data?['visibility'] == Incident.visibilityQuarantined
+            ? _db.collection('users').doc(reporterUid)
+            : null;
+        final reporter = reporterRef == null ? null : await transaction.get(reporterRef);
+        transaction.delete(ref);
+        final log = _logEntry(data, TransparencyEntry.kindPurged);
+        if (log != null) transaction.set(_log.doc(incident.id), log);
+        if (reporter != null && reporter.exists) {
+          final removed = reporter.data()?['reportsRemoved'];
+          transaction.update(reporter.reference, {
+            'reportsRemoved': (removed is int ? removed : 0) + 1,
+            'lastRemovedId': incident.id,
+          });
+        }
+      });
       deleted = refs.length + 1;
     });
     return deleted;
+  }
+
+  CollectionReference<Map<String, dynamic>> get _log => _db.collection(TransparencyEntry.collection);
+
+  static Map<String, Object>? _logEntry(Map<String, dynamic>? data, String kind) {
+    final category = data?['category'];
+    final riskLevel = data?['riskLevel'];
+    if (category is! String || riskLevel is! String) return null;
+    return {
+      ...TransparencyEntry.fields(category: category, riskLevel: riskLevel, kind: kind),
+      'at': FieldValue.serverTimestamp(),
+    };
   }
 
   @override

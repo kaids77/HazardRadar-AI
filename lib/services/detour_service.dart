@@ -12,6 +12,7 @@ class DetourRoute {
     required this.distanceMeters,
     required this.durationSeconds,
     this.clearanceMeters,
+    this.direct,
   });
 
   final List<LatLng> path;
@@ -21,13 +22,43 @@ class DetourRoute {
   /// Closest the route comes to a High or Medium hazard, or null when none were nearby.
   final int? clearanceMeters;
 
+  /// The shortest route, when it is a different route from this one. The map draws it
+  /// red when it passes a hazard, next to this route in green.
+  final DetourRoute? direct;
+
   static const int maxPoints = 5000;
 
   /// Must match SAFE_METERS in proxy/src/detour.js.
-  static const int unsafeBelowMeters = 40;
+  static const int unsafeBelowMeters = 30;
+
+  /// True when the route keeps at least [unsafeBelowMeters] from every High or Medium hazard.
+  bool get isSafe => clearanceMeters == null || clearanceMeters! >= unsafeBelowMeters;
+
+  /// True when this route is a meaningfully safer alternative to the direct route,
+  /// even if it still passes within [unsafeBelowMeters] of a hazard.
+  bool get isSaferThanDirect {
+    final d = direct;
+    if (d == null) return false;
+    final mine = clearanceMeters;
+    final theirs = d.clearanceMeters;
+    if (mine == null) return true; // no hazards near this route
+    if (theirs == null) return false; // no hazards near direct either
+    return mine > theirs; // this route keeps farther from hazards
+  }
+
+  /// The shortest route, only when it passes closer to a hazard than this route.
+  /// The map draws it red next to this route in green.
+  DetourRoute? get riskyDirect {
+    final d = direct;
+    if (d == null) return null;
+    if (!d.isSafe && (isSafe || isSaferThanDirect)) return d;
+    return null;
+  }
 
   /// Parses the proxy `/detour` response. Returns null for anything malformed or outside the Philippines.
-  static DetourRoute? tryFromJson(Object? json) {
+  static DetourRoute? tryFromJson(Object? json) => _parse(json, withDirect: true);
+
+  static DetourRoute? _parse(Object? json, {required bool withDirect}) {
     if (json is! Map) return null;
     final raw = json['path'];
     final distance = json['distanceMeters'];
@@ -46,20 +77,38 @@ class DetourRoute {
       distanceMeters: distance.round(),
       durationSeconds: duration.round(),
       clearanceMeters: clearance is num ? clearance.round() : null,
+      // A malformed extra route is dropped; the safe route still shows.
+      direct: withDirect ? _parse(json['direct'], withDirect: false) : null,
     );
   }
 
   /// "1.3 km · 18 min walk · stays 140 m from High and Medium hazards". When the route
   /// still passes close to a hazard (no way around it was found), it says so plainly.
+  /// When a safer alternative was found, it notes that the green route avoids the hazard.
   String get summary {
     final km = distanceMeters >= 1000 ? '${(distanceMeters / 1000).toStringAsFixed(1)} km' : '$distanceMeters m';
     final minutes = (durationSeconds / 60).ceil();
     final clearance = clearanceMeters;
-    final away = clearance == null
-        ? 'no High or Medium hazards nearby'
-        : clearance < unsafeBelowMeters
-            ? 'Warning: passes within $clearance m of a hazard. No safer route found.'
-            : 'stays $clearance m from High and Medium hazards';
+    final hasAlternative = riskyDirect != null;
+    final String away;
+    if (clearance == null) {
+      away = 'no High or Medium hazards nearby';
+    } else if (clearance < unsafeBelowMeters) {
+      if (hasAlternative) {
+        final directDist = direct?.clearanceMeters;
+        final directText = directDist != null ? 'within $directDist m of' : 'near';
+        away = 'Warning: direct route passes $directText a High or Medium hazard. '
+            'Green route keeps $clearance m away.';
+      } else {
+        away = 'Warning: passes within $clearance m of a High or Medium hazard. No safer route found.';
+      }
+    } else {
+      if (hasAlternative) {
+        away = 'stays $clearance m from High and Medium hazards (direct route passes closer)';
+      } else {
+        away = 'stays $clearance m from High and Medium hazards';
+      }
+    }
     return '$km · $minutes min walk · $away';
   }
 }
@@ -84,9 +133,9 @@ class ProxyDetourService implements DetourService {
   /// Must match MAX_HAZARDS in proxy/src/detour.js.
   static const int maxHazards = 50;
 
-  /// The proxy may ask the router up to three times (direct, then two rounds of
+  /// The proxy may ask the router up to five times (direct, then four rounds of
   /// detours around a hazard), each with an 8 s limit, so the default 8 s is too short.
-  static const Duration timeout = Duration(seconds: 30);
+  static const Duration timeout = Duration(seconds: 45);
 
   final ProxyClient _proxy;
 

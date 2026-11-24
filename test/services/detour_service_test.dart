@@ -58,6 +58,28 @@ void main() {
     expect(DetourRoute.tryFromJson({..._good, 'path': 'nope'}), isNull);
   });
 
+  test('a risky shortest route comes back for the red line; a safe route stays green', () {
+    final route = DetourRoute.tryFromJson({
+      ..._good,
+      'direct': {..._good, 'distanceMeters': 900, 'clearanceMeters': 8},
+    })!;
+    expect(route.isSafe, isTrue);
+    expect(route.riskyDirect?.distanceMeters, 900);
+
+    // A broken extra route is dropped.
+    expect(DetourRoute.tryFromJson({..._good, 'direct': {'path': 'x'}})!.direct, isNull);
+
+    // Chosen route is safer than direct (10 m vs 3 m) → riskyDirect is returned for red line.
+    final stuck = DetourRoute.tryFromJson({
+      ..._good,
+      'clearanceMeters': 10,
+      'direct': {..._good, 'clearanceMeters': 3},
+    })!;
+    expect(stuck.isSafe, isFalse);
+    expect(stuck.isSaferThanDirect, isTrue);
+    expect(stuck.riskyDirect?.clearanceMeters, 3);
+  });
+
   test('sends only High and Medium hazards and maps failures to a message', () async {
     late Map<String, dynamic> sent;
     final service = _service((request) async {
@@ -91,6 +113,7 @@ class _Echo implements ChatService {
     required LatLng around,
     List<ChatTurn> history = const [],
     ChatMode? mode,
+    ReportStatusSummary? status,
   }) async =>
       const ChatReply(reply: 'Avoid the wire on Lopez Jaena.', actions: []);
 }

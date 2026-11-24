@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../models/user_profile.dart';
+import '../../services/avatar_repository.dart';
 import '../../services/dispatch_repository.dart';
+import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
 import 'dispatch_queue_screen.dart';
 
@@ -12,12 +14,18 @@ class DispatchScreen extends StatelessWidget {
     super.key,
     required this.profile,
     required this.dispatch,
+    this.users,
+    this.avatars,
     this.staffTabs = const [],
     this.adminTabs = const [],
   });
 
   final UserProfile profile;
   final DispatchRepository dispatch;
+
+  /// Profiles for the "Reported by" line on tickets. Null shows the reporter's level only.
+  final UserAdminRepository? users;
+  final AvatarRepository? avatars;
 
   /// Extra (label, page) pairs shown to every staff member.
   final List<(String, Widget)> staffTabs;
@@ -28,7 +36,7 @@ class DispatchScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tabs = <(String, Widget)>[
-      ('Queue', DispatchQueueScreen(profile: profile, dispatch: dispatch)),
+      ('Queue', DispatchQueueScreen(profile: profile, dispatch: dispatch, users: users, avatars: avatars)),
       ...staffTabs,
       if (profile.isAdmin) ...adminTabs,
     ];
@@ -40,12 +48,17 @@ class DispatchScreen extends StatelessWidget {
           ColoredBox(
             color: context.palette.paper,
             child: TabBar(
-              isScrollable: true,
+              isScrollable: false,
               labelColor: context.palette.ink,
               unselectedLabelColor: context.palette.ink,
-              indicator: BoxDecoration(color: context.palette.sage),
+              indicator: BoxDecoration(
+                color: context.palette.sage,
+                borderRadius: AppTheme.radiusSm,
+                border: Border.all(color: context.palette.ink.withValues(alpha: 0.25)),
+              ),
+              indicatorPadding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
               indicatorSize: TabBarIndicatorSize.tab,
-              dividerColor: context.palette.sage,
+              dividerColor: context.palette.ink.withValues(alpha: 0.18),
               tabs: [for (final (label, _) in tabs) Tab(text: label)],
             ),
           ),

@@ -4,7 +4,7 @@ import '../../models/incident.dart';
 import '../../theme/app_theme.dart';
 import 'map_filter.dart';
 
-/// Flat cream search field: filters pins by HZD reference or category, on the device.
+/// Rounded search field: filters pins by HZD reference or category, on the device.
 class MapSearchField extends StatelessWidget {
   const MapSearchField({super.key, required this.onChanged});
 
@@ -14,6 +14,8 @@ class MapSearchField extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: context.palette.paper,
+      borderRadius: AppTheme.radiusMd,
+      clipBehavior: Clip.antiAlias,
       child: TextField(
         onChanged: onChanged,
         textInputAction: TextInputAction.search,
@@ -21,9 +23,18 @@ class MapSearchField extends StatelessWidget {
           hintText: 'Search: high risk, pothole, HZD id',
           prefixIcon: Icon(Icons.search, color: context.palette.ink),
           isDense: true,
-          border: OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: context.palette.ink)),
-          enabledBorder:
-              OutlineInputBorder(borderRadius: BorderRadius.zero, borderSide: BorderSide(color: context.palette.ink)),
+          border: OutlineInputBorder(
+            borderRadius: AppTheme.radiusMd,
+            borderSide: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: AppTheme.radiusMd,
+            borderSide: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: AppTheme.radiusMd,
+            borderSide: BorderSide(color: context.palette.ink, width: 1.6),
+          ),
         ),
       ),
     );
@@ -75,8 +86,12 @@ class MapLegend extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.labelSmall;
     return Container(
-      color: context.palette.paper,
-      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: context.palette.paper,
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.28), width: 1.2),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -87,7 +102,14 @@ class MapLegend extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(width: 12, height: 12, color: color),
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                   const SizedBox(width: 6),
                   Text(label, style: style),
                 ],
@@ -99,7 +121,7 @@ class MapLegend extends StatelessWidget {
   }
 }
 
-/// A flat square map button, sage with an ink icon.
+/// A rounded map action button, sage with an ink icon and subtle border.
 class MapSquareButton extends StatelessWidget {
   const MapSquareButton({super.key, required this.icon, required this.tooltip, required this.onPressed});
 
@@ -113,8 +135,14 @@ class MapSquareButton extends StatelessWidget {
       message: tooltip,
       child: Material(
         color: context.palette.sage,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppTheme.radiusMd,
+          side: BorderSide(color: context.palette.ink.withValues(alpha: 0.3), width: 1.2),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onPressed,
+          borderRadius: AppTheme.radiusMd,
           child: SizedBox(width: 48, height: 48, child: Icon(icon, color: context.palette.ink)),
         ),
       ),
@@ -122,7 +150,7 @@ class MapSquareButton extends StatelessWidget {
   }
 }
 
-/// A flat label block, for the GPS chip and notices.
+/// A rounded label block, for the GPS chip and notices.
 class MapLabel extends StatelessWidget {
   const MapLabel({super.key, required this.text, this.color, this.textColor});
 
@@ -137,14 +165,18 @@ class MapLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: color ?? context.palette.sage,
+      decoration: BoxDecoration(
+        color: color ?? context.palette.sage,
+        borderRadius: AppTheme.radiusSm,
+        border: Border.all(color: (textColor ?? context.palette.ink).withValues(alpha: 0.25)),
+      ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       child: Text(text, style: Theme.of(context).textTheme.labelMedium?.copyWith(color: textColor ?? context.palette.ink)),
     );
   }
 }
 
-/// Flat red-orange alert for a High-risk hazard. Used for a new report after the map
+/// Rounded red-orange alert for a High-risk hazard. Used for a new report after the map
 /// loaded, and for a High hazard within 100 m of the commuter.
 class NewHighRiskBanner extends StatelessWidget {
   const NewHighRiskBanner({
@@ -170,21 +202,24 @@ class NewHighRiskBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Material(
-      color: AppColors.redOrange,
+      color: AppColors.riskHigh,
+      borderRadius: AppTheme.radiusMd,
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onOpen,
+        borderRadius: AppTheme.radiusMd,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
+          padding: const EdgeInsets.fromLTRB(14, 10, 4, 10),
           child: Row(
             children: [
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: textTheme.labelLarge?.copyWith(color: AppColors.onRedOrange)),
+                    Text(title, style: textTheme.labelLarge?.copyWith(color: AppColors.onError)),
                     Text(
                       detail ?? '${incident.category} · ${incident.reference}. Tap to open.',
-                      style: textTheme.bodySmall?.copyWith(color: AppColors.onRedOrange),
+                      style: textTheme.bodySmall?.copyWith(color: AppColors.onError),
                     ),
                   ],
                 ),
@@ -192,7 +227,7 @@ class NewHighRiskBanner extends StatelessWidget {
               IconButton(
                 tooltip: dismissTooltip,
                 onPressed: onDismiss,
-                icon: const Icon(Icons.close, color: AppColors.onRedOrange),
+                icon: const Icon(Icons.close, color: AppColors.onError),
               ),
             ],
           ),

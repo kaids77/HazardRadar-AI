@@ -67,8 +67,14 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
 
   ButtonStyle get _outline => OutlinedButton.styleFrom(
         foregroundColor: context.palette.ink,
-        side: BorderSide(color: context.palette.ink),
-        shape: const RoundedRectangleBorder(),
+        side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+        shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+      );
+
+  ButtonStyle get _signOutOutline => OutlinedButton.styleFrom(
+        foregroundColor: AppColors.error,
+        side: const BorderSide(color: AppColors.error, width: 1.4),
+        shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
       );
 
   /// The user's Google name, then their email, for messages.
@@ -146,7 +152,11 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
           ..._guestBlock(),
         if (message != null) ...[
           const SizedBox(height: 8),
-          FeedbackMessage(message.text, tone: message.tone),
+          FeedbackMessage(
+            message.text,
+            tone: message.tone,
+            onDismiss: () => setState(() => _message = null),
+          ),
         ],
       ],
     );
@@ -160,8 +170,12 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
       const Text('City staff', style: _heading),
       const SizedBox(height: 4),
       Container(
-        color: context.palette.sage,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: context.palette.sage,
+          borderRadius: AppTheme.radiusMd,
+          border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -201,7 +215,7 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
         ),
       ],
       const SizedBox(height: 8),
-      OutlinedButton(onPressed: _busy ? null : widget.onSignOut, style: _outline, child: const Text('Sign out')),
+      OutlinedButton(onPressed: _busy ? null : widget.onSignOut, style: _signOutOutline, child: const Text('Sign out')),
       const SizedBox(height: 4),
       Text(
         'Your points and reports stay on this Google account. After signing out you browse as a guest.',
@@ -215,7 +229,7 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
         const SizedBox(height: 8),
         Text('Signed in as ${widget.profile.tierTitle}.', style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 8),
-        OutlinedButton(onPressed: _busy ? null : widget.onSignOut, style: _outline, child: const Text('Sign out')),
+        OutlinedButton(onPressed: _busy ? null : widget.onSignOut, style: _signOutOutline, child: const Text('Sign out')),
       ];
 
   List<Widget> _guestBlock() {
@@ -233,14 +247,14 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
         controller: _email,
         keyboardType: TextInputType.emailAddress,
         autofillHints: const [AutofillHints.email],
-        decoration: const InputDecoration(labelText: 'Staff email', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+        decoration: const InputDecoration(labelText: 'Staff email', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
       ),
       const SizedBox(height: 8),
       TextField(
         controller: _password,
         obscureText: true,
         autofillHints: const [AutofillHints.password],
-        decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+        decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
         onSubmitted: (_) => _signIn(),
       ),
       const SizedBox(height: 8),
@@ -315,16 +329,19 @@ class _PasswordDialogState extends State<_PasswordDialog> {
             controller: _password,
             obscureText: true,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'New password', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+            decoration: const InputDecoration(labelText: 'New password', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _confirm,
             obscureText: true,
             onSubmitted: (_) => _save(),
-            decoration: const InputDecoration(labelText: 'Repeat password', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+            decoration: const InputDecoration(labelText: 'Repeat password', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
           ),
-          if (error != null) ...[const SizedBox(height: 8), FeedbackMessage.error(error)],
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            FeedbackMessage.error(error, onDismiss: () => setState(() => _error = null)),
+          ],
         ],
       ),
       actions: [

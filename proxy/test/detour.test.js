@@ -166,8 +166,14 @@ test('POST /detour returns the safest path and has its own per-user limit', asyn
   assert.equal(body.alternatives, 2);
   assert.ok(body.clearanceMeters > 200);
   assert.deepEqual(body.path[0], [10.3236, 123.9322]);
+  // The shortest route passes the hazard, so it comes back too, for the red line.
+  assert.equal(body.direct.distanceMeters, 710);
+  assert.equal(body.direct.clearanceMeters, 0);
 
-  assert.equal((await postDetour(base, { from: FROM, to: TO })).status, 200);
+  const clear = await postDetour(base, { from: FROM, to: TO });
+  assert.equal(clear.status, 200);
+  assert.equal((await clear.json()).direct, null);
+
   assert.equal((await postDetour(base, { from: FROM, to: TO })).status, 429);
 });
 

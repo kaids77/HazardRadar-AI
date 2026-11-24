@@ -64,7 +64,7 @@ class _NameDialogState extends State<_NameDialog> {
             decoration: InputDecoration(
               labelText: 'Name',
               errorText: _error,
-              border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
+              border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
             ),
           ),
         ],

@@ -79,7 +79,7 @@ void main() {
     final repo = await _pump(tester, _dispatcher);
 
     expect(find.text('Quarantined reports (1)'), findsOneWidget);
-    expect(find.textContaining('of 1,024 MB'), findsOneWidget);
+    expect(find.text('Photo storage (Firestore free tier)'), findsNothing);
     expect(find.text('Permanently purge'), findsNothing);
 
     await tester.tap(find.text('Restore and verify'));

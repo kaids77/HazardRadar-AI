@@ -24,6 +24,7 @@ Future<void> showIncidentSheet(
   required IncidentRepository incidents,
   required VoteRepository votes,
   required LocationProvider location,
+  LatLng? initialPosition,
   bool autoLoadPhoto = true,
   Future<UserProfile?> Function()? onUpgrade,
 }) {
@@ -33,7 +34,7 @@ Future<void> showIncidentSheet(
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
-    shape: const RoundedRectangleBorder(),
+    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusSheet),
     builder: (_) => DraggableScrollableSheet(
       controller: controller,
       expand: false,
@@ -42,14 +43,20 @@ Future<void> showIncidentSheet(
       maxChildSize: 0.94,
       snap: true,
       snapSizes: const [0.42, 0.94],
-      builder: (context, scrollController) => ColoredBox(
-        color: context.palette.paper,
+      builder: (context, scrollController) => Container(
+        decoration: BoxDecoration(
+          color: context.palette.paper,
+          borderRadius: AppTheme.radiusSheet,
+          border: Border.all(color: context.palette.ink.withValues(alpha: 0.22), width: 1.2),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: IncidentSheet(
           incident: incident,
           profile: profile,
           incidents: incidents,
           votes: votes,
           location: location,
+          initialPosition: initialPosition,
           autoLoadPhoto: autoLoadPhoto,
           onUpgrade: onUpgrade,
           scrollController: scrollController,
@@ -69,6 +76,7 @@ class IncidentSheet extends StatefulWidget {
     required this.incidents,
     required this.votes,
     required this.location,
+    this.initialPosition,
     this.autoLoadPhoto = true,
     this.onUpgrade,
     this.scrollController,
@@ -80,6 +88,10 @@ class IncidentSheet extends StatefulWidget {
   final IncidentRepository incidents;
   final VoteRepository votes;
   final LocationProvider location;
+
+  /// Fallback GPS position already known by the map, used when Web geolocation
+  /// times out while a position stream is already running.
+  final LatLng? initialPosition;
 
   /// False when data saver is on: the photo loads only after a tap.
   final bool autoLoadPhoto;
@@ -105,6 +117,12 @@ class _IncidentSheetState extends State<IncidentSheet> {
   bool _busy = false;
   bool _voted = false;
   bool _flagged = false;
+
+  /// The net votes shown in the sheet. Starts from the report and follows this user's vote.
+  late int _netVotes = widget.incident.netVotes;
+
+  /// True when this user's vote just moved the report into quarantine.
+  bool _quarantinedNow = false;
   ({String text, FeedbackTone tone})? _message;
 
   @override
@@ -121,8 +139,16 @@ class _IncidentSheetState extends State<IncidentSheet> {
     });
   }
 
+  static const Duration _locationTimeout = Duration(seconds: 3);
+
   Future<double?> _measureDistance() async {
-    final here = await widget.location.current();
+    LatLng? here;
+    try {
+      here = await widget.location.current().timeout(_locationTimeout, onTimeout: () => widget.initialPosition);
+    } catch (_) {
+      here = widget.initialPosition;
+    }
+    here ??= widget.initialPosition;
     if (here == null) return null;
     final there = LatLng(widget.incident.latitude, widget.incident.longitude);
     return const Distance().as(LengthUnit.Meter, here, there);
@@ -165,15 +191,18 @@ class _IncidentSheetState extends State<IncidentSheet> {
     });
     final weight = VotePolicy.weightForTier(_profile.tier);
     try {
-      await widget.votes.cast(
+      final next = await widget.votes.cast(
         incidentId: widget.incident.id,
         uid: _profile.uid,
         value: confirm ? weight : -weight,
       );
       if (mounted) {
+        final outcome = VoteOutcomes.of(next);
         setState(() {
           _voted = true;
-          _message = (text: 'Vote recorded.', tone: FeedbackTone.success);
+          _netVotes = next;
+          _quarantinedNow = outcome == VoteOutcome.quarantined;
+          _message = (text: VoteOutcomes.message(outcome), tone: FeedbackTone.success);
         });
       }
     } on AlreadyVotedException {
@@ -195,13 +224,14 @@ class _IncidentSheetState extends State<IncidentSheet> {
       !_profile.isStaff &&
       widget.incident.reporterUid != _profile.uid &&
       !widget.incident.isQuarantined &&
+      !_quarantinedNow &&
       !_flagged;
 
   Future<void> _flag() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: const RoundedRectangleBorder(),
+        shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusLg),
         title: const Text('Flag as spam or duplicate?'),
         content: const Text('The report leaves the public map right away. A moderator reviews it.'),
         actions: [
@@ -232,25 +262,37 @@ class _IncidentSheetState extends State<IncidentSheet> {
     final incident = widget.incident;
     final textTheme = Theme.of(context).textTheme;
     final status = statusStyle(context, incident);
+    final statusColor = statusTextColor(context, incident);
     return SafeArea(
       child: ListView(
         controller: widget.scrollController,
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
         children: [
-          Center(child: Container(width: 40, height: 4, color: context.palette.ink)),
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: context.palette.ink.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: [
-              FlatBadge(
+              FlatBadge.outlined(
                 label: '${incident.riskLevel} risk',
-                background: riskColor(incident.riskLevel),
-                foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
+                color: riskColor(incident.riskLevel),
               ),
-              FlatBadge(label: '${incident.reference} · ${status.label}', background: status.background, foreground: status.foreground),
-              if (incident.isVerified)
-                FlatBadge(label: 'Verified hazard', background: context.palette.ink, foreground: context.palette.paper),
+              FlatBadge.outlined(
+                label: '${incident.reference} · ${status.label}',
+                color: statusColor,
+              ),
+              if (_netVotes >= Incident.verifiedThreshold && !_quarantinedNow)
+                const FlatBadge.outlined(label: 'Verified hazard', color: AppColors.riskLow),
             ],
           ),
           if (incident.isQuarantined) ...[const SizedBox(height: 12), const DisputedWarning()],
@@ -265,7 +307,11 @@ class _IncidentSheetState extends State<IncidentSheet> {
           ),
           const SizedBox(height: 10),
           Container(
-            color: context.palette.sage,
+            decoration: BoxDecoration(
+              color: context.palette.sage,
+              borderRadius: AppTheme.radiusMd,
+              border: Border.all(color: context.palette.ink.withValues(alpha: 0.2)),
+            ),
             padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -280,7 +326,10 @@ class _IncidentSheetState extends State<IncidentSheet> {
             const SizedBox(height: 4),
             TextButton(
               onPressed: widget.onExpand,
-              style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
+              style: TextButton.styleFrom(
+                foregroundColor: context.palette.ink,
+                shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+              ),
               child: const Text('Swipe up for photo proof and voting'),
             ),
           ],
@@ -289,14 +338,25 @@ class _IncidentSheetState extends State<IncidentSheet> {
           const SizedBox(height: 12),
           EvidenceDetails(incident: incident),
           const SizedBox(height: 16),
-          VoteTally(netVotes: incident.netVotes),
+          VoteTally(netVotes: _netVotes),
+          if (_message != null) ...[
+            const SizedBox(height: 8),
+            FeedbackMessage(
+              _message!.text,
+              tone: _message!.tone,
+              onDismiss: () => setState(() => _message = null),
+            ),
+          ],
           const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: ElevatedButton(
                   onPressed: _busy || _voted || incident.isQuarantined ? null : () => _vote(true),
-                  style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), shape: const RoundedRectangleBorder()),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                  ),
                   child: const Text('Still here'),
                 ),
               ),
@@ -306,9 +366,9 @@ class _IncidentSheetState extends State<IncidentSheet> {
                   onPressed: _busy || _voted || incident.isQuarantined ? null : () => _vote(false),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
-                    shape: const RoundedRectangleBorder(),
+                    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
                     foregroundColor: context.palette.ink,
-                    side: BorderSide(color: context.palette.ink),
+                    side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
                   ),
                   child: const Text('Fixed or fake'),
                 ),
@@ -319,13 +379,12 @@ class _IncidentSheetState extends State<IncidentSheet> {
             const SizedBox(height: 8),
             TextButton(
               onPressed: _busy ? null : _flag,
-              style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
+              style: TextButton.styleFrom(
+                foregroundColor: context.palette.ink,
+                shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+              ),
               child: const Text('Flag as spam or duplicate (Sentinel)'),
             ),
-          ],
-          if (_message != null) ...[
-            const SizedBox(height: 8),
-            FeedbackMessage(_message!.text, tone: _message!.tone),
           ],
         ],
       ),

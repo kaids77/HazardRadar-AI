@@ -59,6 +59,30 @@ the staff form accepts the Gmail address and that password. The button then read
   and the emergency no-daily-limit switch), permanent purge of quarantined reports, and analytics.
   Admins cannot change their own account.
 
+## Moderation guideline (warn, suspend, ban)
+Staff see who filed each report: the Queue and Quarantine cards show "Reported by [name] · [level]",
+and tapping it opens the user's page. Dispatchers can read that page; only admins can act on it.
+
+The user page has a **Report history**: trust points, reports, resolved, accuracy, **Quarantined now**
+(the user's reports hidden from the map right now) and **Removed as spam** (reports an admin purged).
+Below it, a **Suggested** line follows this guideline. Restored and resolved reports never count.
+
+| Quarantined now + removed as spam | Account status | Suggested action |
+|---|---|---|
+| 0 or 1 | any | No action |
+| 2 or more | Active | Warn |
+| 3 or more | Warned | Suspend for 7 days |
+| 5 or more | Suspended (after a suspension) | Consider a ban |
+
+The suggestion is a hint only. The app never warns, suspends, or bans anyone by itself, and it moves one
+step at a time. Offensive or clearly fake content can justify faster action; the admin decides. Before
+acting, review the reports in Quarantine: a report can be quarantined by mistake, and restoring it
+removes it from the count.
+
+**Privacy:** reporter names stay inside the staff tools. The public Report transparency list never
+names anyone on quarantined, restored, or removed reports. A name appears only on a resolved report,
+and only when that reporter turned on **Settings > Show my name on my resolved reports**.
+
 ## If something goes wrong
 | Problem | Fix |
 |---|---|

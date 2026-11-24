@@ -7,7 +7,7 @@ void main() {
   test('risk levels map to the flat palette colors', () {
     expect(riskColor('Low'), AppColors.riskLow);
     expect(riskColor('Medium'), AppColors.riskMedium);
-    expect(riskColor('High'), AppColors.redOrange);
+    expect(riskColor('High'), AppColors.riskHigh);
   });
 
   test('unknown risk levels fall back to ink', () {

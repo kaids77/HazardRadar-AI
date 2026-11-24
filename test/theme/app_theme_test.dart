@@ -6,9 +6,14 @@ import 'package:hazardradarai/theme/app_theme.dart';
 
 void main() {
   test('palette tokens match the approved hex values', () {
-    expect(AppColors.cream, const Color(0xFFEFE6D5));
-    expect(AppColors.sage, const Color(0xFF9DBEB7));
-    expect(AppColors.redOrange, const Color(0xFFE73213));
+    expect(AppColors.cream, const Color(0xFFF3F7FA));
+    expect(AppColors.sage, const Color(0xFFD5E1E0));
+    expect(AppColors.logoSage, const Color(0xFF8AA3A0));
+    expect(AppColors.ink, const Color(0xFF111925));
+    expect(AppColors.darkPaper, const Color(0xFF0F131E));
+    expect(AppColors.darkSage, const Color(0xFF1D2836));
+    expect(AppColors.redOrange, const Color(0xFF111925));
+    expect(AppColors.riskHigh, const Color(0xFFE73213));
   });
 
   test('theme uses the palette and has no elevation or surface tint', () {
@@ -23,14 +28,14 @@ void main() {
     expect(theme.colorScheme.surfaceTint, Colors.transparent);
   });
 
-  test('dark mode swaps background and text, and keeps red-orange and the flat look', () {
+  test('dark mode swaps background and text, and keeps the flat look', () {
     final theme = AppTheme.dark();
 
     expect(theme.brightness, Brightness.dark);
     expect(theme.scaffoldBackgroundColor, AppColors.darkPaper);
     expect(theme.extension<AppPalette>(), AppPalette.dark);
     expect(theme.extension<AppPalette>()!.ink, AppColors.cream);
-    expect(theme.colorScheme.primary, AppColors.redOrange);
+    expect(theme.colorScheme.primary, AppColors.cream);
     expect(theme.appBarTheme.elevation, 0);
   });
 

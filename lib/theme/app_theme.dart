@@ -7,33 +7,34 @@ import 'package:flutter/material.dart';
 /// These never change with light or dark mode. Screens use [AppPalette] (through
 /// `context.palette`) for the background, text, and panel colors that do change.
 abstract final class AppColors {
-  static const cream = Color(0xFFEFE6D5);
-  static const sage = Color(0xFF9DBEB7);
-  static const redOrange = Color(0xFFE73213);
-  static const ink = Color(0xFF1B1B1B);
+  static const cream = Color(0xFFF3F7FA);
+  static const sage = Color(0xFFD5E1E0);
+  static const logoSage = Color(0xFF8AA3A0);
+  static const redOrange = Color(0xFF111925);
+  static const ink = Color(0xFF111925);
 
-  // Black text on red-orange reaches about 4.9:1 contrast, above the 4.5:1 minimum.
-  static const onRedOrange = Color(0xFF000000);
+  // Crisp off-white text on the dark navy primary color.
+  static const onRedOrange = cream;
 
   static const riskLow = Color(0xFF2F7A56);
   static const riskMedium = Color(0xFFC77700);
-  static const riskHigh = redOrange;
+  static const riskHigh = Color(0xFFE73213);
 
-  /// Reports a crew is working on. A flat ink-blue, with cream text on top (about 9:1).
+  /// Reports a crew is working on. A flat ink-blue, with light text on top (about 9:1).
   static const inProgress = Color(0xFF2E4A62);
   static const onInProgress = cream;
 
-  /// Success messages: a deeper green than [riskLow], so cream text reaches about 5.6:1.
+  /// Success messages: a deeper green than [riskLow], so light text reaches about 5.6:1.
   static const success = Color(0xFF256446);
   static const onSuccess = cream;
 
-  /// Error messages use red-orange with black text, like the High-risk color.
-  static const error = redOrange;
-  static const onError = onRedOrange;
+  /// Error messages use high-risk red with dark text.
+  static const error = Color(0xFFE73213);
+  static const onError = Color(0xFF000000);
 
   /// Dark mode background and panel.
-  static const darkPaper = Color(0xFF1C1B19);
-  static const darkSage = Color(0xFF35504A);
+  static const darkPaper = Color(0xFF0F131E);
+  static const darkSage = Color(0xFF1D2836);
 }
 
 /// The colors that switch between light and dark mode.
@@ -72,19 +73,36 @@ extension AppPaletteContext on BuildContext {
   AppPalette get palette => Theme.of(this).extension<AppPalette>() ?? AppPalette.light;
 }
 
-/// Flat light and dark themes. No elevation, no shadows, no surface tint, and no gradients.
+/// Professional light and dark themes with rounded geometry, crisp outlines, and smooth transitions.
 abstract final class AppTheme {
+  static const BorderRadius radiusSm = BorderRadius.all(Radius.circular(10));
+  static const BorderRadius radiusMd = BorderRadius.all(Radius.circular(14));
+  static const BorderRadius radiusLg = BorderRadius.all(Radius.circular(20));
+  static const BorderRadius radiusSheet = BorderRadius.vertical(top: Radius.circular(24));
+
   static ThemeData light() => _build(AppPalette.light, Brightness.light);
 
   static ThemeData dark() => _build(AppPalette.dark, Brightness.dark);
 
   static ThemeData _build(AppPalette p, Brightness brightness) {
-    final base = brightness == Brightness.light ? const ColorScheme.light() : const ColorScheme.dark();
+    final isLight = brightness == Brightness.light;
+    final base = isLight ? const ColorScheme.light() : const ColorScheme.dark();
+    final primaryBg = isLight ? AppColors.ink : AppColors.cream;
+    final onPrimaryFg = isLight ? AppColors.cream : AppColors.ink;
+    final outlineColor = p.ink.withValues(alpha: isLight ? 0.18 : 0.24);
     final scheme = base.copyWith(
-      primary: AppColors.redOrange,
-      onPrimary: AppColors.onRedOrange,
+      primary: primaryBg,
+      onPrimary: onPrimaryFg,
+      primaryContainer: p.sage,
+      onPrimaryContainer: p.ink,
       secondary: p.sage,
       onSecondary: p.ink,
+      secondaryContainer: p.sage,
+      onSecondaryContainer: p.ink,
+      tertiary: p.sage,
+      onTertiary: p.ink,
+      tertiaryContainer: p.sage,
+      onTertiaryContainer: p.ink,
       error: AppColors.error,
       onError: AppColors.onError,
       surface: p.paper,
@@ -105,6 +123,16 @@ abstract final class AppTheme {
     final textTheme = (brightness == Brightness.light ? typography.black : typography.white)
         .apply(bodyColor: p.ink, displayColor: p.ink);
 
+    const buttonShape = RoundedRectangleBorder(borderRadius: radiusMd);
+    final inputBorder = OutlineInputBorder(
+      borderRadius: radiusMd,
+      borderSide: BorderSide(color: p.ink.withValues(alpha: 0.35), width: 1.2),
+    );
+    final focusedInputBorder = OutlineInputBorder(
+      borderRadius: radiusMd,
+      borderSide: BorderSide(color: p.ink, width: 1.6),
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
@@ -113,6 +141,15 @@ abstract final class AppTheme {
       extensions: [p],
       scaffoldBackgroundColor: p.paper,
       canvasColor: p.paper,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+        },
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: p.paper,
         foregroundColor: p.ink,
@@ -120,77 +157,144 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
+        shape: Border(bottom: BorderSide(color: outlineColor)),
         titleTextStyle: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22, color: p.ink),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.redOrange),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: primaryBg),
       cardTheme: CardThemeData(
         color: p.sage,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
         margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: radiusLg,
+          side: BorderSide(color: outlineColor),
+        ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: p.paper,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: const RoundedRectangleBorder(),
+        shape: RoundedRectangleBorder(
+          borderRadius: radiusLg,
+          side: BorderSide(color: outlineColor, width: 1.2),
+        ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: p.paper,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: const RoundedRectangleBorder(),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: radiusSheet,
+          side: BorderSide(color: outlineColor, width: 1.2),
+        ),
       ),
-      popupMenuTheme: PopupMenuThemeData(color: p.paper, surfaceTintColor: Colors.transparent, elevation: 0),
+      popupMenuTheme: PopupMenuThemeData(
+        color: p.paper,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: radiusMd,
+          side: BorderSide(color: outlineColor),
+        ),
+      ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: p.ink,
         contentTextStyle: TextStyle(color: p.paper),
         elevation: 0,
-        shape: const RoundedRectangleBorder(),
+        shape: const RoundedRectangleBorder(borderRadius: radiusMd),
       ),
-      textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: p.ink)),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: p.paper,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: inputBorder,
+        enabledBorder: inputBorder,
+        focusedBorder: focusedInputBorder,
+        errorBorder: OutlineInputBorder(
+          borderRadius: radiusMd,
+          borderSide: const BorderSide(color: AppColors.error, width: 1.4),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: radiusMd,
+          borderSide: const BorderSide(color: AppColors.error, width: 1.8),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: p.ink,
+          shape: buttonShape,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: p.ink,
+          side: BorderSide(color: p.ink.withValues(alpha: 0.45), width: 1.2),
+          shape: buttonShape,
+        ),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          backgroundColor: AppColors.redOrange,
-          foregroundColor: AppColors.onRedOrange,
+          backgroundColor: primaryBg,
+          foregroundColor: onPrimaryFg,
           shadowColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
+          shape: buttonShape,
         ),
       ),
-      dividerTheme: DividerThemeData(color: p.sage, space: 1),
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        elevation: 0,
+        focusElevation: 0,
+        hoverElevation: 0,
+        highlightElevation: 0,
+        shape: const RoundedRectangleBorder(borderRadius: radiusMd),
+        backgroundColor: primaryBg,
+        foregroundColor: onPrimaryFg,
+      ),
+      dividerTheme: DividerThemeData(color: outlineColor, space: 1),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: p.paper,
         elevation: 0,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         indicatorColor: p.sage,
-        indicatorShape: const RoundedRectangleBorder(),
-        labelTextStyle: WidgetStateProperty.all(TextStyle(color: p.ink, fontSize: 12)),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: radiusMd,
+          side: BorderSide(color: p.ink.withValues(alpha: 0.25)),
+        ),
+        labelTextStyle: WidgetStateProperty.all(TextStyle(color: p.ink, fontSize: 12, fontWeight: FontWeight.w600)),
         iconTheme: WidgetStateProperty.all(IconThemeData(color: p.ink)),
       ),
       chipTheme: ChipThemeData(
         backgroundColor: p.paper,
-        selectedColor: AppColors.redOrange,
-        // Black on the red-orange selected chip in both modes.
+        selectedColor: primaryBg,
+        secondarySelectedColor: primaryBg,
+        color: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? primaryBg : p.paper,
+        ),
         labelStyle: TextStyle(
           color: WidgetStateColor.resolveWith(
-            (states) => states.contains(WidgetState.selected) ? AppColors.onRedOrange : p.ink,
+            (states) => states.contains(WidgetState.selected) ? onPrimaryFg : p.ink,
           ),
         ),
-        side: BorderSide(color: p.ink),
-        shape: const RoundedRectangleBorder(),
+        secondaryLabelStyle: TextStyle(color: onPrimaryFg),
+        side: BorderSide(color: p.ink.withValues(alpha: 0.35), width: 1.2),
+        shape: const RoundedRectangleBorder(borderRadius: radiusSm),
         elevation: 0,
         pressElevation: 0,
         showCheckmark: false,
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.all(p.ink),
-        trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColors.redOrange : p.sage,
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? onPrimaryFg : p.ink,
         ),
-        trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+        trackColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? primaryBg : p.sage,
+        ),
+        trackOutlineColor: WidgetStateProperty.all(p.ink.withValues(alpha: 0.25)),
       ),
     );
   }

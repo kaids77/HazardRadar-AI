@@ -45,11 +45,11 @@ export function validateDetourRequest(body) {
 }
 
 /** A route closer than this to a High or Medium hazard counts as pointing at it. */
-export const SAFE_METERS = 40;
+export const SAFE_METERS = 30;
 /** How far from a hazard the detour waypoints are placed. */
 const DETOUR_OFFSET_METERS = 90;
 /** How many times to look for a way around the hazards that are still too close. */
-const MAX_ROUNDS = 2;
+const MAX_ROUNDS = 4;
 
 /** Meters from [p] to the segment a-b, on a flat local grid (accurate over a few hundred meters). */
 function distanceToSegmentMeters(p, a, b) {
@@ -124,28 +124,38 @@ export async function findSafeRoute({ osrm, from, to, hazards }) {
   const pool = [...(await osrm.routes(from, to))];
   if (pool.length === 0) return null;
 
+  // The shortest route the router offers, so the app can show it when it passes a hazard.
+  const shortestRoute = pool.reduce((a, b) => (b.distanceMeters < a.distanceMeters ? b : a));
+  const direct = { route: shortestRoute, clearance: clearanceMeters(shortestRoute.path, hazards) };
+
   const choose = () => {
     const shortest = Math.min(...pool.map((r) => r.distanceMeters));
-    const limit = Math.max(shortest * 1.7, shortest + 1000);
+    // Allow routes up to 4x the shortest or +3 km, so an alternative safe route is
+    // found even when walking completely around blocks, as requested.
+    const limit = Math.max(shortest * 4, shortest + 3000);
     return pickSafest(pool.filter((r) => r.distanceMeters <= limit), hazards);
   };
 
   let choice = choose();
+  const offsets = [60, 100, 150, 200];
   for (let round = 0; round < MAX_ROUNDS; round++) {
     if (choice.clearance === null || choice.clearance >= SAFE_METERS) break;
+    // Only skip hazards that sit directly at the start or destination (< 10 m).
+    // Hazards 10-30 m away must still be routed around.
     const blocking = hazards
-      .filter((h) => haversineMeters(h, from) > SAFE_METERS && haversineMeters(h, to) > SAFE_METERS)
+      .filter((h) => haversineMeters(h, from) > 10 && haversineMeters(h, to) > 10)
       .map((h) => ({ h, d: distanceToPathMeters(choice.route.path, h) }))
       .filter((x) => x.d < SAFE_METERS)
       .sort((a, b) => a.d - b.d);
     if (blocking.length === 0) break;
 
-    const vias = [0, 90, 180, 270].map((bearing) => offsetPoint(blocking[0].h, DETOUR_OFFSET_METERS, bearing));
+    const offsetDist = offsets[round] ?? DETOUR_OFFSET_METERS;
+    const vias = [0, 45, 90, 135, 180, 225, 270, 315].map((bearing) => offsetPoint(blocking[0].h, offsetDist, bearing));
     const results = await Promise.allSettled(vias.map((via) => osrm.routes(from, to, [via])));
     for (const result of results) if (result.status === 'fulfilled') pool.push(...result.value);
     choice = choose();
   }
-  return { ...choice, alternatives: pool.length };
+  return { ...choice, alternatives: pool.length, direct };
 }
 
 /**
@@ -198,13 +208,21 @@ export function createOsrmClient({ baseUrl, timeoutMs = 8000, fetchImpl = fetch,
   };
 }
 
-/** Response body: the chosen path as [lat, lon] pairs, its length, walking time, and clearance. */
-export function toDetourResponse(choice, alternatives) {
+/**
+ * Response body: the chosen path as [lat, lon] pairs, its length, walking time, and clearance.
+ * [direct] is the shortest route, included only when it is a different route from the chosen
+ * one, so the app can draw it in red next to the green safe route.
+ */
+export function toDetourResponse(choice, alternatives, direct = null) {
+  const toBody = (c) => ({
+    path: c.route.path.map((p) => [p.lat, p.lon]),
+    distanceMeters: c.route.distanceMeters,
+    durationSeconds: c.route.durationSeconds,
+    clearanceMeters: c.clearance === null ? null : Math.round(c.clearance),
+  });
   return {
-    path: choice.route.path.map((p) => [p.lat, p.lon]),
-    distanceMeters: choice.route.distanceMeters,
-    durationSeconds: choice.route.durationSeconds,
-    clearanceMeters: choice.clearance === null ? null : Math.round(choice.clearance),
+    ...toBody(choice),
     alternatives,
+    direct: direct && direct.route !== choice.route ? toBody(direct) : null,
   };
 }

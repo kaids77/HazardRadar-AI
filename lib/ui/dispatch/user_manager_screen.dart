@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import '../../models/user_profile.dart';
 import '../../services/avatar_repository.dart';
 import '../../services/dispatch_repository.dart';
+import '../../services/moderation_policy.dart';
 import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../common/user_avatar.dart';
@@ -38,6 +40,7 @@ class UserManagerScreen extends StatefulWidget {
 class _UserManagerScreenState extends State<UserManagerScreen> {
   late Stream<List<UserProfile>> _users = widget.users.watchUsers();
   String _query = '';
+  int _page = 0;
 
   void _open(UserProfile user) {
     Navigator.of(context).push(
@@ -60,6 +63,7 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
       stream: _users,
       builder: (context, snapshot) {
         final shown = searchUsers(snapshot.data ?? const [], _query);
+        final page = paginate(shown, page: _page);
         return PullToRefresh(
           onRefresh: () async => setState(() => _users = widget.users.watchUsers()),
           child: ListView(
@@ -67,11 +71,14 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               TextField(
-                onChanged: (value) => setState(() => _query = value),
+                onChanged: (value) => setState(() {
+                  _query = value;
+                  _page = 0;
+                }),
                 decoration: InputDecoration(
                   hintText: 'Search by name',
                   prefixIcon: Icon(Icons.search, color: palette.ink),
-                  border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
+                  border: const OutlineInputBorder(borderRadius: AppTheme.radiusMd),
                 ),
               ),
               const SizedBox(height: 12),
@@ -81,9 +88,12 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
                 const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
               else if (shown.isEmpty)
                 const Text('No users match.')
-              else
-                for (final user in shown)
+              else ...[
+                for (final user in page.items)
                   _UserRow(user: user, isSelf: user.uid == widget.admin.uid, onTap: () => _open(user)),
+                const SizedBox(height: 12),
+                PaginationBar(page: page, onPageChanged: (next) => setState(() => _page = next)),
+              ],
             ],
           ),
         );
@@ -128,13 +138,18 @@ class UserDetailScreen extends StatefulWidget {
     required this.users,
     this.avatars,
     this.clock = DateTime.now,
+    this.canEdit = true,
   });
 
+  /// The staff member viewing the page (an admin, or a dispatcher when [canEdit] is false).
   final UserProfile admin;
   final String uid;
   final UserAdminRepository users;
   final AvatarRepository? avatars;
   final DateTime Function() clock;
+
+  /// False for dispatchers: the page is read-only, because only admins manage accounts.
+  final bool canEdit;
 
   @override
   State<UserDetailScreen> createState() => _UserDetailScreenState();
@@ -143,6 +158,7 @@ class UserDetailScreen extends StatefulWidget {
 class _UserDetailScreenState extends State<UserDetailScreen> {
   late final Stream<List<UserProfile>> _users = widget.users.watchUsers();
   late final Future<Uint8List?> _photo = _loadPhoto();
+  late Future<int> _quarantined = widget.users.quarantinedReports(widget.uid);
   bool _busy = false;
 
   Future<Uint8List?> _loadPhoto() async {
@@ -224,94 +240,174 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
   Widget _details(BuildContext context, UserProfile user) {
     final textTheme = Theme.of(context).textTheme;
     final isSelf = user.uid == widget.admin.uid;
-    final enabled = !isSelf && !_busy;
+    final enabled = widget.canEdit && !isSelf && !_busy;
     final now = widget.clock();
     final until = user.suspendedUntil;
     final label = userLabel(user);
     final blocked = user.isBlockedAt(now);
     final warned = user.accountStatus == UserProfile.accountWarned;
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Row(
-          children: [
-            FutureBuilder<Uint8List?>(
-              future: _photo,
-              builder: (context, photo) =>
-                  UserAvatar(name: user.displayName == null ? null : label, photo: photo.data, size: 72),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('$label${isSelf ? ' (you)' : ''}', style: textTheme.titleLarge),
-                  Text(user.tierTitle, style: textTheme.bodyMedium),
-                  const SizedBox(height: 4),
-                  FlatBadge(
-                    label: user.accountStatus,
-                    background: blocked
-                        ? AppColors.redOrange
-                        : warned
-                            ? AppColors.riskMedium
-                            : context.palette.sage,
-                    foreground: blocked || warned ? AppColors.ink : context.palette.ink,
-                  ),
-                ],
+    return PullToRefresh(
+      onRefresh: () async {
+        final next = widget.users.quarantinedReports(widget.uid);
+        setState(() => _quarantined = next);
+        await next.catchError((_) => 0);
+      },
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(
+            children: [
+              FutureBuilder<Uint8List?>(
+                future: _photo,
+                builder: (context, photo) =>
+                    UserAvatar(name: user.displayName == null ? null : label, photo: photo.data, size: 72),
               ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('$label${isSelf ? ' (you)' : ''}', style: textTheme.titleLarge),
+                    Text(user.tierTitle, style: textTheme.bodyMedium),
+                    const SizedBox(height: 4),
+                    FlatBadge.outlined(
+                      label: user.accountStatus,
+                      color: blocked
+                          ? AppColors.riskHigh
+                          : warned
+                              ? AppColors.riskMedium
+                              : AppColors.riskLow,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text('Report history', style: textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _Stat(label: 'Trust points', value: '${user.ctp}'),
+              _Stat(label: 'Reports', value: '${user.reportsTotal}'),
+              _Stat(label: 'Resolved', value: '${user.reportsResolved}'),
+              _Stat(label: 'Accuracy', value: '${(user.accuracy * 100).round()}%'),
+            ],
+          ),
+          if (until != null && user.accountStatus == UserProfile.accountSuspended) ...[
+            const SizedBox(height: 8),
+            Text('Suspended until ${until.toLocal().toString().substring(0, 16)}', style: textTheme.bodySmall),
+          ],
+          const SizedBox(height: 12),
+          _ModerationBlock(user: user, quarantined: _quarantined),
+          const SizedBox(height: 16),
+          const Divider(),
+          const SizedBox(height: 8),
+          Text('Actions', style: textTheme.titleMedium),
+          if (!widget.canEdit) ...[
+            const SizedBox(height: 8),
+            const FeedbackMessage.error('Only admins can change accounts. Ask an admin to act on this user.'),
+          ] else if (isSelf) ...[
+            const SizedBox(height: 8),
+            const FeedbackMessage.error('You cannot change your own account.'),
+          ],
+          const SizedBox(height: 8),
+          DropdownButtonFormField<RoleOption>(
+            key: ValueKey('role-${user.role}-${user.tier}'),
+            initialValue: RoleOption.of(user),
+            decoration: const InputDecoration(labelText: 'Role', isDense: true),
+            items: [for (final o in RoleOption.all) DropdownMenuItem(value: o, child: Text(o.title))],
+            onChanged: enabled
+                ? (o) => o == null || o == RoleOption.of(user)
+                    ? null
+                    : _run(() => widget.users.setRole(user.uid, o), 'Role saved.')
+                : null,
+          ),
+          const SizedBox(height: 12),
+          DropdownButtonFormField<String>(
+            key: ValueKey('status-${user.accountStatus}'),
+            initialValue: _statuses.contains(user.accountStatus) ? user.accountStatus : UserProfile.accountActive,
+            decoration: const InputDecoration(labelText: 'Account status', isDense: true),
+            items: [for (final s in _statuses) DropdownMenuItem(value: s, child: Text(s))],
+            onChanged: enabled ? (s) => s == null || s == user.accountStatus ? null : _setStatus(user, s) : null,
+          ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('No daily report limit (emergencies)'),
+            value: user.rateLimitOverride,
+            onChanged: enabled
+                ? (value) => _run(() => widget.users.setRateLimitOverride(user.uid, value), 'Limit setting saved.')
+                : null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Quarantined and removed counts, and the suggested action from the moderation guideline.
+class _ModerationBlock extends StatelessWidget {
+  const _ModerationBlock({required this.user, required this.quarantined});
+
+  final UserProfile user;
+  final Future<int> quarantined;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = context.palette;
+    final textTheme = Theme.of(context).textTheme;
+    return FutureBuilder<int>(
+      future: quarantined,
+      builder: (context, snapshot) {
+        final counted = snapshot.hasData;
+        final failed = snapshot.hasError;
+        final suggestion = counted || failed
+            ? suggestModeration(
+                accountStatus: user.accountStatus,
+                quarantined: snapshot.data ?? 0,
+                removed: user.reportsRemoved,
+              )
+            : null;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                _Stat(label: 'Quarantined now', value: counted ? '${snapshot.data}' : (failed ? '?' : '...')),
+                _Stat(label: 'Removed as spam', value: '${user.reportsRemoved}'),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                borderRadius: AppTheme.radiusMd,
+                border: Border.all(
+                  color: suggestion?.isAction == true ? AppColors.riskMedium : palette.sage,
+                  width: 2,
+                ),
+              ),
+              child: suggestion == null
+                  ? const Text('Counting reports...')
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Suggested: ${suggestion.title}', style: textTheme.titleSmall),
+                        const SizedBox(height: 4),
+                        Text(suggestion.reason),
+                        if (failed) const Text('Could not count quarantined reports. Pull down to try again.'),
+                        const SizedBox(height: 4),
+                        Text(
+                          'A hint only. The app never warns, suspends, or bans anyone by itself.',
+                          style: textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
             ),
           ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            _Stat(label: 'Trust points', value: '${user.ctp}'),
-            _Stat(label: 'Reports', value: '${user.reportsTotal}'),
-            _Stat(label: 'Resolved', value: '${user.reportsResolved}'),
-            _Stat(label: 'Accuracy', value: '${(user.accuracy * 100).round()}%'),
-          ],
-        ),
-        if (until != null && user.accountStatus == UserProfile.accountSuspended) ...[
-          const SizedBox(height: 8),
-          Text('Suspended until ${until.toLocal().toString().substring(0, 16)}', style: textTheme.bodySmall),
-        ],
-        const SizedBox(height: 16),
-        const Divider(),
-        const SizedBox(height: 8),
-        Text('Actions', style: textTheme.titleMedium),
-        if (isSelf) ...[
-          const SizedBox(height: 8),
-          const FeedbackMessage.error('You cannot change your own account.'),
-        ],
-        const SizedBox(height: 8),
-        DropdownButtonFormField<RoleOption>(
-          key: ValueKey('role-${user.role}-${user.tier}'),
-          initialValue: RoleOption.of(user),
-          decoration: const InputDecoration(labelText: 'Role', isDense: true),
-          items: [for (final o in RoleOption.all) DropdownMenuItem(value: o, child: Text(o.title))],
-          onChanged: enabled
-              ? (o) => o == null || o == RoleOption.of(user)
-                  ? null
-                  : _run(() => widget.users.setRole(user.uid, o), 'Role saved.')
-              : null,
-        ),
-        const SizedBox(height: 12),
-        DropdownButtonFormField<String>(
-          key: ValueKey('status-${user.accountStatus}'),
-          initialValue: _statuses.contains(user.accountStatus) ? user.accountStatus : UserProfile.accountActive,
-          decoration: const InputDecoration(labelText: 'Account status', isDense: true),
-          items: [for (final s in _statuses) DropdownMenuItem(value: s, child: Text(s))],
-          onChanged: enabled ? (s) => s == null || s == user.accountStatus ? null : _setStatus(user, s) : null,
-        ),
-        SwitchListTile(
-          contentPadding: EdgeInsets.zero,
-          title: const Text('No daily report limit (emergencies)'),
-          value: user.rateLimitOverride,
-          onChanged: enabled
-              ? (value) => _run(() => widget.users.setRateLimitOverride(user.uid, value), 'Limit setting saved.')
-              : null,
-        ),
-      ],
+        );
+      },
     );
   }
 }

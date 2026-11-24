@@ -11,6 +11,7 @@ import '../../theme/app_theme.dart';
 import '../account/account_sheet.dart';
 import '../account/name_dialog.dart';
 import '../account/photo_actions.dart';
+import '../common/app_logo.dart';
 import '../common/feedback.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/user_avatar.dart';
@@ -48,8 +49,15 @@ class _HomeScreenState extends State<HomeScreen> {
   Uint8List? _avatar;
   String? _avatarUid;
 
+  /// Live subscription to the current user's profile document in Firestore.
+  StreamSubscription<UserProfile>? _profileSub;
+  String? _watchedUid;
+
   /// True while the name dialog is open, so two triggers never stack two dialogs.
   bool _askingName = false;
+
+  /// True after the user closes the moderator warning banner with the X button.
+  bool _warnedDismissed = false;
 
   HomeServices get _s => widget.services;
 
@@ -58,6 +66,34 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     unawaited(_s.settings.load());
     _load();
+  }
+
+  @override
+  void dispose() {
+    _profileSub?.cancel();
+    super.dispose();
+  }
+
+  void _watchProfile(UserProfile profile) {
+    if (_watchedUid == profile.uid && _profileSub != null) return;
+    _profileSub?.cancel();
+    _watchedUid = profile.uid;
+    _warnedDismissed = false;
+    _profileSub = _s.session.profiles.watchProfile(profile.uid).listen((live) {
+      if (!mounted) return;
+      final previousTier = _latest?.tier;
+      final previousStatus = _latest?.accountStatus;
+      setState(() {
+        _latest = live;
+        if (previousStatus != UserProfile.accountWarned && live.accountStatus == UserProfile.accountWarned) {
+          _warnedDismissed = false;
+        }
+      });
+      unawaited(_syncAvatar(live));
+      if (previousTier != null && live.tier > previousTier) {
+        _success('Level up: you are now a ${live.tierTitle}.');
+      }
+    });
   }
 
   void _load() {
@@ -76,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen> {
   /// Loads the photo and, for an account without a name, asks for one.
   void _afterLoad(UserProfile profile) {
     if (!mounted) return;
+    _watchProfile(profile);
     unawaited(_syncAvatar(profile));
     if (_needsName(profile)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -141,6 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final profile = await _s.session.start();
       if (!mounted) return profile;
       setState(() => _latest = profile);
+      _watchProfile(profile);
       unawaited(_syncAvatar(profile));
       if (previousTier != null && profile.tier > previousTier) {
         _success('Level up: you are now a ${profile.tierTitle}.');
@@ -204,6 +242,18 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _setCreditName(UserProfile profile, bool on) async {
+    try {
+      await _s.session.profiles.setCreditName(profile.uid, on);
+      await _refresh();
+      _success(on
+          ? 'Your name now shows on your resolved reports.'
+          : 'Your name is hidden on your resolved reports.');
+    } catch (_) {
+      _error('Could not save this setting. Try again.');
+    }
+  }
+
   Future<void> _pickBadge(UserProfile profile, String badge) async {
     try {
       await _s.session.profiles.setFocusBadge(profile.uid, badge);
@@ -219,6 +269,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final upgraded = await showAccountSheet(context, profile: profile, session: _s.session, reason: reason);
     if (upgraded == null || !mounted) return null;
     setState(() => _latest = upgraded);
+    _watchProfile(upgraded);
     _success('Signed in with Google. You are now a ${upgraded.tierTitle}.');
     unawaited(_syncAvatar(upgraded));
     await _promptName(upgraded, required: true);
@@ -293,7 +344,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _tabs(UserProfile profile) {
     final radar = Column(
       children: [
-        if (profile.accountStatus == UserProfile.accountWarned) const _WarnedBanner(),
+        if (profile.accountStatus == UserProfile.accountWarned && !_warnedDismissed)
+          _WarnedBanner(onDismiss: () => setState(() => _warnedDismissed = true)),
         Expanded(
           child: MapScreen(
             incidents: _s.incidents,
@@ -303,6 +355,7 @@ class _HomeScreenState extends State<HomeScreen> {
             chat: _s.chat,
             detour: _s.detour,
             settings: _s.settings,
+            transparency: _s.transparency,
             onReport: _openReport,
             onUpgrade: () => _openAccount(profile, reason: UpgradeReason.vote),
           ),
@@ -322,15 +375,27 @@ class _HomeScreenState extends State<HomeScreen> {
         onSignIn: () => _openAccount(profile),
         onPickBadge: (badge) => _pickBadge(profile, badge),
         onRefresh: _refresh,
+        transparency: _s.transparency,
       ),
       if (showDispatch)
         DispatchScreen(
           key: ValueKey(profile.uid),
           profile: profile,
           dispatch: dispatch,
+          users: _s.userAdmin,
+          avatars: _s.avatars,
           staffTabs: [
             if (_s.moderation case final moderation?)
-              ('Quarantine', QuarantineScreen(profile: profile, moderation: moderation)),
+              (
+                'Quarantine',
+                QuarantineScreen(
+                  profile: profile,
+                  moderation: moderation,
+                  onSyncTransparency: profile.isAdmin ? _s.transparencySync?.syncMissing : null,
+                  users: _s.userAdmin,
+                  avatars: _s.avatars,
+                ),
+              ),
           ],
           adminTabs: [
             if (_s.userAdmin case final users?)
@@ -348,6 +413,7 @@ class _HomeScreenState extends State<HomeScreen> {
         onAccount: () => _openAccount(profile),
         onEditName: hasAccount ? () => _promptName(profile, required: false) : null,
         onChangePhoto: hasAccount && _s.avatarPicker != null && _s.avatars != null ? () => _changePhoto(profile) : null,
+        onCreditName: hasAccount && profile.tier >= UserProfile.tierCivicScout ? (on) => _setCreditName(profile, on) : null,
         onRefresh: _refresh,
         staffSection: staffAuth == null
             ? null
@@ -402,6 +468,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _latest = profile;
         _tab = 0;
       });
+      _watchProfile(profile);
       if (profile.isStaff) _success('Signed in as ${profile.tierTitle}.');
       unawaited(_syncAvatar(profile));
       if (_needsName(profile)) await _promptName(profile, required: true);
@@ -417,6 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _latest = profile;
         _tab = 0;
       });
+      _watchProfile(profile);
       unawaited(_syncAvatar(profile));
       _success('Signed out. You are browsing as a guest.');
     } on StaffSignInFailed catch (failure) {
@@ -427,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// The top-bar account button: square photo (or initials) and the user's name.
+/// The top-bar account button: shows only the circular profile photo (or initials / guest icon).
 class _AccountButton extends StatelessWidget {
   const _AccountButton({required this.name, required this.photo, required this.initialsFrom, required this.onPressed});
 
@@ -450,24 +518,11 @@ class _AccountButton extends StatelessWidget {
           onPressed: onPressed,
           style: TextButton.styleFrom(
             foregroundColor: context.palette.ink,
-            shape: const RoundedRectangleBorder(),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            shape: const CircleBorder(),
+            padding: const EdgeInsets.all(6),
+            minimumSize: Size.zero,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: Text(
-                  name,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ),
-              const SizedBox(width: 8),
-              UserAvatar(name: initialsFrom, photo: photo, size: 32),
-            ],
-          ),
+          child: UserAvatar(name: initialsFrom, photo: photo, size: 32),
         ),
       ),
     );
@@ -486,7 +541,7 @@ class _Frame extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('HazardRadar AI'),
+        title: const AppLogo.appBar(),
         actions: [?account],
       ),
       body: body,
@@ -499,9 +554,10 @@ class _Frame extends StatelessWidget {
               focusElevation: 0,
               hoverElevation: 0,
               highlightElevation: 0,
-              shape: const RoundedRectangleBorder(),
-              backgroundColor: AppColors.redOrange,
-              foregroundColor: AppColors.onRedOrange,
+              shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              icon: const Icon(Icons.add_alert_outlined, size: 20),
               label: const Text('Report hazard'),
             ),
     );
@@ -509,18 +565,31 @@ class _Frame extends StatelessWidget {
 }
 
 class _WarnedBanner extends StatelessWidget {
-  const _WarnedBanner();
+  const _WarnedBanner({required this.onDismiss});
+
+  final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       color: AppColors.riskMedium,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Text(
-        'Your account has a warning from a moderator. Further false reports can lead to a suspension.',
-        // Fixed ink on the fixed amber fill, in light and dark mode.
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.ink),
+      padding: const EdgeInsets.fromLTRB(16, 6, 4, 6),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              'Your account has a warning from a moderator. Further false reports can lead to a suspension.',
+              // Fixed ink on the fixed amber fill, in light and dark mode.
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppColors.ink),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Dismiss warning',
+            onPressed: onDismiss,
+            icon: const Icon(Icons.close, color: AppColors.ink, size: 20),
+          ),
+        ],
       ),
     );
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart' show PolylineLayer;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -45,7 +46,7 @@ class _Stream implements IncidentRepository {
 
 class _Votes implements VoteRepository {
   @override
-  Future<void> cast({required String incidentId, required String uid, required int value}) async {}
+  Future<int> cast({required String incidentId, required String uid, required int value}) async => value;
 
   @override
   Future<void> flag({required String incidentId, required String uid}) async {}
@@ -151,7 +152,14 @@ class _Detour implements DetourService {
   @override
   Future<DetourRoute> route({required LatLng from, required LatLng to, required List<Incident> hazards}) async {
     this.to = to;
-    return DetourRoute(path: [from, to], distanceMeters: 800, durationSeconds: 600, clearanceMeters: 120);
+    return DetourRoute(
+      path: [from, to],
+      distanceMeters: 800,
+      durationSeconds: 600,
+      clearanceMeters: 120,
+      // The shortest way passes a hazard, so the map shows it too, in red.
+      direct: DetourRoute(path: [from, to], distanceMeters: 600, durationSeconds: 450, clearanceMeters: 5),
+    );
   }
 }
 
@@ -185,7 +193,12 @@ void detourTests() {
     await tester.pump();
 
     expect(detour.to, isNotNull);
-    expect(find.text('800 m · 10 min walk · stays 120 m from High and Medium hazards'), findsOneWidget);
+    expect(find.textContaining('stays 120 m from High and Medium hazards'), findsOneWidget);
+    // Green suggested route underneath, semi-transparent red risky shortest route on top, and a key for both.
+    final lines = tester.widget<PolylineLayer>(find.byType(PolylineLayer)).polylines;
+    expect(lines.map((l) => l.color), [routeSafeColor, routeRiskyColor.withValues(alpha: 0.6)]);
+    expect(find.text('Suggested safe route'), findsOneWidget);
+    expect(find.text('Passes a hazard'), findsOneWidget);
     await tester.tap(find.text('Clear route'));
     await tester.pump();
     expect(find.textContaining('min walk'), findsNothing);

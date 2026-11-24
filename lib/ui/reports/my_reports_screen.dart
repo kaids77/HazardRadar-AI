@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 
 import '../../models/incident.dart';
+import '../../models/transparency_entry.dart';
 import '../../models/user_profile.dart';
 import '../../services/level_policy.dart';
 import '../../services/my_reports_repository.dart';
+import '../../services/transparency_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/risk_style.dart';
+import 'transparency_section.dart';
 
 enum ReportFilter { all, active, inProgress, resolved }
 
@@ -37,10 +41,14 @@ class MyReportsScreen extends StatefulWidget {
     this.onSignIn,
     this.onPickBadge,
     this.onRefresh,
+    this.transparency,
   });
 
   final UserProfile profile;
   final MyReportsRepository reports;
+
+  /// The public report transparency log shown at the bottom. Null hides the section.
+  final TransparencyRepository? transparency;
 
   /// Opens the Google upgrade. Shown to guests only.
   final VoidCallback? onSignIn;
@@ -58,25 +66,54 @@ class MyReportsScreen extends StatefulWidget {
 class _MyReportsScreenState extends State<MyReportsScreen> {
   late Stream<List<Incident>> _mine;
   ReportFilter _filter = ReportFilter.all;
+  int _page = 0;
+
+  /// The public transparency log, or null when the build has none.
+  Stream<List<TransparencyEntry>>? _log;
+  Future<({int resolved, int quarantined})>? _logCounts;
 
   @override
   void initState() {
     super.initState();
     _mine = widget.reports.watchMine(widget.profile.uid);
+    _subscribeLog();
+  }
+
+  void _subscribeLog() {
+    final repo = widget.transparency;
+    if (repo == null) return;
+    // Refresh the total counts every time the live stream emits a change, so web
+    // and mobile chip counts update automatically without a manual refresh.
+    _log = repo.watchRecent().map((entries) {
+      final counts = repo.counts().catchError((Object _) => (resolved: 0, quarantined: 0));
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) setState(() => _logCounts = counts);
+        });
+      }
+      return entries;
+    });
+    // A failed count only hides the numbers; the list still loads.
+    _logCounts = repo.counts().catchError((Object _) => (resolved: 0, quarantined: 0));
   }
 
   @override
   void didUpdateWidget(MyReportsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // The uid changes when a Google account that already had a profile is linked.
+    // The uid changes when a Google account that already had a profile is linked or signed out.
     if (oldWidget.profile.uid != widget.profile.uid) {
       _mine = widget.reports.watchMine(widget.profile.uid);
+      _subscribeLog();
+      _page = 0;
     }
   }
 
-  /// Re-subscribes the list (revives it after an error) and reloads the profile.
+  /// Re-subscribes the lists (revives them after an error) and reloads the profile.
   Future<void> _reload() async {
-    setState(() => _mine = widget.reports.watchMine(widget.profile.uid));
+    setState(() {
+      _mine = widget.reports.watchMine(widget.profile.uid);
+      _subscribeLog();
+    });
     await widget.onRefresh?.call();
   }
 
@@ -87,6 +124,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
       builder: (context, snapshot) {
         final all = snapshot.data ?? const <Incident>[];
         final shown = all.where(_filter.matches).toList();
+        final page = paginate(shown, page: _page);
         return PullToRefresh(
           onRefresh: _reload,
           child: ListView(
@@ -115,7 +153,10 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                   ChoiceChip(
                     label: Text('${filter.label} (${all.where(filter.matches).length})'),
                     selected: _filter == filter,
-                    onSelected: (_) => setState(() => _filter = filter),
+                    onSelected: (_) => setState(() {
+                      _filter = filter;
+                      _page = 0;
+                    }),
                   ),
               ],
             ),
@@ -129,11 +170,19 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                 all.isEmpty ? 'You have not filed a report yet.' : 'No reports in this filter.',
                 style: Theme.of(context).textTheme.bodyMedium,
               )
-            else
-              for (final incident in shown) ...[
+            else ...[
+              for (final incident in page.items) ...[
                 _HistoryCard(incident: incident),
                 const SizedBox(height: 8),
               ],
+              PaginationBar(page: page, onPageChanged: (next) => setState(() => _page = next)),
+            ],
+            if (_log != null && _logCounts != null) ...[
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 16),
+              TransparencySection(key: const ValueKey('transparency'), entries: _log!, counts: _logCounts!),
+            ],
           ],
           ),
         );
@@ -152,7 +201,11 @@ class _GuestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: context.palette.sage,
+      decoration: BoxDecoration(
+        color: context.palette.sage,
+        borderRadius: AppTheme.radiusLg,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
+      ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -167,7 +220,7 @@ class _GuestCard extends StatelessWidget {
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: onSignIn,
-              style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder()),
+              style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd)),
               child: const Text('Sign in with Google'),
             ),
           ],
@@ -191,7 +244,11 @@ class _BadgePicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: context.palette.sage,
+      decoration: BoxDecoration(
+        color: context.palette.sage,
+        borderRadius: AppTheme.radiusLg,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
+      ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -205,8 +262,8 @@ class _BadgePicker extends StatelessWidget {
                 onPressed: () => onPick(badge),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: context.palette.ink,
-                  side: BorderSide(color: context.palette.ink),
-                  shape: const RoundedRectangleBorder(),
+                  side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                  shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.all(12),
                 ),
@@ -229,7 +286,11 @@ class _ProfileCard extends StatelessWidget {
     final progress = LevelPolicy.progress(profile);
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      decoration: BoxDecoration(border: Border.fromBorderSide(BorderSide(color: context.palette.ink))),
+      decoration: BoxDecoration(
+        color: context.palette.paper,
+        borderRadius: AppTheme.radiusLg,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.3), width: 1.2),
+      ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,12 +325,15 @@ class _ProfileCard extends StatelessWidget {
           ),
           if (progress.target != null) ...[
             const SizedBox(height: 12),
-            SizedBox(
-              height: 8,
-              child: LinearProgressIndicator(
-                value: progress.fraction,
-                backgroundColor: context.palette.sage,
-                color: AppColors.redOrange,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                height: 8,
+                child: LinearProgressIndicator(
+                  value: progress.fraction,
+                  backgroundColor: context.palette.sage,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
               ),
             ),
             const SizedBox(height: 6),
@@ -317,38 +381,47 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = statusStyle(context, incident);
+    final statusColor = statusTextColor(context, incident);
     final textTheme = Theme.of(context).textTheme;
     return Container(
       decoration: BoxDecoration(
-        border: Border(left: BorderSide(color: riskColor(incident.riskLevel), width: 4)),
         color: context.palette.paper,
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
       ),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              FlatBadge(label: status.label, background: status.background, foreground: status.foreground),
-              FlatBadge(
-                label: '${incident.riskLevel} risk',
-                background: riskColor(incident.riskLevel),
-                foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
-              ),
-              if (!incident.aiProcessed)
-                FlatBadge(label: 'Pending AI review', background: context.palette.sage, foreground: context.palette.ink),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text('${incident.category} · ${incident.reference}', style: textTheme.titleSmall),
-          Text(incident.aiSummary, style: textTheme.bodyMedium),
-          if (incident.resolutionNote != null) ...[
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: riskColor(incident.riskLevel), width: 5)),
+        ),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                FlatBadge.outlined(label: status.label, color: statusColor),
+                FlatBadge.outlined(
+                  label: '${incident.riskLevel} risk',
+                  color: riskColor(incident.riskLevel),
+                ),
+                if (incident.isVerified)
+                  const FlatBadge.outlined(label: 'Verified', color: AppColors.riskLow),
+                if (!incident.aiProcessed)
+                  FlatBadge.outlined(label: 'Pending AI review', color: context.palette.ink),
+              ],
+            ),
             const SizedBox(height: 6),
-            Text('City note: ${incident.resolutionNote}', style: textTheme.bodyMedium),
+            Text('${incident.category} · ${incident.reference}', style: textTheme.titleSmall),
+            Text(incident.aiSummary, style: textTheme.bodyMedium),
+            if (incident.resolutionNote != null) ...[
+              const SizedBox(height: 6),
+              Text('City note: ${incident.resolutionNote}', style: textTheme.bodyMedium),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

@@ -16,6 +16,7 @@ class TicketCard extends StatelessWidget {
     required this.onResolve,
     required this.onCrew,
     required this.onOverride,
+    this.reporterLine,
   });
 
   final Incident incident;
@@ -25,66 +26,86 @@ class TicketCard extends StatelessWidget {
   final VoidCallback onCrew;
   final VoidCallback onOverride;
 
+  /// "Reported by …" for staff. Null hides it.
+  final Widget? reporterLine;
+
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final status = statusStyle(context, incident);
+    final statusColor = statusTextColor(context, incident);
     final created = incident.createdAt;
     final active = incident.status == Incident.statusActive;
+    final verified = incident.isVerified;
+    final mono = textTheme.bodySmall?.copyWith(fontFamily: 'monospace');
+    final votesText = '${incident.netVotes >= 0 ? '+' : ''}${incident.netVotes} votes';
     return Container(
       decoration: BoxDecoration(
         color: context.palette.paper,
-        border: Border(
-          left: BorderSide(color: riskColor(incident.riskLevel), width: 5),
-          top: BorderSide(color: context.palette.sage),
-          right: BorderSide(color: context.palette.sage),
-          bottom: BorderSide(color: context.palette.sage),
-        ),
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
       ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              FlatBadge(
-                label: '${incident.riskLevel} · ${incident.category}',
-                background: riskColor(incident.riskLevel),
-                foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: riskColor(incident.riskLevel), width: 5)),
+        ),
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                FlatBadge.outlined(
+                  label: '${incident.riskLevel} · ${incident.category}',
+                  color: riskColor(incident.riskLevel),
+                ),
+                FlatBadge.outlined(label: status.label, color: statusColor),
+                FlatBadge.outlined(label: incident.reference, color: context.palette.ink),
+                if (verified)
+                  const FlatBadge.outlined(label: 'Verified', color: AppColors.riskLow),
+                if (!incident.aiProcessed)
+                  FlatBadge.outlined(label: 'Offline triage', color: context.palette.ink),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(incident.aiSummary, style: textTheme.bodyLarge),
+            const SizedBox(height: 4),
+            Text.rich(
+              TextSpan(
+                style: mono,
+                children: [
+                  TextSpan(
+                    text: '${incident.latitude.toStringAsFixed(5)}, ${incident.longitude.toStringAsFixed(5)}'
+                        '${created == null ? '' : ' · ${formatPhilippineTime(created)}'} · ',
+                  ),
+                  TextSpan(
+                    text: votesText,
+                    style: verified ? mono?.copyWith(color: AppColors.riskLow, fontWeight: FontWeight.w700) : mono,
+                  ),
+                ],
               ),
-              FlatBadge(label: status.label, background: status.background, foreground: status.foreground),
-              FlatBadge(label: incident.reference, background: context.palette.sage, foreground: context.palette.ink),
-              if (!incident.aiProcessed)
-                FlatBadge(label: 'Offline triage', background: context.palette.sage, foreground: context.palette.ink),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(incident.aiSummary, style: textTheme.bodyLarge),
-          const SizedBox(height: 4),
-          Text(
-            '${incident.latitude.toStringAsFixed(5)}, ${incident.longitude.toStringAsFixed(5)}'
-            '${created == null ? '' : ' · ${formatPhilippineTime(created)}'}'
-            ' · ${incident.netVotes >= 0 ? '+' : ''}${incident.netVotes} votes',
-            style: textTheme.bodySmall?.copyWith(fontFamily: 'monospace'),
-          ),
-          Text('Crew: ${incident.assignedCrew ?? 'not assigned'}', style: textTheme.bodySmall),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ElevatedButton(
-                onPressed: busy ? null : (active ? onStart : onResolve),
-                style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder()),
-                child: Text(active ? 'Start work' : 'Resolve'),
-              ),
-              _Outline(label: 'Crew', onPressed: busy ? null : onCrew),
-              _Outline(label: 'Override AI', onPressed: busy ? null : onOverride),
-            ],
-          ),
-        ],
+            ),
+            Text('Crew: ${incident.assignedCrew ?? 'not assigned'}', style: textTheme.bodySmall),
+            ?reporterLine,
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ElevatedButton(
+                  onPressed: busy ? null : (active ? onStart : onResolve),
+                  style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd)),
+                  child: Text(active ? 'Start work' : 'Resolve'),
+                ),
+                _Outline(label: 'Crew', onPressed: busy ? null : onCrew),
+                _Outline(label: 'Override AI', onPressed: busy ? null : onOverride),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -102,8 +123,8 @@ class _Outline extends StatelessWidget {
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         foregroundColor: context.palette.ink,
-        side: BorderSide(color: context.palette.ink),
-        shape: const RoundedRectangleBorder(),
+        side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+        shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
       ),
       child: Text(label),
     );

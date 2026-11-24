@@ -64,6 +64,12 @@ class _ProfileRepo implements ProfileRepository {
 
   @override
   Future<void> setDisplayName(String uid, String name) async {}
+
+  @override
+  Future<void> setCreditName(String uid, bool value) async {}
+
+  @override
+  Stream<UserProfile> watchProfile(String uid) => const Stream.empty();
 }
 
 class _NoIncidents implements IncidentRepository {
@@ -77,7 +83,7 @@ class _NoIncidents implements IncidentRepository {
 
 class _NoVotes implements VoteRepository {
   @override
-  Future<void> cast({required String incidentId, required String uid, required int value}) async {}
+  Future<int> cast({required String incidentId, required String uid, required int value}) async => value;
 
   @override
   Future<void> flag({required String incidentId, required String uid}) async {}
@@ -132,7 +138,7 @@ Widget _app(SessionService session) => MaterialApp(
     );
 
 void main() {
-  testWidgets('shows a loading indicator, then the guest name in the app bar', (tester) async {
+  testWidgets('shows a loading indicator, then the account avatar in the app bar', (tester) async {
     final session = SessionService(auth: _OkAuth(), profiles: _ProfileRepo());
     await tester.pumpWidget(_app(session));
 
@@ -141,7 +147,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('Guest'), findsOneWidget);
+    expect(find.bySemanticsLabel('Account: Guest'), findsOneWidget);
     expect(find.text('Report hazard'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
@@ -183,7 +189,7 @@ void main() {
     expect(find.text('Send report'), findsNothing);
   });
 
-  testWidgets('a warned account sees the moderator warning', (tester) async {
+  testWidgets('a warned account sees the moderator warning and can close it with the X button', (tester) async {
     final session = SessionService(
       auth: _OkAuth(),
       profiles: _ProfileRepo((uid) => UserProfile(uid: uid, role: 'CITIZEN', tier: 2, accountStatus: 'WARNED')),
@@ -193,5 +199,8 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('warning from a moderator'), findsOneWidget);
+    await tester.tap(find.byTooltip('Dismiss warning'));
+    await tester.pump();
+    expect(find.textContaining('warning from a moderator'), findsNothing);
   });
 }

@@ -4,39 +4,69 @@ import 'package:flutter/material.dart';
 
 import '../../models/incident.dart';
 import '../../models/user_profile.dart';
+import '../../services/avatar_repository.dart';
 import '../../services/dispatch_repository.dart';
+import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
 import '../common/feedback.dart';
+import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import 'dispatch_dialogs.dart';
+import 'reporter_line.dart';
 import 'ticket_card.dart';
 
 /// Dispatch tab A: the city's open tickets, highest risk and oldest first.
 class DispatchQueueScreen extends StatefulWidget {
-  const DispatchQueueScreen({super.key, required this.profile, required this.dispatch});
+  const DispatchQueueScreen({super.key, required this.profile, required this.dispatch, this.users, this.avatars});
 
   final UserProfile profile;
   final DispatchRepository dispatch;
+
+  /// Profiles for the "Reported by" line. Null shows the reporter's level only.
+  final UserAdminRepository? users;
+  final AvatarRepository? avatars;
 
   @override
   State<DispatchQueueScreen> createState() => _DispatchQueueScreenState();
 }
 
-class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
-  late Stream<List<Incident>> _queue = widget.dispatch.watchQueue();
+class _DispatchQueueScreenState extends State<DispatchQueueScreen> with ReporterLookup {
+  late Stream<List<Incident>> _queue = _watchQueue();
   ({int resolved, int quarantined})? _closed;
   String? _risk;
+  int _page = 0;
   final Set<String> _busy = {};
+
+  Stream<List<Incident>> _watchQueue() => widget.dispatch.watchQueue().map((items) {
+        unawaited(_loadCounts());
+        return items;
+      });
+
+  @override
+  UserAdminRepository? get reporterSource => widget.users;
+
+  @override
+  UserProfile get viewer => widget.profile;
+
+  @override
+  AvatarRepository? get reporterAvatars => widget.avatars;
 
   @override
   void initState() {
     super.initState();
     _loadCounts();
+    startReporterLookup();
+  }
+
+  @override
+  void dispose() {
+    stopReporterLookup();
+    super.dispose();
   }
 
   /// Pull-to-refresh: re-subscribes the queue (revives it after an error) and reloads the counts.
   Future<void> _reload() async {
-    setState(() => _queue = widget.dispatch.watchQueue());
+    setState(() => _queue = _watchQueue());
     await _loadCounts();
   }
 
@@ -107,6 +137,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
       builder: (context, snapshot) {
         final open = [for (final i in snapshot.data ?? const <Incident>[]) if (!i.isQuarantined) i];
         final shown = DispatchPolicy.sortQueue(_risk == null ? open : open.where((i) => i.riskLevel == _risk));
+        final page = paginate(shown, page: _page);
         final closed = _closed;
         return PullToRefresh(
           onRefresh: _reload,
@@ -116,7 +147,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
           children: [
             Row(
               children: [
-                _Kpi(label: 'Active high', value: '${open.where((i) => i.status == Incident.statusActive && i.riskLevel == 'High').length}', color: AppColors.redOrange, foreground: AppColors.onRedOrange),
+                _Kpi(label: 'Active high', value: '${open.where((i) => i.status == Incident.statusActive && i.riskLevel == 'High').length}', color: AppColors.riskHigh, foreground: AppColors.onError),
                 _Kpi(label: 'In progress', value: '${open.where((i) => i.status == Incident.statusInProgress).length}', color: AppColors.inProgress, foreground: AppColors.onInProgress),
                 _Kpi(label: 'Resolved', value: closed == null ? '-' : '${closed.resolved}', color: context.palette.sage, foreground: context.palette.ink),
                 _Kpi(label: 'Quarantined', value: closed == null ? '-' : '${closed.quarantined}', color: context.palette.ink, foreground: context.palette.paper),
@@ -125,12 +156,16 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
             const SizedBox(height: 16),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
                 for (final risk in <String?>[null, ...DispatchPolicy.riskLevels])
                   ChoiceChip(
                     label: Text(risk ?? 'All'),
                     selected: _risk == risk,
-                    onSelected: (_) => setState(() => _risk = risk),
+                    onSelected: (_) => setState(() {
+                      _risk = risk;
+                      _page = 0;
+                    }),
                   ),
               ],
             ),
@@ -141,8 +176,8 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
               const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()))
             else if (shown.isEmpty)
               const Text('No open tickets. The streets are clear.')
-            else
-              for (final incident in shown) ...[
+            else ...[
+              for (final incident in page.items) ...[
                 TicketCard(
                   incident: incident,
                   busy: _busy.contains(incident.id),
@@ -150,9 +185,12 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> {
                   onResolve: () => _resolve(incident),
                   onCrew: () => _crew(incident),
                   onOverride: () => _override(incident),
+                  reporterLine: reporterLineFor(incident),
                 ),
                 const SizedBox(height: 10),
               ],
+              PaginationBar(page: page, onPageChanged: (next) => setState(() => _page = next)),
+            ],
           ],
           ),
         );
@@ -173,7 +211,11 @@ class _Kpi extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        color: color,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: AppTheme.radiusMd,
+          border: Border.all(color: foreground.withValues(alpha: 0.22)),
+        ),
         margin: const EdgeInsets.only(right: 6),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         child: Column(

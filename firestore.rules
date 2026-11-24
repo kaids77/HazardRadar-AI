@@ -171,9 +171,39 @@ service cloud.firestore {
           && request.resource.data.displayName.size() <= 40;
       }
 
+      // An admin counts a report removed as spam (+1 reportsRemoved) only in the same
+      // write that deletes that user's quarantined report (lastRemovedId). The report must
+      // exist before and be gone after, so each removal is counted once.
+      function isRemovalCount() {
+        let after = request.resource.data;
+        let report = /databases/$(database)/documents/incidents/$(after.lastRemovedId);
+        return hasRole('ADMIN')
+          && !isBlocked()
+          && after.diff(resource.data).affectedKeys().hasOnly(['reportsRemoved', 'lastRemovedId'])
+          && after.lastRemovedId is string
+          && after.lastRemovedId.matches('^[A-Za-z0-9]{1,40}$')
+          && after.reportsRemoved == resource.data.get('reportsRemoved', 0) + 1
+          && exists(report)
+          && !existsAfter(report)
+          && get(report).data.reporterUid == uid
+          && get(report).data.visibility == 'QUARANTINED';
+      }
+
+      // Accounts (Level 2 and up) choose whether their name is shown on their resolved
+      // reports in the public transparency log. Off unless the user turns it on.
+      // Turning it off is always allowed, even for a blocked account.
+      function isCreditNameChoice() {
+        return signedIn()
+          && request.auth.uid == uid
+          && resource.data.tier >= 2
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['creditName'])
+          && request.resource.data.creditName is bool
+          && (request.resource.data.creditName == false || !isBlocked());
+      }
+
       allow update: if isAdminUserUpdate() || isDisplayNameUpdate()
           || isGoogleUpgrade() || isReportCounterUpdate() || isResolveCredit()
-          || isMeritUpgrade() || isFocusBadgeChoice();
+          || isMeritUpgrade() || isFocusBadgeChoice() || isRemovalCount() || isCreditNameChoice();
 
       allow delete: if false;
     }
@@ -194,6 +224,111 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time;
 
       allow delete: if signedIn() && request.auth.uid == uid;
+    }
+
+    // Public report transparency log: one entry per report that was resolved, quarantined,
+    // restored, or removed as spam. It holds only safe fields (no note or photo), so every
+    // signed-in user can read it. The reporter's name appears only on a resolved entry, and
+    // only when the reporter turned on creditName. An entry can be written only together
+    // with the matching change to the report, and it must copy the report's category and risk.
+    match /transparency/{incidentId} {
+      function incidentPath() {
+        return /databases/$(database)/documents/incidents/$(incidentId);
+      }
+
+      function entryShapeOk(e) {
+        return e.keys().hasOnly(['category', 'riskLevel', 'kind', 'reason', 'crew', 'resolutionNote', 'at', 'reporterName'])
+          && e.keys().hasAll(['category', 'riskLevel', 'kind', 'reason', 'crew', 'resolutionNote', 'at'])
+          && e.kind in ['RESOLVED', 'QUARANTINED', 'RESTORED', 'PURGED']
+          && e.reason in ['', 'COMMUNITY_VOTES', 'SENTINEL_FLAG']
+          && e.crew is string && e.crew.size() <= 60
+          && e.resolutionNote is string && e.resolutionNote.size() <= 300
+          && (!e.keys().hasAny(['reporterName']) || e.kind == 'RESOLVED');
+      }
+
+      // The optional credit must be the reporter's current name, and the reporter must have opted in.
+      function reporterNameOk(e, report) {
+        let reporter = getAfter(/databases/$(database)/documents/users/$(report.reporterUid)).data;
+        return !e.keys().hasAny(['reporterName'])
+          || (reporter.get('creditName', false) == true
+              && reporter.get('displayName', '') is string
+              && reporter.get('displayName', '') != ''
+              && e.reporterName == reporter.displayName);
+      }
+
+      function copies(e, report) {
+        return e.category == report.category && e.riskLevel == report.riskLevel;
+      }
+
+      // Written in the same transaction as the vote or Sentinel flag that quarantines the
+      // report, or by staff for a report that is already quarantined (one-time sync).
+      function isQuarantineEntry(e) {
+        let after = getAfter(incidentPath()).data;
+        let justQuarantined = get(incidentPath()).data.visibility == 'PUBLIC';
+        return signedIn() && !isBlocked()
+          && e.kind == 'QUARANTINED' && e.crew == '' && e.resolutionNote == ''
+          && after.visibility == 'QUARANTINED'
+          && copies(e, after)
+          && e.at == request.time
+          && (justQuarantined || isStaff())
+          && ((e.reason == 'COMMUNITY_VOTES' && after.netVotes <= -3)
+              || (e.reason == 'SENTINEL_FLAG' && after.get('flaggedBy', '') != ''
+                  && (isStaff() || after.flaggedBy == request.auth.uid)));
+      }
+
+      // Written by staff in the resolve transaction, or later by staff or the reporter
+      // for an already-resolved report (to sync or toggle the reporter's name credit).
+      // The crew and the note are copied from the report; the date is the report's resolvedAt.
+      function isResolvedEntry(e) {
+        let after = getAfter(incidentPath()).data;
+        let isReporter = signedIn()
+          && after.reporterUid == request.auth.uid
+          && (!isBlocked() || !e.keys().hasAny(['reporterName']));
+        return ((isStaff() && !isBlocked()) || isReporter)
+          && e.kind == 'RESOLVED' && e.reason == ''
+          && after.status == 'RESOLVED'
+          && copies(e, after)
+          && e.crew == after.get('assignedCrew', '')
+          && e.resolutionNote == after.get('resolutionNote', '')
+          && e.at == after.resolvedAt
+          && reporterNameOk(e, after);
+      }
+
+      // Written by staff together with restoring a quarantined report to the map.
+      function isRestoreEntry(e) {
+        let before = get(incidentPath()).data;
+        let after = getAfter(incidentPath()).data;
+        return isStaff() && !isBlocked()
+          && e.kind == 'RESTORED' && e.reason == '' && e.crew == '' && e.resolutionNote == ''
+          && before.visibility == 'QUARANTINED' && after.visibility == 'PUBLIC'
+          && copies(e, after)
+          && e.at == request.time;
+      }
+
+      // Written by an admin in the same batch that deletes a quarantined report.
+      function isPurgeEntry(e) {
+        let before = get(incidentPath()).data;
+        return hasRole('ADMIN') && !isBlocked()
+          && e.kind == 'PURGED' && e.reason == '' && e.crew == '' && e.resolutionNote == ''
+          && before.visibility == 'QUARANTINED'
+          && !existsAfter(incidentPath())
+          && copies(e, before)
+          && e.at == request.time;
+      }
+
+      function entryOk() {
+        let e = request.resource.data;
+        return entryShapeOk(e)
+          && (e.kind == 'QUARANTINED' ? isQuarantineEntry(e)
+              : e.kind == 'RESOLVED' ? isResolvedEntry(e)
+              : e.kind == 'RESTORED' ? isRestoreEntry(e)
+              : isPurgeEntry(e));
+      }
+
+      allow read: if signedIn();
+      // Update covers a later event on the same report (for example quarantined, then restored).
+      allow create, update: if entryOk();
+      allow delete: if false;
     }
 
     // Hazard reports.

@@ -19,6 +19,11 @@ class QuickPrompt {
     QuickPrompt('Pedestrian tips', 'Give me safety tips for walking here.', ChatMode.recommendations),
     QuickPrompt('Top repairs', 'Which hazards here should the city fix first?', ChatMode.analysis),
     QuickPrompt('Fallen wire', 'What should I do if I see a fallen or sparking wire?', ChatMode.recommendations),
+    QuickPrompt(
+      'Report status',
+      'How many reports are active, in progress, resolved, and quarantined, and what was resolved recently?',
+      ChatMode.analysis,
+    ),
   ];
 }
 
@@ -45,7 +50,23 @@ class CommuterInterview {
 
 /// Holds the conversation for the session, so closing and reopening the chat keeps it.
 class ChatController extends ChangeNotifier {
-  ChatController(this._service);
+  ChatController(this._service, {this.statusSummary});
+
+  /// Builds the city-wide report status sent with each question. Null sends none.
+  /// A failure or a slow answer only leaves the status out; the question still goes.
+  final Future<ReportStatusSummary?> Function()? statusSummary;
+
+  static const Duration _statusTimeout = Duration(seconds: 6);
+
+  Future<ReportStatusSummary?> _status() async {
+    final build = statusSummary;
+    if (build == null) return null;
+    try {
+      return await build().timeout(_statusTimeout);
+    } on Object {
+      return null;
+    }
+  }
 
   static const String greeting =
       'Ask me about hazards around you, for example: is it safe to walk to the market?';
@@ -58,6 +79,12 @@ class ChatController extends ChangeNotifier {
   bool _waiting = false;
   String? _error;
   ChatMode? _mode;
+
+  /// Where the user was when they asked their last question. Moving more than
+  /// [relocateMeters] (for example from home to school) starts fresh context so
+  /// Radar AI does not repeat answers from the old location.
+  LatLng? _lastAround;
+  static const double relocateMeters = 200;
 
   /// Answers so far while the commuter interview runs, or null when it is not running.
   List<String>? _interview;
@@ -78,6 +105,34 @@ class ChatController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Selects a mode chip in the UI: starts the commuter interview for [ChatMode.commuter],
+  /// or immediately asks Radar AI for [ChatMode.analysis], [ChatMode.recommendations],
+  /// and [ChatMode.detour] so tapping any mode chip produces an immediate response.
+  Future<void> selectMode(
+    ChatMode? mode, {
+    required List<Incident> incidents,
+    required LatLng around,
+  }) async {
+    if (_waiting) return;
+    setMode(mode);
+    final question = switch (mode) {
+      ChatMode.analysis => 'Give me a risk analysis of the hazards around me.',
+      ChatMode.recommendations => 'Give me safety recommendations for the hazards around me.',
+      ChatMode.detour => 'Which hazards around me should I avoid for a safe detour?',
+      ChatMode.commuter || null => null,
+    };
+    if (question != null) {
+      await send(question, incidents: incidents, around: around);
+    }
+  }
+
+  /// Clears the current error message without resetting the conversation.
+  void clearError() {
+    if (_error == null) return;
+    _error = null;
+    notifyListeners();
+  }
+
   /// Clears the conversation, mode, and interview.
   void reset() {
     _messages
@@ -86,6 +141,7 @@ class ChatController extends ChangeNotifier {
     _mode = null;
     _interview = null;
     _error = null;
+    _lastAround = null;
     notifyListeners();
   }
 
@@ -133,11 +189,19 @@ class ChatController extends ChangeNotifier {
     final trimmed = text.trim();
     if (trimmed.isEmpty || _waiting) return;
 
+    final previousAround = _lastAround;
+    final relocated = previousAround != null &&
+        const Distance().as(LengthUnit.Meter, previousAround, around) > relocateMeters;
+    _lastAround = around;
+
     // Earlier turns, without the greeting and the interview prompts, as context.
-    final history = [
-      for (final message in _messages.skip(1))
-        if (message.choices.isEmpty) ChatTurn(fromUser: message.fromUser, text: message.text),
-    ];
+    // Dropped when the commuter moved to a new area so old location answers do not linger.
+    final history = relocated
+        ? const <ChatTurn>[]
+        : [
+            for (final message in _messages.skip(1))
+              if (message.choices.isEmpty) ChatTurn(fromUser: message.fromUser, text: message.text),
+          ];
     if (showQuestion) _messages.add(ChatMessage.user(trimmed));
     _waiting = true;
     _error = null;
@@ -150,6 +214,7 @@ class ChatController extends ChangeNotifier {
         around: around,
         history: history.length > 6 ? history.sublist(history.length - 6) : history,
         mode: _mode,
+        status: await _status(),
       );
       _messages.add(ChatMessage.assistant(
         reply.reply,
