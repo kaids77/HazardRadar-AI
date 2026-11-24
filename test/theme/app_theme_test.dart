@@ -6,8 +6,12 @@ import 'package:hazardradarai/theme/app_theme.dart';
 
 void main() {
   test('palette tokens match the approved hex values', () {
-    expect(AppColors.cream, const Color(0xFFEFE6D5));
-    expect(AppColors.sage, const Color(0xFF9DBEB7));
+    expect(AppColors.cream, const Color(0xFFF3F7FA));
+    expect(AppColors.sage, const Color(0xFFD5E1E0));
+    expect(AppColors.logoSage, const Color(0xFF8AA3A0));
+    expect(AppColors.ink, const Color(0xFF111925));
+    expect(AppColors.darkPaper, const Color(0xFF0F131E));
+    expect(AppColors.darkSage, const Color(0xFF1D2836));
     expect(AppColors.redOrange, const Color(0xFFE73213));
   });
 

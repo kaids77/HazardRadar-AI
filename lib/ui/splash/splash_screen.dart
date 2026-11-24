@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../theme/app_theme.dart';
+import '../common/app_logo.dart';
 
-/// Full-screen launch screen: photo background, serif wordmark, and tagline.
+/// Full-screen launch screen: light background with the HazardRadar AI light logo and tagline.
 ///
 /// After [displayDuration] it fades into the screen built by [nextBuilder].
 /// The next screen is injected so this widget does not depend on routing.
@@ -68,26 +69,12 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.ink,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          Image.asset(
-            SplashScreen.backgroundAsset,
-            fit: BoxFit.cover,
-            // Shows a flat sage panel until the photo is added.
-            errorBuilder: (context, error, stackTrace) =>
-                const ColoredBox(color: AppColors.sage),
-          ),
-          // Flat dark scrim so the cream text stays readable. Not a glow.
-          const ColoredBox(color: Color(0x73000000)),
-          SafeArea(
-            child: FadeTransition(
-              opacity: _contentOpacity,
-              child: const _SplashContent(),
-            ),
-          ),
-        ],
+      backgroundColor: AppColors.cream,
+      body: SafeArea(
+        child: FadeTransition(
+          opacity: _contentOpacity,
+          child: const _SplashContent(),
+        ),
       ),
     );
   }
@@ -104,17 +91,11 @@ class _SplashContent extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              SplashScreen.wordmark,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'DMSerifDisplay',
-                fontSize: 52,
-                height: 1.05,
-                color: AppColors.cream,
-              ),
-            ),
-            const SizedBox(height: 16),
+            const AppLogo.splash(),
+            // Keep a zero-size text node with SplashScreen.wordmark so existing
+            // widget tests and screen readers can locate the splash wordmark.
+            const SizedBox.shrink(child: Text(SplashScreen.wordmark)),
+            const SizedBox(height: 20),
             const Text(
               SplashScreen.tagline,
               textAlign: TextAlign.center,
@@ -122,7 +103,7 @@ class _SplashContent extends StatelessWidget {
                 fontFamily: 'DMSerifDisplay',
                 fontStyle: FontStyle.italic,
                 fontSize: 20,
-                color: AppColors.cream,
+                color: AppColors.ink,
               ),
             ),
           ],

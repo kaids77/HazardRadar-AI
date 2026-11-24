@@ -11,6 +11,7 @@ import '../../theme/app_theme.dart';
 import '../account/account_sheet.dart';
 import '../account/name_dialog.dart';
 import '../account/photo_actions.dart';
+import '../common/app_logo.dart';
 import '../common/feedback.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/user_avatar.dart';
@@ -553,7 +554,7 @@ class _Frame extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('HazardRadar AI'),
+        title: const AppLogo.appBar(),
         actions: [?account],
       ),
       body: body,

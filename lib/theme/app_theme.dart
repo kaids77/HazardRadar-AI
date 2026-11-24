@@ -7,10 +7,11 @@ import 'package:flutter/material.dart';
 /// These never change with light or dark mode. Screens use [AppPalette] (through
 /// `context.palette`) for the background, text, and panel colors that do change.
 abstract final class AppColors {
-  static const cream = Color(0xFFEFE6D5);
-  static const sage = Color(0xFF9DBEB7);
+  static const cream = Color(0xFFF3F7FA);
+  static const sage = Color(0xFFD5E1E0);
+  static const logoSage = Color(0xFF8AA3A0);
   static const redOrange = Color(0xFFE73213);
-  static const ink = Color(0xFF1B1B1B);
+  static const ink = Color(0xFF111925);
 
   // Black text on red-orange reaches about 4.9:1 contrast, above the 4.5:1 minimum.
   static const onRedOrange = Color(0xFF000000);
@@ -19,11 +20,11 @@ abstract final class AppColors {
   static const riskMedium = Color(0xFFC77700);
   static const riskHigh = redOrange;
 
-  /// Reports a crew is working on. A flat ink-blue, with cream text on top (about 9:1).
+  /// Reports a crew is working on. A flat ink-blue, with light text on top (about 9:1).
   static const inProgress = Color(0xFF2E4A62);
   static const onInProgress = cream;
 
-  /// Success messages: a deeper green than [riskLow], so cream text reaches about 5.6:1.
+  /// Success messages: a deeper green than [riskLow], so light text reaches about 5.6:1.
   static const success = Color(0xFF256446);
   static const onSuccess = cream;
 
@@ -32,8 +33,8 @@ abstract final class AppColors {
   static const onError = onRedOrange;
 
   /// Dark mode background and panel.
-  static const darkPaper = Color(0xFF1C1B19);
-  static const darkSage = Color(0xFF35504A);
+  static const darkPaper = Color(0xFF0F131E);
+  static const darkSage = Color(0xFF1D2836);
 }
 
 /// The colors that switch between light and dark mode.
