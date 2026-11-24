@@ -187,8 +187,8 @@ class _AccountStatusBadge extends StatelessWidget {
     final status = profile.accountStatus;
     final until = profile.suspendedUntil;
     final (background, foreground) = switch (status) {
-      UserProfile.accountBanned || UserProfile.accountSuspended => (AppColors.redOrange, AppColors.onRedOrange),
-      UserProfile.accountWarned => (AppColors.riskMedium, AppColors.ink),
+      UserProfile.accountBanned || UserProfile.accountSuspended => (AppColors.riskHigh, AppColors.onError),
+      UserProfile.accountWarned => (AppColors.riskMedium, AppColors.onError),
       _ => (AppColors.riskLow, AppColors.cream),
     };
     final detail = switch (status) {

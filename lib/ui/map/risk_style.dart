@@ -22,10 +22,10 @@ Color riskColor(String riskLevel) {
 Color pinColor(Incident incident) =>
     incident.status == Incident.statusInProgress ? AppColors.inProgress : riskColor(incident.riskLevel);
 
-/// Readable icon color on top of [pinColor]: black on red-orange, cream on the darker colors.
+/// Readable icon color on top of [pinColor]: black on high-risk red, cream on the darker colors.
 Color pinIconColor(Incident incident) {
   if (incident.status == Incident.statusInProgress) return AppColors.onInProgress;
-  return incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream;
+  return incident.riskLevel == 'High' ? AppColors.onError : AppColors.cream;
 }
 
 IconData categoryIcon(String category) => switch (category) {

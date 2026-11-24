@@ -274,11 +274,11 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                     FlatBadge(
                       label: user.accountStatus,
                       background: blocked
-                          ? AppColors.redOrange
+                          ? AppColors.riskHigh
                           : warned
                               ? AppColors.riskMedium
                               : context.palette.sage,
-                      foreground: blocked || warned ? AppColors.ink : context.palette.ink,
+                      foreground: blocked || warned ? AppColors.onError : context.palette.ink,
                     ),
                   ],
                 ),

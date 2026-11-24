@@ -158,7 +158,7 @@ class _EntryCard extends StatelessWidget {
                 FlatBadge(
                   label: '${entry.riskLevel} risk',
                   background: riskColor(entry.riskLevel),
-                  foreground: entry.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
+                  foreground: entry.riskLevel == 'High' ? AppColors.onError : AppColors.cream,
                 ),
               ],
             ),

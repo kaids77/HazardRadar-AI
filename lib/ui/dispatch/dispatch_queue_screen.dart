@@ -147,7 +147,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
           children: [
             Row(
               children: [
-                _Kpi(label: 'Active high', value: '${open.where((i) => i.status == Incident.statusActive && i.riskLevel == 'High').length}', color: AppColors.redOrange, foreground: AppColors.onRedOrange),
+                _Kpi(label: 'Active high', value: '${open.where((i) => i.status == Incident.statusActive && i.riskLevel == 'High').length}', color: AppColors.riskHigh, foreground: AppColors.onError),
                 _Kpi(label: 'In progress', value: '${open.where((i) => i.status == Incident.statusInProgress).length}', color: AppColors.inProgress, foreground: AppColors.onInProgress),
                 _Kpi(label: 'Resolved', value: closed == null ? '-' : '${closed.resolved}', color: context.palette.sage, foreground: context.palette.ink),
                 _Kpi(label: 'Quarantined', value: closed == null ? '-' : '${closed.quarantined}', color: context.palette.ink, foreground: context.palette.paper),

@@ -51,7 +51,7 @@ class ReviewStep extends StatelessWidget {
             FlatBadge(
               label: '${result.riskLevel} risk',
               background: riskColor(result.riskLevel),
-              foreground: result.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
+              foreground: result.riskLevel == 'High' ? AppColors.onError : AppColors.cream,
             ),
             FlatBadge(
               label: result.aiProcessed ? 'Classified by Radar AI' : 'Classified offline',
@@ -70,7 +70,7 @@ class ReviewStep extends StatelessWidget {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.only(left: 12),
-          decoration: const BoxDecoration(border: Border(left: BorderSide(color: AppColors.redOrange, width: 3))),
+          decoration: BoxDecoration(border: Border(left: BorderSide(color: Theme.of(context).colorScheme.primary, width: 3))),
           child: Text('Recommended action: ${result.recommendedAction}', style: textTheme.bodyMedium),
         ),
         if (!result.aiProcessed) ...[

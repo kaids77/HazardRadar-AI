@@ -10,15 +10,15 @@ abstract final class AppColors {
   static const cream = Color(0xFFF3F7FA);
   static const sage = Color(0xFFD5E1E0);
   static const logoSage = Color(0xFF8AA3A0);
-  static const redOrange = Color(0xFFE73213);
+  static const redOrange = Color(0xFF111925);
   static const ink = Color(0xFF111925);
 
-  // Black text on red-orange reaches about 4.9:1 contrast, above the 4.5:1 minimum.
-  static const onRedOrange = Color(0xFF000000);
+  // Crisp off-white text on the dark navy primary color.
+  static const onRedOrange = cream;
 
   static const riskLow = Color(0xFF2F7A56);
   static const riskMedium = Color(0xFFC77700);
-  static const riskHigh = redOrange;
+  static const riskHigh = Color(0xFFE73213);
 
   /// Reports a crew is working on. A flat ink-blue, with light text on top (about 9:1).
   static const inProgress = Color(0xFF2E4A62);
@@ -28,9 +28,9 @@ abstract final class AppColors {
   static const success = Color(0xFF256446);
   static const onSuccess = cream;
 
-  /// Error messages use red-orange with black text, like the High-risk color.
-  static const error = redOrange;
-  static const onError = onRedOrange;
+  /// Error messages use high-risk red with dark text.
+  static const error = Color(0xFFE73213);
+  static const onError = Color(0xFF000000);
 
   /// Dark mode background and panel.
   static const darkPaper = Color(0xFF0F131E);
@@ -85,11 +85,14 @@ abstract final class AppTheme {
   static ThemeData dark() => _build(AppPalette.dark, Brightness.dark);
 
   static ThemeData _build(AppPalette p, Brightness brightness) {
-    final base = brightness == Brightness.light ? const ColorScheme.light() : const ColorScheme.dark();
-    final outlineColor = p.ink.withValues(alpha: brightness == Brightness.light ? 0.18 : 0.24);
+    final isLight = brightness == Brightness.light;
+    final base = isLight ? const ColorScheme.light() : const ColorScheme.dark();
+    final primaryBg = isLight ? AppColors.ink : AppColors.logoSage;
+    final onPrimaryFg = isLight ? AppColors.cream : AppColors.ink;
+    final outlineColor = p.ink.withValues(alpha: isLight ? 0.18 : 0.24);
     final scheme = base.copyWith(
-      primary: AppColors.redOrange,
-      onPrimary: AppColors.onRedOrange,
+      primary: primaryBg,
+      onPrimary: onPrimaryFg,
       secondary: p.sage,
       onSecondary: p.ink,
       error: AppColors.error,
@@ -149,7 +152,7 @@ abstract final class AppTheme {
         shape: Border(bottom: BorderSide(color: outlineColor)),
         titleTextStyle: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22, color: p.ink),
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.redOrange),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: primaryBg),
       cardTheme: CardThemeData(
         color: p.sage,
         elevation: 0,
@@ -227,21 +230,21 @@ abstract final class AppTheme {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
-          backgroundColor: AppColors.redOrange,
-          foregroundColor: AppColors.onRedOrange,
+          backgroundColor: primaryBg,
+          foregroundColor: onPrimaryFg,
           shadowColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
           shape: buttonShape,
         ),
       ),
-      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
         elevation: 0,
         focusElevation: 0,
         hoverElevation: 0,
         highlightElevation: 0,
-        shape: RoundedRectangleBorder(borderRadius: radiusMd),
-        backgroundColor: AppColors.redOrange,
-        foregroundColor: AppColors.onRedOrange,
+        shape: const RoundedRectangleBorder(borderRadius: radiusMd),
+        backgroundColor: primaryBg,
+        foregroundColor: onPrimaryFg,
       ),
       dividerTheme: DividerThemeData(color: outlineColor, space: 1),
       navigationBarTheme: NavigationBarThemeData(
@@ -259,11 +262,10 @@ abstract final class AppTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: p.paper,
-        selectedColor: AppColors.redOrange,
-        // Black on the red-orange selected chip in both modes.
+        selectedColor: primaryBg,
         labelStyle: TextStyle(
           color: WidgetStateColor.resolveWith(
-            (states) => states.contains(WidgetState.selected) ? AppColors.onRedOrange : p.ink,
+            (states) => states.contains(WidgetState.selected) ? onPrimaryFg : p.ink,
           ),
         ),
         side: BorderSide(color: p.ink.withValues(alpha: 0.35), width: 1.2),
@@ -273,9 +275,11 @@ abstract final class AppTheme {
         showCheckmark: false,
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.all(p.ink),
+        thumbColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? onPrimaryFg : p.ink,
+        ),
         trackColor: WidgetStateProperty.resolveWith(
-          (states) => states.contains(WidgetState.selected) ? AppColors.redOrange : p.sage,
+          (states) => states.contains(WidgetState.selected) ? primaryBg : p.sage,
         ),
         trackOutlineColor: WidgetStateProperty.all(p.ink.withValues(alpha: 0.25)),
       ),

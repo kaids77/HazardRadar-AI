@@ -166,7 +166,7 @@ class _AccountSheetState extends State<AccountSheet> {
             child: LinearProgressIndicator(
               value: progress.fraction,
               backgroundColor: context.palette.sage,
-              color: AppColors.redOrange,
+              color: Theme.of(context).colorScheme.primary,
             ),
           ),
         ),
@@ -222,10 +222,13 @@ class _AccountSheetState extends State<AccountSheet> {
             shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
           ),
           child: _busy
-              ? const SizedBox(
+              ? SizedBox(
                   height: 20,
                   width: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onRedOrange),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Theme.of(context).colorScheme.onPrimary,
+                  ),
                 )
               : const Text('Continue with Google'),
         ),

@@ -298,8 +298,8 @@ class _Bubble extends StatelessWidget {
     }
     return Container(
       padding: const EdgeInsets.only(left: 12),
-      decoration: const BoxDecoration(
-        border: Border(left: BorderSide(color: AppColors.redOrange, width: 3)),
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: Theme.of(context).colorScheme.primary, width: 3)),
       ),
       child: text,
     );

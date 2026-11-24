@@ -12,7 +12,8 @@ void main() {
     expect(AppColors.ink, const Color(0xFF111925));
     expect(AppColors.darkPaper, const Color(0xFF0F131E));
     expect(AppColors.darkSage, const Color(0xFF1D2836));
-    expect(AppColors.redOrange, const Color(0xFFE73213));
+    expect(AppColors.redOrange, const Color(0xFF111925));
+    expect(AppColors.riskHigh, const Color(0xFFE73213));
   });
 
   test('theme uses the palette and has no elevation or surface tint', () {
@@ -27,14 +28,14 @@ void main() {
     expect(theme.colorScheme.surfaceTint, Colors.transparent);
   });
 
-  test('dark mode swaps background and text, and keeps red-orange and the flat look', () {
+  test('dark mode swaps background and text, and keeps the flat look', () {
     final theme = AppTheme.dark();
 
     expect(theme.brightness, Brightness.dark);
     expect(theme.scaffoldBackgroundColor, AppColors.darkPaper);
     expect(theme.extension<AppPalette>(), AppPalette.dark);
     expect(theme.extension<AppPalette>()!.ink, AppColors.cream);
-    expect(theme.colorScheme.primary, AppColors.redOrange);
+    expect(theme.colorScheme.primary, AppColors.logoSage);
     expect(theme.appBarTheme.elevation, 0);
   });
 

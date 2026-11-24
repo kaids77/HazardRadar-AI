@@ -60,7 +60,7 @@ class TicketCard extends StatelessWidget {
                 FlatBadge(
                   label: '${incident.riskLevel} · ${incident.category}',
                   background: riskColor(incident.riskLevel),
-                  foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
+                  foreground: incident.riskLevel == 'High' ? AppColors.onError : AppColors.cream,
                 ),
                 FlatBadge(label: status.label, background: status.background, foreground: status.foreground),
                 FlatBadge(label: incident.reference, background: context.palette.sage, foreground: context.palette.ink),

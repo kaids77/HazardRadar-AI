@@ -202,7 +202,7 @@ class NewHighRiskBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Material(
-      color: AppColors.redOrange,
+      color: AppColors.riskHigh,
       borderRadius: AppTheme.radiusMd,
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -216,10 +216,10 @@ class NewHighRiskBanner extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: textTheme.labelLarge?.copyWith(color: AppColors.onRedOrange)),
+                    Text(title, style: textTheme.labelLarge?.copyWith(color: AppColors.onError)),
                     Text(
                       detail ?? '${incident.category} · ${incident.reference}. Tap to open.',
-                      style: textTheme.bodySmall?.copyWith(color: AppColors.onRedOrange),
+                      style: textTheme.bodySmall?.copyWith(color: AppColors.onError),
                     ),
                   ],
                 ),
@@ -227,7 +227,7 @@ class NewHighRiskBanner extends StatelessWidget {
               IconButton(
                 tooltip: dismissTooltip,
                 onPressed: onDismiss,
-                icon: const Icon(Icons.close, color: AppColors.onRedOrange),
+                icon: const Icon(Icons.close, color: AppColors.onError),
               ),
             ],
           ),

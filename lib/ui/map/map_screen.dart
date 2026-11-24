@@ -563,15 +563,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(child: MapSearchField(onChanged: _onSearchChanged)),
-                  if (_chat != null) ...[
-                    const SizedBox(width: 8),
-                    _RadarButton(onPressed: _openChat),
-                  ],
-                ],
-              ),
+              MapSearchField(onChanged: _onSearchChanged),
               const SizedBox(height: 8),
               MapFilterChips(
                 incidents: _latest,
@@ -581,6 +573,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   _flyToMatches();
                 },
               ),
+              if (_chat != null) ...[
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: _RadarButton(onPressed: _openChat),
+                ),
+              ],
               if (_pickingDestination || _routing || _route != null) ...[
                 const SizedBox(height: 8),
                 _routePanel(),
@@ -693,7 +692,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               child: Text(
                 count > 99 ? '99+' : '$count',
                 style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: risk == 'High' ? AppColors.onRedOrange : AppColors.cream,
+                      color: risk == 'High' ? AppColors.onError : AppColors.cream,
                     ),
               ),
             ),
@@ -773,7 +772,7 @@ class _DebugError extends StatelessWidget {
 
 /// Route line colors. Fixed, so they read the same in light and dark mode.
 const Color routeSafeColor = AppColors.success;
-const Color routeRiskyColor = AppColors.redOrange;
+const Color routeRiskyColor = AppColors.riskHigh;
 
 /// Rounded route status block with one action (Cancel or Clear route). With a planned
 /// [route] it adds a key for the green and red lines on the map.
@@ -852,7 +851,7 @@ class _RoutePanel extends StatelessWidget {
       );
 }
 
-/// Rounded sage block next to the search field.
+/// Rounded sage button below the filter chips on the right side.
 class _RadarButton extends StatelessWidget {
   const _RadarButton({required this.onPressed});
 
@@ -871,7 +870,7 @@ class _RadarButton extends StatelessWidget {
         onTap: onPressed,
         borderRadius: AppTheme.radiusMd,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Text('Ask Radar AI', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: context.palette.ink)),
         ),
       ),

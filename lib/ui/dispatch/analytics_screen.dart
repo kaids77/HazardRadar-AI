@@ -112,7 +112,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 8),
           Row(
             children: [
-              _Block(label: 'Active high', value: '${data.activeHigh}', color: AppColors.redOrange, foreground: AppColors.onRedOrange),
+              _Block(label: 'Active high', value: '${data.activeHigh}', color: AppColors.riskHigh, foreground: AppColors.onError),
               _Block(label: 'Active medium', value: '${data.activeMedium}', color: AppColors.riskMedium, foreground: AppColors.ink),
               _Block(label: 'Active low', value: '${data.activeLow}', color: AppColors.riskLow, foreground: AppColors.cream),
             ],
@@ -214,7 +214,7 @@ class _CategoryBar extends StatelessWidget {
   /// text color, so it stays visible on either background.
   static Map<String, Color> _colors(BuildContext context) => {
     HazardCategory.pothole: AppColors.riskMedium,
-    HazardCategory.electrical: AppColors.redOrange,
+    HazardCategory.electrical: AppColors.riskHigh,
     HazardCategory.flooding: AppColors.inProgress,
     HazardCategory.obstruction: AppColors.riskLow,
     HazardCategory.lighting: AppColors.sage,

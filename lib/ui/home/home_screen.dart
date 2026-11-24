@@ -555,8 +555,8 @@ class _Frame extends StatelessWidget {
               hoverElevation: 0,
               highlightElevation: 0,
               shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
-              backgroundColor: AppColors.redOrange,
-              foregroundColor: AppColors.onRedOrange,
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
               label: const Text('Report hazard'),
             ),
     );

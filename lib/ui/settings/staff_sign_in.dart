@@ -71,6 +71,12 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
         shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
       );
 
+  ButtonStyle get _signOutOutline => OutlinedButton.styleFrom(
+        foregroundColor: AppColors.error,
+        side: const BorderSide(color: AppColors.error, width: 1.4),
+        shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+      );
+
   /// The user's Google name, then their email, for messages.
   String get _who {
     final name = widget.profile.displayName;
@@ -205,7 +211,7 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
         ),
       ],
       const SizedBox(height: 8),
-      OutlinedButton(onPressed: _busy ? null : widget.onSignOut, style: _outline, child: const Text('Sign out')),
+      OutlinedButton(onPressed: _busy ? null : widget.onSignOut, style: _signOutOutline, child: const Text('Sign out')),
       const SizedBox(height: 4),
       Text(
         'Your points and reports stay on this Google account. After signing out you browse as a guest.',
@@ -219,7 +225,7 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
         const SizedBox(height: 8),
         Text('Signed in as ${widget.profile.tierTitle}.', style: Theme.of(context).textTheme.bodyMedium),
         const SizedBox(height: 8),
-        OutlinedButton(onPressed: _busy ? null : widget.onSignOut, style: _outline, child: const Text('Sign out')),
+        OutlinedButton(onPressed: _busy ? null : widget.onSignOut, style: _signOutOutline, child: const Text('Sign out')),
       ];
 
   List<Widget> _guestBlock() {

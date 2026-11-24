@@ -227,10 +227,13 @@ class _NavBar extends StatelessWidget {
                 shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
               ),
               child: busy
-                  ? const SizedBox(
+                  ? SizedBox(
                       height: 20,
                       width: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onRedOrange),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
                     )
                   : Text(primaryLabel),
             ),

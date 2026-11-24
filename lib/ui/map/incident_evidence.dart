@@ -134,7 +134,7 @@ class EvidenceDetails extends StatelessWidget {
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.only(left: 12),
-            decoration: const BoxDecoration(border: Border(left: BorderSide(color: AppColors.redOrange, width: 3))),
+            decoration: BoxDecoration(border: Border(left: BorderSide(color: Theme.of(context).colorScheme.primary, width: 3))),
             child: Text('Recommended action: ${incident.recommendedAction}', style: textTheme.bodyMedium),
           ),
         ],

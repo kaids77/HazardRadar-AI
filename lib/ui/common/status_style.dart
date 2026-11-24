@@ -15,7 +15,7 @@ import '../../theme/app_theme.dart';
         foreground: AppColors.onInProgress,
       ),
     Incident.statusResolved => (label: 'Resolved by city', background: context.palette.sage, foreground: context.palette.ink),
-    _ => (label: 'Active', background: AppColors.redOrange, foreground: AppColors.onRedOrange),
+    _ => (label: 'Active', background: AppColors.riskHigh, foreground: AppColors.onError),
   };
 }
 

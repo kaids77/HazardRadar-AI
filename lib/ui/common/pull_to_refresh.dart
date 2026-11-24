@@ -18,7 +18,7 @@ class PullToRefresh extends StatelessWidget {
   Widget build(BuildContext context) {
     return RefreshIndicator(
       onRefresh: onRefresh,
-      color: AppColors.redOrange,
+      color: Theme.of(context).colorScheme.primary,
       backgroundColor: context.palette.paper,
       elevation: 0,
       child: child,

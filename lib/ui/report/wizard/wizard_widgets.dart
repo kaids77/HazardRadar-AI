@@ -30,7 +30,7 @@ class WizardStepper extends StatelessWidget {
                       color: s.index < step.index
                           ? context.palette.ink
                           : s == step
-                              ? AppColors.redOrange
+                              ? Theme.of(context).colorScheme.primary
                               : context.palette.sage,
                       borderRadius: BorderRadius.circular(4),
                     ),

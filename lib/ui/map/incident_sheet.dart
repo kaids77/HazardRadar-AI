@@ -285,7 +285,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
               FlatBadge(
                 label: '${incident.riskLevel} risk',
                 background: riskColor(incident.riskLevel),
-                foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
+                foreground: incident.riskLevel == 'High' ? AppColors.onError : AppColors.cream,
               ),
               FlatBadge(label: '${incident.reference} · ${status.label}', background: status.background, foreground: status.foreground),
               if (_netVotes >= Incident.verifiedThreshold && !_quarantinedNow)

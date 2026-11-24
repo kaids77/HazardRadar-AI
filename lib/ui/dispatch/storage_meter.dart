@@ -35,7 +35,7 @@ class StorageMeter extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: e?.fraction,
                 backgroundColor: context.palette.sage,
-                color: warn ? AppColors.redOrange : context.palette.ink,
+                color: warn ? AppColors.riskHigh : context.palette.ink,
               ),
             ),
           ),

@@ -332,7 +332,7 @@ class _ProfileCard extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: progress.fraction,
                   backgroundColor: context.palette.sage,
-                  color: AppColors.redOrange,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
               ),
             ),
@@ -405,7 +405,7 @@ class _HistoryCard extends StatelessWidget {
                 FlatBadge(
                   label: '${incident.riskLevel} risk',
                   background: riskColor(incident.riskLevel),
-                  foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
+                  foreground: incident.riskLevel == 'High' ? AppColors.onError : AppColors.cream,
                 ),
                 if (incident.isVerified)
                   const FlatBadge(label: 'Verified', background: AppColors.riskLow, foreground: AppColors.cream),
