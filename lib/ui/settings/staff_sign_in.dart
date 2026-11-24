@@ -67,8 +67,8 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
 
   ButtonStyle get _outline => OutlinedButton.styleFrom(
         foregroundColor: context.palette.ink,
-        side: BorderSide(color: context.palette.ink),
-        shape: const RoundedRectangleBorder(),
+        side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+        shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
       );
 
   /// The user's Google name, then their email, for messages.
@@ -160,8 +160,12 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
       const Text('City staff', style: _heading),
       const SizedBox(height: 4),
       Container(
-        color: context.palette.sage,
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: context.palette.sage,
+          borderRadius: AppTheme.radiusMd,
+          border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -233,14 +237,14 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
         controller: _email,
         keyboardType: TextInputType.emailAddress,
         autofillHints: const [AutofillHints.email],
-        decoration: const InputDecoration(labelText: 'Staff email', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+        decoration: const InputDecoration(labelText: 'Staff email', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
       ),
       const SizedBox(height: 8),
       TextField(
         controller: _password,
         obscureText: true,
         autofillHints: const [AutofillHints.password],
-        decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+        decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
         onSubmitted: (_) => _signIn(),
       ),
       const SizedBox(height: 8),
@@ -315,14 +319,14 @@ class _PasswordDialogState extends State<_PasswordDialog> {
             controller: _password,
             obscureText: true,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'New password', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+            decoration: const InputDecoration(labelText: 'New password', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _confirm,
             obscureText: true,
             onSubmitted: (_) => _save(),
-            decoration: const InputDecoration(labelText: 'Repeat password', border: OutlineInputBorder(borderRadius: BorderRadius.zero)),
+            decoration: const InputDecoration(labelText: 'Repeat password', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
           ),
           if (error != null) ...[const SizedBox(height: 8), FeedbackMessage.error(error)],
         ],

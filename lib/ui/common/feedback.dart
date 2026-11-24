@@ -53,8 +53,12 @@ class FeedbackMessage extends StatelessWidget {
       liveRegion: true,
       child: Container(
         width: double.infinity,
-        color: style.background,
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: style.background,
+          borderRadius: AppTheme.radiusMd,
+          border: Border.all(color: style.foreground.withValues(alpha: 0.22)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

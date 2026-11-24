@@ -51,55 +51,58 @@ class _LocationStepState extends State<LocationStep> {
       children: [
         Text('Confirm the hazard location', style: textTheme.titleMedium),
         const SizedBox(height: 12),
-        SizedBox(
-          height: 260,
-          child: Stack(
-            children: [
-              FlutterMap(
-                mapController: _map,
-                options: MapOptions(
-                  initialCenter: pin,
-                  initialZoom: 18,
-                  minZoom: 15,
-                  onPositionChanged: (camera, hasGesture) {
-                    if (hasGesture) draft.movePin(camera.center);
-                  },
-                  onMapEvent: _onMapEvent,
-                ),
-                children: [
-                  TileLayer(
-                    urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                    userAgentPackageName: 'com.example.hazardradarai',
-                    tileBuilder: tintedTileBuilder,
+        ClipRRect(
+          borderRadius: AppTheme.radiusLg,
+          child: SizedBox(
+            height: 260,
+            child: Stack(
+              children: [
+                FlutterMap(
+                  mapController: _map,
+                  options: MapOptions(
+                    initialCenter: pin,
+                    initialZoom: 18,
+                    minZoom: 15,
+                    onPositionChanged: (camera, hasGesture) {
+                      if (hasGesture) draft.movePin(camera.center);
+                    },
+                    onMapEvent: _onMapEvent,
                   ),
-                  CircleLayer(
-                    circles: [
-                      CircleMarker(
-                        point: fix.position,
-                        radius: ReportDraft.maxPinShiftMeters,
-                        useRadiusInMeter: true,
-                        color: Colors.transparent,
-                        borderColor: context.palette.ink,
-                        borderStrokeWidth: 1.5,
-                      ),
-                    ],
-                  ),
-                  MarkerLayer(
-                    markers: [
-                      Marker(
-                        point: fix.position,
-                        width: 12,
-                        height: 12,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(color: context.palette.ink, shape: BoxShape.circle),
+                  children: [
+                    TileLayer(
+                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName: 'com.example.hazardradarai',
+                      tileBuilder: tintedTileBuilder,
+                    ),
+                    CircleLayer(
+                      circles: [
+                        CircleMarker(
+                          point: fix.position,
+                          radius: ReportDraft.maxPinShiftMeters,
+                          useRadiusInMeter: true,
+                          color: Colors.transparent,
+                          borderColor: context.palette.ink,
+                          borderStrokeWidth: 1.5,
                         ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              const IgnorePointer(child: Center(child: _Crosshair())),
-            ],
+                      ],
+                    ),
+                    MarkerLayer(
+                      markers: [
+                        Marker(
+                          point: fix.position,
+                          width: 12,
+                          height: 12,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(color: context.palette.ink, shape: BoxShape.circle),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const IgnorePointer(child: Center(child: _Crosshair())),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 12),
@@ -126,7 +129,7 @@ class _LocationStepState extends State<LocationStep> {
   }
 }
 
-/// A flat square crosshair: red-orange with an ink outline. No glow.
+/// A rounded crosshair: red-orange with an ink outline.
 class _Crosshair extends StatelessWidget {
   const _Crosshair();
 
@@ -137,6 +140,7 @@ class _Crosshair extends StatelessWidget {
       height: 22,
       decoration: BoxDecoration(
         color: AppColors.redOrange,
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(color: context.palette.ink, width: 2),
       ),
     );

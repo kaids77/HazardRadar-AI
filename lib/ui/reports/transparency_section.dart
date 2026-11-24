@@ -138,43 +138,45 @@ class _EntryCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: palette.paper,
-        border: Border(
-          left: BorderSide(color: riskColor(entry.riskLevel), width: 4),
-          top: BorderSide(color: palette.sage),
-          right: BorderSide(color: palette.sage),
-          bottom: BorderSide(color: palette.sage),
-        ),
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: palette.ink.withValues(alpha: 0.22)),
       ),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              FlatBadge(label: entry.kindLabel, background: kindColors.background, foreground: kindColors.foreground),
-              FlatBadge(
-                label: '${entry.riskLevel} risk',
-                background: riskColor(entry.riskLevel),
-                foreground: entry.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
-              ),
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: riskColor(entry.riskLevel), width: 5)),
+        ),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                FlatBadge(label: entry.kindLabel, background: kindColors.background, foreground: kindColors.foreground),
+                FlatBadge(
+                  label: '${entry.riskLevel} risk',
+                  background: riskColor(entry.riskLevel),
+                  foreground: entry.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text('${entry.category} · ${entry.reference}', style: textTheme.titleSmall),
+            if (at != null) Text(formatPhilippineTime(at), style: textTheme.bodySmall),
+            if (entry.isResolved) ...[
+              const SizedBox(height: 4),
+              if (entry.reporterName case final name?) Text('Reported by $name', style: textTheme.bodyMedium),
+              Text('Crew: ${entry.crew.isEmpty ? 'not recorded' : entry.crew}', style: textTheme.bodyMedium),
+              if (entry.resolutionNote.isNotEmpty) Text('City note: ${entry.resolutionNote}', style: textTheme.bodyMedium),
             ],
-          ),
-          const SizedBox(height: 6),
-          Text('${entry.category} · ${entry.reference}', style: textTheme.titleSmall),
-          if (at != null) Text(formatPhilippineTime(at), style: textTheme.bodySmall),
-          if (entry.isResolved) ...[
-            const SizedBox(height: 4),
-            if (entry.reporterName case final name?) Text('Reported by $name', style: textTheme.bodyMedium),
-            Text('Crew: ${entry.crew.isEmpty ? 'not recorded' : entry.crew}', style: textTheme.bodyMedium),
-            if (entry.resolutionNote.isNotEmpty) Text('City note: ${entry.resolutionNote}', style: textTheme.bodyMedium),
+            if (reason != null) ...[
+              const SizedBox(height: 4),
+              Text(reason, style: textTheme.bodyMedium),
+            ],
           ],
-          if (reason != null) ...[
-            const SizedBox(height: 4),
-            Text(reason, style: textTheme.bodyMedium),
-          ],
-        ],
+        ),
       ),
     );
   }

@@ -17,19 +17,26 @@ class StorageMeter extends StatelessWidget {
     final mb = e == null ? null : e.usedBytes / (1024 * 1024);
     final warn = e != null && e.fraction >= 0.8;
     return Container(
-      decoration: BoxDecoration(border: Border.fromBorderSide(BorderSide(color: context.palette.ink))),
+      decoration: BoxDecoration(
+        color: context.palette.paper,
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.25), width: 1.2),
+      ),
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('Photo storage (Firestore free tier)', style: textTheme.titleSmall),
           const SizedBox(height: 8),
-          SizedBox(
-            height: 10,
-            child: LinearProgressIndicator(
-              value: e?.fraction,
-              backgroundColor: context.palette.sage,
-              color: warn ? AppColors.redOrange : context.palette.ink,
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 10,
+              child: LinearProgressIndicator(
+                value: e?.fraction,
+                backgroundColor: context.palette.sage,
+                color: warn ? AppColors.redOrange : context.palette.ink,
+              ),
             ),
           ),
           const SizedBox(height: 6),

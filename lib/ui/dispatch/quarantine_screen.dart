@@ -105,7 +105,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: const RoundedRectangleBorder(),
+        shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusLg),
         title: Text('Permanently purge ${incident.reference}?'),
         content: const Text('The report, its photo, and its votes are deleted. This cannot be undone.'),
         actions: [
@@ -139,8 +139,8 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
                 onPressed: _syncing ? null : _syncLog,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: context.palette.ink,
-                  side: BorderSide(color: context.palette.ink),
-                  shape: const RoundedRectangleBorder(),
+                  side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                  shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
                 ),
                 child: Text(_syncing ? 'Syncing...' : 'Sync transparency log'),
               ),
@@ -162,7 +162,11 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
             else ...[
               for (final incident in page.items) ...[
                 Container(
-                  decoration: BoxDecoration(border: Border.fromBorderSide(BorderSide(color: context.palette.ink))),
+                  decoration: BoxDecoration(
+                    color: context.palette.paper,
+                    borderRadius: AppTheme.radiusMd,
+                    border: Border.all(color: context.palette.ink.withValues(alpha: 0.25), width: 1.2),
+                  ),
                   padding: const EdgeInsets.all(12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -191,15 +195,15 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
                                 : () => _run(incident, () => widget.moderation.restore(incident), 'Restored to the map.'),
                             style: OutlinedButton.styleFrom(
                               foregroundColor: context.palette.ink,
-                              side: BorderSide(color: context.palette.ink),
-                              shape: const RoundedRectangleBorder(),
+                              side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                              shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
                             ),
                             child: const Text('Restore and verify'),
                           ),
                           if (widget.profile.isAdmin)
                             ElevatedButton(
                               onPressed: _busy.contains(incident.id) ? null : () => _purge(incident),
-                              style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder()),
+                              style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd)),
                               child: const Text('Permanently purge'),
                             ),
                         ],

@@ -19,7 +19,7 @@ import '../../theme/app_theme.dart';
   };
 }
 
-/// A flat rectangular label. No rounded corners, no shadow.
+/// A rounded rectangular badge with a subtle outline.
 class FlatBadge extends StatelessWidget {
   const FlatBadge({super.key, required this.label, required this.background, required this.foreground});
 
@@ -30,11 +30,15 @@ class FlatBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: background,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: foreground.withValues(alpha: 0.2)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
       child: Text(
         label,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: foreground),
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: foreground, fontWeight: FontWeight.w600),
       ),
     );
   }

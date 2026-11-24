@@ -22,7 +22,7 @@ Future<ChatAction?> showChatSheet(
     isScrollControlled: true,
     backgroundColor: context.palette.paper,
     elevation: 0,
-    shape: const RoundedRectangleBorder(),
+    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusSheet),
     builder: (_) => FractionallySizedBox(
       heightFactor: 0.85,
       child: ChatSheet(controller: controller, incidents: incidents, around: around),
@@ -177,32 +177,32 @@ class _ChatSheetState extends State<ChatSheet> {
                                         ? null
                                         : () => widget.controller
                                             .answer(choice, incidents: widget.incidents(), around: widget.around()),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: context.palette.ink,
-                                      side: BorderSide(color: context.palette.ink),
-                                      shape: const RoundedRectangleBorder(),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor: context.palette.ink,
+                                        side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                                        shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                                      ),
+                                      child: Text(choice),
                                     ),
-                                    child: Text(choice),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        for (final action in message.actions)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Align(
-                              alignment: Alignment.centerLeft,
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.of(context).pop(action),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: context.palette.ink,
-                                  side: BorderSide(color: context.palette.ink),
-                                  shape: const RoundedRectangleBorder(),
-                                ),
-                                child: Text(_labelFor(action)),
+                                ],
                               ),
                             ),
-                          ),
+                          for (final action in message.actions)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: OutlinedButton(
+                                  onPressed: () => Navigator.of(context).pop(action),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: context.palette.ink,
+                                    side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                                    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                                  ),
+                                  child: Text(_labelFor(action)),
+                                ),
+                              ),
+                            ),
                         const SizedBox(height: 12),
                       ],
                       if (widget.controller.waiting)
@@ -270,7 +270,7 @@ class _ChatSheetState extends State<ChatSheet> {
   }
 }
 
-/// User lines sit right on sage. Assistant lines sit left on cream with a red-orange rule.
+/// User lines sit right on a rounded sage bubble. Assistant lines sit left with a red-orange rule.
 class _Bubble extends StatelessWidget {
   const _Bubble({required this.message});
 
@@ -284,9 +284,14 @@ class _Bubble extends StatelessWidget {
         alignment: Alignment.centerRight,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 420),
-          child: ColoredBox(
-            color: context.palette.sage,
-            child: Padding(padding: const EdgeInsets.all(12), child: text),
+          child: Container(
+            decoration: BoxDecoration(
+              color: context.palette.sage,
+              borderRadius: AppTheme.radiusMd,
+              border: Border.all(color: context.palette.ink.withValues(alpha: 0.2)),
+            ),
+            padding: const EdgeInsets.all(12),
+            child: text,
           ),
         ),
       );

@@ -34,7 +34,7 @@ Future<void> showIncidentSheet(
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     elevation: 0,
-    shape: const RoundedRectangleBorder(),
+    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusSheet),
     builder: (_) => DraggableScrollableSheet(
       controller: controller,
       expand: false,
@@ -43,8 +43,13 @@ Future<void> showIncidentSheet(
       maxChildSize: 0.94,
       snap: true,
       snapSizes: const [0.42, 0.94],
-      builder: (context, scrollController) => ColoredBox(
-        color: context.palette.paper,
+      builder: (context, scrollController) => Container(
+        decoration: BoxDecoration(
+          color: context.palette.paper,
+          borderRadius: AppTheme.radiusSheet,
+          border: Border.all(color: context.palette.ink.withValues(alpha: 0.22), width: 1.2),
+        ),
+        clipBehavior: Clip.antiAlias,
         child: IncidentSheet(
           incident: incident,
           profile: profile,
@@ -226,7 +231,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: const RoundedRectangleBorder(),
+        shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusLg),
         title: const Text('Flag as spam or duplicate?'),
         content: const Text('The report leaves the public map right away. A moderator reviews it.'),
         actions: [
@@ -262,7 +267,16 @@ class _IncidentSheetState extends State<IncidentSheet> {
         controller: widget.scrollController,
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
         children: [
-          Center(child: Container(width: 40, height: 4, color: context.palette.ink)),
+          Center(
+            child: Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: context.palette.ink.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
           const SizedBox(height: 14),
           Wrap(
             spacing: 6,
@@ -290,7 +304,11 @@ class _IncidentSheetState extends State<IncidentSheet> {
           ),
           const SizedBox(height: 10),
           Container(
-            color: context.palette.sage,
+            decoration: BoxDecoration(
+              color: context.palette.sage,
+              borderRadius: AppTheme.radiusMd,
+              border: Border.all(color: context.palette.ink.withValues(alpha: 0.2)),
+            ),
             padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -305,7 +323,10 @@ class _IncidentSheetState extends State<IncidentSheet> {
             const SizedBox(height: 4),
             TextButton(
               onPressed: widget.onExpand,
-              style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
+              style: TextButton.styleFrom(
+                foregroundColor: context.palette.ink,
+                shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+              ),
               child: const Text('Swipe up for photo proof and voting'),
             ),
           ],
@@ -325,7 +346,10 @@ class _IncidentSheetState extends State<IncidentSheet> {
               Expanded(
                 child: ElevatedButton(
                   onPressed: _busy || _voted || incident.isQuarantined ? null : () => _vote(true),
-                  style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(48), shape: const RoundedRectangleBorder()),
+                  style: ElevatedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(48),
+                    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                  ),
                   child: const Text('Still here'),
                 ),
               ),
@@ -335,9 +359,9 @@ class _IncidentSheetState extends State<IncidentSheet> {
                   onPressed: _busy || _voted || incident.isQuarantined ? null : () => _vote(false),
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
-                    shape: const RoundedRectangleBorder(),
+                    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
                     foregroundColor: context.palette.ink,
-                    side: BorderSide(color: context.palette.ink),
+                    side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
                   ),
                   child: const Text('Fixed or fake'),
                 ),
@@ -348,7 +372,10 @@ class _IncidentSheetState extends State<IncidentSheet> {
             const SizedBox(height: 8),
             TextButton(
               onPressed: _busy ? null : _flag,
-              style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
+              style: TextButton.styleFrom(
+                foregroundColor: context.palette.ink,
+                shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+              ),
               child: const Text('Flag as spam or duplicate (Sentinel)'),
             ),
           ],

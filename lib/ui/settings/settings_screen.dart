@@ -62,8 +62,8 @@ class SettingsScreen extends StatelessWidget {
     final shownName = name ?? profile.tierTitle;
     final outline = OutlinedButton.styleFrom(
       foregroundColor: palette.ink,
-      side: BorderSide(color: palette.ink),
-      shape: const RoundedRectangleBorder(),
+      side: BorderSide(color: palette.ink.withValues(alpha: 0.45), width: 1.2),
+      shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
     );
     return ListenableBuilder(
       listenable: settings,
@@ -109,12 +109,16 @@ class SettingsScreen extends StatelessWidget {
                   hasAccount
                       ? TextButton(
                           onPressed: onAccount,
-                          style: TextButton.styleFrom(shape: const RoundedRectangleBorder()),
+                          style: TextButton.styleFrom(
+                            shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                          ),
                           child: const Text('Level details'),
                         )
                       : ElevatedButton(
                           onPressed: onAccount,
-                          style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder()),
+                          style: ElevatedButton.styleFrom(
+                            shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                          ),
                           child: const Text('Sign in with Google'),
                         ),
               ],

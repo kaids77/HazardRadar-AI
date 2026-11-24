@@ -666,8 +666,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         }),
       );
 
-  /// A flat square block with the pin count, in the color of the most severe member.
-  /// Square, unlike the round single pins, so the two never get confused.
+  /// A rounded square block with the pin count, in the color of the most severe member.
   Marker _clusterMarker(PinCluster cluster) {
     final count = cluster.members.length;
     final risk = cluster.topRisk;
@@ -688,6 +687,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: riskColor(risk),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: context.palette.paper, width: 2),
               ),
               child: Text(
@@ -744,7 +744,11 @@ class _DebugError extends StatelessWidget {
   Widget build(BuildContext context) {
     final style = Theme.of(context).textTheme.bodySmall?.copyWith(fontFamily: 'monospace', color: context.palette.ink);
     return Container(
-      color: context.palette.paper,
+      decoration: BoxDecoration(
+        color: context.palette.paper,
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.3)),
+      ),
       padding: const EdgeInsets.fromLTRB(10, 6, 4, 6),
       constraints: const BoxConstraints(maxHeight: 140),
       child: Row(
@@ -771,7 +775,7 @@ class _DebugError extends StatelessWidget {
 const Color routeSafeColor = AppColors.success;
 const Color routeRiskyColor = AppColors.redOrange;
 
-/// Flat route status block with one action (Cancel or Clear route). With a planned
+/// Rounded route status block with one action (Cancel or Clear route). With a planned
 /// [route] it adds a key for the green and red lines on the map.
 class _RoutePanel extends StatelessWidget {
   const _RoutePanel({required this.text, required this.actionLabel, required this.onAction, this.route});
@@ -787,7 +791,11 @@ class _RoutePanel extends StatelessWidget {
     final route = this.route;
     final swatch = route == null ? context.palette.sage : ((route.isSafe || route.riskyDirect != null) ? routeSafeColor : routeRiskyColor);
     return Container(
-      color: context.palette.paper,
+      decoration: BoxDecoration(
+        color: context.palette.paper,
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.28), width: 1.2),
+      ),
       padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -795,12 +803,20 @@ class _RoutePanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(width: 12, height: 12, color: swatch, margin: const EdgeInsets.only(right: 8)),
+              Container(
+                width: 12,
+                height: 12,
+                margin: const EdgeInsets.only(right: 8),
+                decoration: BoxDecoration(color: swatch, borderRadius: BorderRadius.circular(4)),
+              ),
               Expanded(child: Text(text, style: textTheme.bodySmall)),
               if (actionLabel != null)
                 TextButton(
                   onPressed: onAction,
-                  style: TextButton.styleFrom(foregroundColor: context.palette.ink, shape: const RoundedRectangleBorder()),
+                  style: TextButton.styleFrom(
+                    foregroundColor: context.palette.ink,
+                    shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusSm),
+                  ),
                   child: Text(actionLabel!),
                 ),
             ],
@@ -825,13 +841,18 @@ class _RoutePanel extends StatelessWidget {
   Widget _key(TextTheme textTheme, Color color, String label) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 18, height: 4, color: color, margin: const EdgeInsets.only(right: 6)),
+          Container(
+            width: 18,
+            height: 4,
+            margin: const EdgeInsets.only(right: 6),
+            decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(2)),
+          ),
           Text(label, style: textTheme.labelSmall),
         ],
       );
 }
 
-/// Flat sage block next to the search field.
+/// Rounded sage block next to the search field.
 class _RadarButton extends StatelessWidget {
   const _RadarButton({required this.onPressed});
 
@@ -841,8 +862,14 @@ class _RadarButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: context.palette.sage,
+      shape: RoundedRectangleBorder(
+        borderRadius: AppTheme.radiusMd,
+        side: BorderSide(color: context.palette.ink.withValues(alpha: 0.35), width: 1.2),
+      ),
+      clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: onPressed,
+        borderRadius: AppTheme.radiusMd,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           child: Text('Ask Radar AI', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: context.palette.ink)),

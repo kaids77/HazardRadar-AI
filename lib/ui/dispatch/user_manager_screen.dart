@@ -78,7 +78,7 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
                 decoration: InputDecoration(
                   hintText: 'Search by name',
                   prefixIcon: Icon(Icons.search, color: palette.ink),
-                  border: const OutlineInputBorder(borderRadius: BorderRadius.zero),
+                  border: const OutlineInputBorder(borderRadius: AppTheme.radiusMd),
                 ),
               ),
               const SizedBox(height: 12),
@@ -383,6 +383,7 @@ class _ModerationBlock extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
+                borderRadius: AppTheme.radiusMd,
                 border: Border.all(
                   color: suggestion?.isAction == true ? AppColors.riskMedium : palette.sage,
                   width: 2,

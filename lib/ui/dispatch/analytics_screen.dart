@@ -149,9 +149,12 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
           const SizedBox(height: 16),
           Text('AI health', style: textTheme.titleMedium),
           const SizedBox(height: 6),
-          SizedBox(
-            height: 10,
-            child: LinearProgressIndicator(value: data.aiProcessedShare, backgroundColor: context.palette.sage, color: context.palette.ink),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: SizedBox(
+              height: 10,
+              child: LinearProgressIndicator(value: data.aiProcessedShare, backgroundColor: context.palette.sage, color: context.palette.ink),
+            ),
           ),
           const SizedBox(height: 4),
           Text(
@@ -183,7 +186,11 @@ class _Block extends StatelessWidget {
     final foreground = this.foreground ?? context.palette.ink;
     return Expanded(
       child: Container(
-        color: color ?? context.palette.sage,
+        decoration: BoxDecoration(
+          color: color ?? context.palette.sage,
+          borderRadius: AppTheme.radiusMd,
+          border: Border.all(color: foreground.withValues(alpha: 0.22)),
+        ),
         margin: const EdgeInsets.only(right: 6),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         child: Column(
@@ -197,7 +204,7 @@ class _Block extends StatelessWidget {
   }
 }
 
-/// One flat stacked bar plus a legend. Plain widgets, no chart library.
+/// One rounded stacked bar plus a legend. Plain widgets, no chart library.
 class _CategoryBar extends StatelessWidget {
   const _CategoryBar({required this.counts});
 
@@ -222,13 +229,16 @@ class _CategoryBar extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: 18,
-          child: Row(
-            children: [
-              for (final entry in counts.entries)
-                if (entry.value > 0) Expanded(flex: entry.value, child: ColoredBox(color: _colors(context)[entry.key]!)),
-            ],
+        ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            height: 18,
+            child: Row(
+              children: [
+                for (final entry in counts.entries)
+                  if (entry.value > 0) Expanded(flex: entry.value, child: ColoredBox(color: _colors(context)[entry.key]!)),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -240,7 +250,14 @@ class _CategoryBar extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(width: 12, height: 12, color: _colors(context)[entry.key]),
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: _colors(context)[entry.key],
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                   const SizedBox(width: 4),
                   Text('${entry.key} ${(entry.value * 100 / total).round()}%', style: textTheme.bodySmall),
                 ],

@@ -518,7 +518,7 @@ class _AccountButton extends StatelessWidget {
           onPressed: onPressed,
           style: TextButton.styleFrom(
             foregroundColor: context.palette.ink,
-            shape: const RoundedRectangleBorder(),
+            shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
             padding: const EdgeInsets.all(6),
             minimumSize: Size.zero,
           ),
@@ -554,7 +554,7 @@ class _Frame extends StatelessWidget {
               focusElevation: 0,
               hoverElevation: 0,
               highlightElevation: 0,
-              shape: const RoundedRectangleBorder(),
+              shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
               backgroundColor: AppColors.redOrange,
               foregroundColor: AppColors.onRedOrange,
               label: const Text('Report hazard'),

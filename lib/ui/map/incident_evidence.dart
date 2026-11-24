@@ -14,7 +14,10 @@ class DisputedWarning extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      color: context.palette.ink,
+      decoration: BoxDecoration(
+        color: context.palette.ink,
+        borderRadius: AppTheme.radiusMd,
+      ),
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -52,8 +55,8 @@ class EvidencePhoto extends StatelessWidget {
           onPressed: onLoad,
           style: OutlinedButton.styleFrom(
             foregroundColor: context.palette.ink,
-            side: BorderSide(color: context.palette.ink),
-            shape: const RoundedRectangleBorder(),
+            side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+            shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
           ),
           child: const Text('Load photo'),
         ),
@@ -70,23 +73,32 @@ class EvidencePhoto extends StatelessWidget {
                 : const CircularProgressIndicator(),
           );
         }
-        return SizedBox(
-          height: _height,
-          width: double.infinity,
-          child: Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            errorBuilder: (_, _, _) => _panel(context, const Text('Visual evidence unavailable')),
+        return ClipRRect(
+          borderRadius: AppTheme.radiusMd,
+          child: SizedBox(
+            height: _height,
+            width: double.infinity,
+            child: Image.memory(
+              bytes,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _panel(context, const Text('Visual evidence unavailable')),
+            ),
           ),
         );
       },
     );
   }
 
-  Widget _panel(BuildContext context, Widget child) => SizedBox(
+  Widget _panel(BuildContext context, Widget child) => Container(
         height: _height,
         width: double.infinity,
-        child: ColoredBox(color: context.palette.sage, child: Center(child: child)),
+        decoration: BoxDecoration(
+          color: context.palette.sage,
+          borderRadius: AppTheme.radiusMd,
+          border: Border.all(color: context.palette.ink.withValues(alpha: 0.2)),
+        ),
+        alignment: Alignment.center,
+        child: child,
       );
 }
 

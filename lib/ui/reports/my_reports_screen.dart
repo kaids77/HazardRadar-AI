@@ -201,7 +201,11 @@ class _GuestCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: context.palette.sage,
+      decoration: BoxDecoration(
+        color: context.palette.sage,
+        borderRadius: AppTheme.radiusLg,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
+      ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -216,7 +220,7 @@ class _GuestCard extends StatelessWidget {
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: onSignIn,
-              style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder()),
+              style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd)),
               child: const Text('Sign in with Google'),
             ),
           ],
@@ -240,7 +244,11 @@ class _BadgePicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: context.palette.sage,
+      decoration: BoxDecoration(
+        color: context.palette.sage,
+        borderRadius: AppTheme.radiusLg,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
+      ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -254,8 +262,8 @@ class _BadgePicker extends StatelessWidget {
                 onPressed: () => onPick(badge),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: context.palette.ink,
-                  side: BorderSide(color: context.palette.ink),
-                  shape: const RoundedRectangleBorder(),
+                  side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                  shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.all(12),
                 ),
@@ -278,7 +286,11 @@ class _ProfileCard extends StatelessWidget {
     final progress = LevelPolicy.progress(profile);
     final textTheme = Theme.of(context).textTheme;
     return Container(
-      decoration: BoxDecoration(border: Border.fromBorderSide(BorderSide(color: context.palette.ink))),
+      decoration: BoxDecoration(
+        color: context.palette.paper,
+        borderRadius: AppTheme.radiusLg,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.3), width: 1.2),
+      ),
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -313,12 +325,15 @@ class _ProfileCard extends StatelessWidget {
           ),
           if (progress.target != null) ...[
             const SizedBox(height: 12),
-            SizedBox(
-              height: 8,
-              child: LinearProgressIndicator(
-                value: progress.fraction,
-                backgroundColor: context.palette.sage,
-                color: AppColors.redOrange,
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: SizedBox(
+                height: 8,
+                child: LinearProgressIndicator(
+                  value: progress.fraction,
+                  backgroundColor: context.palette.sage,
+                  color: AppColors.redOrange,
+                ),
               ),
             ),
             const SizedBox(height: 6),
@@ -369,37 +384,44 @@ class _HistoryCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Container(
       decoration: BoxDecoration(
-        border: Border(left: BorderSide(color: riskColor(incident.riskLevel), width: 4)),
         color: context.palette.paper,
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
       ),
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              FlatBadge(label: status.label, background: status.background, foreground: status.foreground),
-              FlatBadge(
-                label: '${incident.riskLevel} risk',
-                background: riskColor(incident.riskLevel),
-                foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
-              ),
-              if (incident.isVerified)
-                const FlatBadge(label: 'Verified', background: AppColors.riskLow, foreground: AppColors.cream),
-              if (!incident.aiProcessed)
-                FlatBadge(label: 'Pending AI review', background: context.palette.sage, foreground: context.palette.ink),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text('${incident.category} · ${incident.reference}', style: textTheme.titleSmall),
-          Text(incident.aiSummary, style: textTheme.bodyMedium),
-          if (incident.resolutionNote != null) ...[
+      clipBehavior: Clip.antiAlias,
+      child: Container(
+        decoration: BoxDecoration(
+          border: Border(left: BorderSide(color: riskColor(incident.riskLevel), width: 5)),
+        ),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                FlatBadge(label: status.label, background: status.background, foreground: status.foreground),
+                FlatBadge(
+                  label: '${incident.riskLevel} risk',
+                  background: riskColor(incident.riskLevel),
+                  foreground: incident.riskLevel == 'High' ? AppColors.onRedOrange : AppColors.cream,
+                ),
+                if (incident.isVerified)
+                  const FlatBadge(label: 'Verified', background: AppColors.riskLow, foreground: AppColors.cream),
+                if (!incident.aiProcessed)
+                  FlatBadge(label: 'Pending AI review', background: context.palette.sage, foreground: context.palette.ink),
+              ],
+            ),
             const SizedBox(height: 6),
-            Text('City note: ${incident.resolutionNote}', style: textTheme.bodyMedium),
+            Text('${incident.category} · ${incident.reference}', style: textTheme.titleSmall),
+            Text(incident.aiSummary, style: textTheme.bodyMedium),
+            if (incident.resolutionNote != null) ...[
+              const SizedBox(height: 6),
+              Text('City note: ${incident.resolutionNote}', style: textTheme.bodyMedium),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

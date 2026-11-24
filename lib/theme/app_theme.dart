@@ -73,14 +73,20 @@ extension AppPaletteContext on BuildContext {
   AppPalette get palette => Theme.of(this).extension<AppPalette>() ?? AppPalette.light;
 }
 
-/// Flat light and dark themes. No elevation, no shadows, no surface tint, and no gradients.
+/// Professional light and dark themes with rounded geometry, crisp outlines, and smooth transitions.
 abstract final class AppTheme {
+  static const BorderRadius radiusSm = BorderRadius.all(Radius.circular(10));
+  static const BorderRadius radiusMd = BorderRadius.all(Radius.circular(14));
+  static const BorderRadius radiusLg = BorderRadius.all(Radius.circular(20));
+  static const BorderRadius radiusSheet = BorderRadius.vertical(top: Radius.circular(24));
+
   static ThemeData light() => _build(AppPalette.light, Brightness.light);
 
   static ThemeData dark() => _build(AppPalette.dark, Brightness.dark);
 
   static ThemeData _build(AppPalette p, Brightness brightness) {
     final base = brightness == Brightness.light ? const ColorScheme.light() : const ColorScheme.dark();
+    final outlineColor = p.ink.withValues(alpha: brightness == Brightness.light ? 0.18 : 0.24);
     final scheme = base.copyWith(
       primary: AppColors.redOrange,
       onPrimary: AppColors.onRedOrange,
@@ -106,6 +112,16 @@ abstract final class AppTheme {
     final textTheme = (brightness == Brightness.light ? typography.black : typography.white)
         .apply(bodyColor: p.ink, displayColor: p.ink);
 
+    const buttonShape = RoundedRectangleBorder(borderRadius: radiusMd);
+    final inputBorder = OutlineInputBorder(
+      borderRadius: radiusMd,
+      borderSide: BorderSide(color: p.ink.withValues(alpha: 0.35), width: 1.2),
+    );
+    final focusedInputBorder = OutlineInputBorder(
+      borderRadius: radiusMd,
+      borderSide: BorderSide(color: p.ink, width: 1.6),
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
@@ -114,6 +130,15 @@ abstract final class AppTheme {
       extensions: [p],
       scaffoldBackgroundColor: p.paper,
       canvasColor: p.paper,
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: ZoomPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+        },
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: p.paper,
         foregroundColor: p.ink,
@@ -121,6 +146,7 @@ abstract final class AppTheme {
         scrolledUnderElevation: 0,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
+        shape: Border(bottom: BorderSide(color: outlineColor)),
         titleTextStyle: TextStyle(fontFamily: 'DMSerifDisplay', fontSize: 22, color: p.ink),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.redOrange),
@@ -130,27 +156,74 @@ abstract final class AppTheme {
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
         margin: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(
+          borderRadius: radiusLg,
+          side: BorderSide(color: outlineColor),
+        ),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: p.paper,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: const RoundedRectangleBorder(),
+        shape: RoundedRectangleBorder(
+          borderRadius: radiusLg,
+          side: BorderSide(color: outlineColor, width: 1.2),
+        ),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: p.paper,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        shape: const RoundedRectangleBorder(),
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: radiusSheet,
+          side: BorderSide(color: outlineColor, width: 1.2),
+        ),
       ),
-      popupMenuTheme: PopupMenuThemeData(color: p.paper, surfaceTintColor: Colors.transparent, elevation: 0),
+      popupMenuTheme: PopupMenuThemeData(
+        color: p.paper,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: radiusMd,
+          side: BorderSide(color: outlineColor),
+        ),
+      ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: p.ink,
         contentTextStyle: TextStyle(color: p.paper),
         elevation: 0,
-        shape: const RoundedRectangleBorder(),
+        shape: const RoundedRectangleBorder(borderRadius: radiusMd),
       ),
-      textButtonTheme: TextButtonThemeData(style: TextButton.styleFrom(foregroundColor: p.ink)),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: p.paper,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: inputBorder,
+        enabledBorder: inputBorder,
+        focusedBorder: focusedInputBorder,
+        errorBorder: OutlineInputBorder(
+          borderRadius: radiusMd,
+          borderSide: const BorderSide(color: AppColors.error, width: 1.4),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: radiusMd,
+          borderSide: const BorderSide(color: AppColors.error, width: 1.8),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: p.ink,
+          shape: buttonShape,
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: p.ink,
+          side: BorderSide(color: p.ink.withValues(alpha: 0.45), width: 1.2),
+          shape: buttonShape,
+        ),
+      ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           elevation: 0,
@@ -158,17 +231,30 @@ abstract final class AppTheme {
           foregroundColor: AppColors.onRedOrange,
           shadowColor: Colors.transparent,
           surfaceTintColor: Colors.transparent,
+          shape: buttonShape,
         ),
       ),
-      dividerTheme: DividerThemeData(color: p.sage, space: 1),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        elevation: 0,
+        focusElevation: 0,
+        hoverElevation: 0,
+        highlightElevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: radiusMd),
+        backgroundColor: AppColors.redOrange,
+        foregroundColor: AppColors.onRedOrange,
+      ),
+      dividerTheme: DividerThemeData(color: outlineColor, space: 1),
       navigationBarTheme: NavigationBarThemeData(
         backgroundColor: p.paper,
         elevation: 0,
         shadowColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         indicatorColor: p.sage,
-        indicatorShape: const RoundedRectangleBorder(),
-        labelTextStyle: WidgetStateProperty.all(TextStyle(color: p.ink, fontSize: 12)),
+        indicatorShape: RoundedRectangleBorder(
+          borderRadius: radiusMd,
+          side: BorderSide(color: p.ink.withValues(alpha: 0.25)),
+        ),
+        labelTextStyle: WidgetStateProperty.all(TextStyle(color: p.ink, fontSize: 12, fontWeight: FontWeight.w600)),
         iconTheme: WidgetStateProperty.all(IconThemeData(color: p.ink)),
       ),
       chipTheme: ChipThemeData(
@@ -180,8 +266,8 @@ abstract final class AppTheme {
             (states) => states.contains(WidgetState.selected) ? AppColors.onRedOrange : p.ink,
           ),
         ),
-        side: BorderSide(color: p.ink),
-        shape: const RoundedRectangleBorder(),
+        side: BorderSide(color: p.ink.withValues(alpha: 0.35), width: 1.2),
+        shape: const RoundedRectangleBorder(borderRadius: radiusSm),
         elevation: 0,
         pressElevation: 0,
         showCheckmark: false,
@@ -191,7 +277,7 @@ abstract final class AppTheme {
         trackColor: WidgetStateProperty.resolveWith(
           (states) => states.contains(WidgetState.selected) ? AppColors.redOrange : p.sage,
         ),
-        trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+        trackOutlineColor: WidgetStateProperty.all(p.ink.withValues(alpha: 0.25)),
       ),
     );
   }

@@ -210,7 +210,11 @@ class _Kpi extends StatelessWidget {
   Widget build(BuildContext context) {
     return Expanded(
       child: Container(
-        color: color,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: AppTheme.radiusMd,
+          border: Border.all(color: foreground.withValues(alpha: 0.22)),
+        ),
         margin: const EdgeInsets.only(right: 6),
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
         child: Column(

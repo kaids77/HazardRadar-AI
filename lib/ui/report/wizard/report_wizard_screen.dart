@@ -210,8 +210,8 @@ class _NavBar extends StatelessWidget {
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(52),
                   foregroundColor: context.palette.ink,
-                  side: BorderSide(color: context.palette.ink),
-                  shape: const RoundedRectangleBorder(),
+                  side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                  shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
                 ),
                 child: const Text('Back'),
               ),
@@ -222,7 +222,10 @@ class _NavBar extends StatelessWidget {
             flex: 2,
             child: ElevatedButton(
               onPressed: onPrimary,
-              style: ElevatedButton.styleFrom(minimumSize: const Size.fromHeight(52), shape: const RoundedRectangleBorder()),
+              style: ElevatedButton.styleFrom(
+                minimumSize: const Size.fromHeight(52),
+                shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+              ),
               child: busy
                   ? const SizedBox(
                       height: 20,

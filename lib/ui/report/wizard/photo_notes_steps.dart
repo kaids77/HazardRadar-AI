@@ -26,9 +26,15 @@ class PhotoStep extends StatelessWidget {
           label: photo == null ? 'Take a photo of the hazard' : 'Retake the photo',
           child: InkWell(
             onTap: busy ? null : onTakePhoto,
+            borderRadius: AppTheme.radiusLg,
             child: Container(
               height: 240,
-              color: context.palette.sage,
+              decoration: BoxDecoration(
+                color: context.palette.sage,
+                borderRadius: AppTheme.radiusLg,
+                border: Border.all(color: context.palette.ink.withValues(alpha: 0.25), width: 1.2),
+              ),
+              clipBehavior: Clip.antiAlias,
               alignment: Alignment.center,
               child: photo == null
                   ? Text(busy ? 'Opening the camera...' : 'Tap to take a photo', style: textTheme.titleMedium)
@@ -93,7 +99,7 @@ class _NotesStepState extends State<NotesStep> {
           textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(
             hintText: 'Sparking wire hanging low near the sidewalk',
-            border: OutlineInputBorder(borderRadius: BorderRadius.zero),
+            border: OutlineInputBorder(borderRadius: AppTheme.radiusMd),
           ),
         ),
         Text('English, Tagalog, or Cebuano are all fine.', style: textTheme.bodySmall),

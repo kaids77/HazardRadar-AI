@@ -59,9 +59,9 @@ class PaginationBar<T> extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final buttonStyle = OutlinedButton.styleFrom(
       foregroundColor: palette.ink,
-      side: BorderSide(color: palette.ink),
-      shape: const RoundedRectangleBorder(),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      side: BorderSide(color: palette.ink.withValues(alpha: 0.45), width: 1.2),
+      shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusSm),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       visualDensity: VisualDensity.compact,
     );
     return Padding(
