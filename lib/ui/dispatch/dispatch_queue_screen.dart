@@ -156,6 +156,7 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
             const SizedBox(height: 16),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
                 for (final risk in <String?>[null, ...DispatchPolicy.riskLevels])
                   ChoiceChip(

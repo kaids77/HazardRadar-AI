@@ -152,7 +152,11 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
           ..._guestBlock(),
         if (message != null) ...[
           const SizedBox(height: 8),
-          FeedbackMessage(message.text, tone: message.tone),
+          FeedbackMessage(
+            message.text,
+            tone: message.tone,
+            onDismiss: () => setState(() => _message = null),
+          ),
         ],
       ],
     );
@@ -334,7 +338,10 @@ class _PasswordDialogState extends State<_PasswordDialog> {
             onSubmitted: (_) => _save(),
             decoration: const InputDecoration(labelText: 'Repeat password', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
           ),
-          if (error != null) ...[const SizedBox(height: 8), FeedbackMessage.error(error)],
+          if (error != null) ...[
+            const SizedBox(height: 8),
+            FeedbackMessage.error(error, onDismiss: () => setState(() => _error = null)),
+          ],
         ],
       ),
       actions: [

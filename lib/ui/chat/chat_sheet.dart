@@ -208,7 +208,10 @@ class _ChatSheetState extends State<ChatSheet> {
                       if (widget.controller.waiting)
                         Text('Radar AI is checking the map...', style: textTheme.bodyMedium),
                       if (widget.controller.error != null)
-                        FeedbackMessage.error(widget.controller.error!),
+                        FeedbackMessage.error(
+                          widget.controller.error!,
+                          onDismiss: widget.controller.clearError,
+                        ),
                     ],
                   );
                 },

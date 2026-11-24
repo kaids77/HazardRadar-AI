@@ -142,6 +142,7 @@ class SettingsScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
+              runSpacing: 8,
               children: [
                 for (final (mode, label) in const [(ThemeMode.light, 'Light'), (ThemeMode.dark, 'Dark')])
                   ChoiceChip(

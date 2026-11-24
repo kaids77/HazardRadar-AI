@@ -338,7 +338,11 @@ class _IncidentSheetState extends State<IncidentSheet> {
           VoteTally(netVotes: _netVotes),
           if (_message != null) ...[
             const SizedBox(height: 8),
-            FeedbackMessage(_message!.text, tone: _message!.tone),
+            FeedbackMessage(
+              _message!.text,
+              tone: _message!.tone,
+              onDismiss: () => setState(() => _message = null),
+            ),
           ],
           const SizedBox(height: 8),
           Row(

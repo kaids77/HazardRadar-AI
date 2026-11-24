@@ -495,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// The top-bar account button: shows only the square profile photo (or initials / guest icon).
+/// The top-bar account button: shows only the circular profile photo (or initials / guest icon).
 class _AccountButton extends StatelessWidget {
   const _AccountButton({required this.name, required this.photo, required this.initialsFrom, required this.onPressed});
 
@@ -518,7 +518,7 @@ class _AccountButton extends StatelessWidget {
           onPressed: onPressed,
           style: TextButton.styleFrom(
             foregroundColor: context.palette.ink,
-            shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+            shape: const CircleBorder(),
             padding: const EdgeInsets.all(6),
             minimumSize: Size.zero,
           ),
@@ -557,6 +557,7 @@ class _Frame extends StatelessWidget {
               shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
               backgroundColor: Theme.of(context).colorScheme.primary,
               foregroundColor: Theme.of(context).colorScheme.onPrimary,
+              icon: const Icon(Icons.add_alert_outlined, size: 20),
               label: const Text('Report hazard'),
             ),
     );

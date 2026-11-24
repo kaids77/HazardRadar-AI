@@ -46,6 +46,7 @@ class PhotoStep extends StatelessWidget {
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
+            runSpacing: 8,
             children: [
               InfoChip(label: 'Compressed', value: '${(photo.bytes.length / 1024).toStringAsFixed(0)} KB JPEG'),
               const InfoChip(label: 'Limit', value: '150 KB'),

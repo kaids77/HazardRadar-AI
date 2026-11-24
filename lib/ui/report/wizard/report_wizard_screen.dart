@@ -139,7 +139,7 @@ class _ReportWizardScreenState extends State<ReportWizardScreen> {
               if (_error != null && !(_draft.step == WizardStep.review && _draft.triage == null))
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: FeedbackMessage.error(_error!),
+                  child: FeedbackMessage.error(_error!, onDismiss: () => setState(() => _error = null)),
                 ),
               _NavBar(
                 showBack: _draft.step != WizardStep.location,

@@ -35,7 +35,7 @@ void main() {
     expect(theme.scaffoldBackgroundColor, AppColors.darkPaper);
     expect(theme.extension<AppPalette>(), AppPalette.dark);
     expect(theme.extension<AppPalette>()!.ink, AppColors.cream);
-    expect(theme.colorScheme.primary, AppColors.logoSage);
+    expect(theme.colorScheme.primary, AppColors.cream);
     expect(theme.appBarTheme.elevation, 0);
   });
 

@@ -173,6 +173,7 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
                     children: [
                       Wrap(
                         spacing: 6,
+                        runSpacing: 6,
                         children: [
                           FlatBadge(label: 'Quarantined', background: context.palette.ink, foreground: context.palette.paper),
                           FlatBadge(label: incident.reference, background: context.palette.sage, foreground: context.palette.ink),
@@ -185,9 +186,10 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
                       if (incident.createdAt != null)
                         Text(formatPhilippineTime(incident.createdAt!), style: textTheme.bodySmall),
                       reporterLineFor(incident),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 10),
                       Wrap(
                         spacing: 8,
+                        runSpacing: 8,
                         children: [
                           OutlinedButton(
                             onPressed: _busy.contains(incident.id)

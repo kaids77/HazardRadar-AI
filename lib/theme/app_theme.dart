@@ -87,14 +87,22 @@ abstract final class AppTheme {
   static ThemeData _build(AppPalette p, Brightness brightness) {
     final isLight = brightness == Brightness.light;
     final base = isLight ? const ColorScheme.light() : const ColorScheme.dark();
-    final primaryBg = isLight ? AppColors.ink : AppColors.logoSage;
+    final primaryBg = isLight ? AppColors.ink : AppColors.cream;
     final onPrimaryFg = isLight ? AppColors.cream : AppColors.ink;
     final outlineColor = p.ink.withValues(alpha: isLight ? 0.18 : 0.24);
     final scheme = base.copyWith(
       primary: primaryBg,
       onPrimary: onPrimaryFg,
+      primaryContainer: p.sage,
+      onPrimaryContainer: p.ink,
       secondary: p.sage,
       onSecondary: p.ink,
+      secondaryContainer: p.sage,
+      onSecondaryContainer: p.ink,
+      tertiary: p.sage,
+      onTertiary: p.ink,
+      tertiaryContainer: p.sage,
+      onTertiaryContainer: p.ink,
       error: AppColors.error,
       onError: AppColors.onError,
       surface: p.paper,
@@ -263,11 +271,16 @@ abstract final class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: p.paper,
         selectedColor: primaryBg,
+        secondarySelectedColor: primaryBg,
+        color: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? primaryBg : p.paper,
+        ),
         labelStyle: TextStyle(
           color: WidgetStateColor.resolveWith(
             (states) => states.contains(WidgetState.selected) ? onPrimaryFg : p.ink,
           ),
         ),
+        secondaryLabelStyle: TextStyle(color: onPrimaryFg),
         side: BorderSide(color: p.ink.withValues(alpha: 0.35), width: 1.2),
         shape: const RoundedRectangleBorder(borderRadius: radiusSm),
         elevation: 0,

@@ -871,7 +871,14 @@ class _RadarButton extends StatelessWidget {
         borderRadius: AppTheme.radiusMd,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Text('Ask Radar AI', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: context.palette.ink)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.radar, size: 18, color: context.palette.ink),
+              const SizedBox(width: 6),
+              Text('Ask Radar AI', style: Theme.of(context).textTheme.labelLarge?.copyWith(color: context.palette.ink)),
+            ],
+          ),
         ),
       ),
     );

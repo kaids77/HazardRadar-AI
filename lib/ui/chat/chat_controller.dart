@@ -126,6 +126,13 @@ class ChatController extends ChangeNotifier {
     }
   }
 
+  /// Clears the current error message without resetting the conversation.
+  void clearError() {
+    if (_error == null) return;
+    _error = null;
+    notifyListeners();
+  }
+
   /// Clears the conversation, mode, and interview.
   void reset() {
     _messages

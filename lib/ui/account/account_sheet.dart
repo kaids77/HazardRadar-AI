@@ -244,7 +244,7 @@ class _AccountSheetState extends State<AccountSheet> {
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
-          FeedbackMessage.error(_error!),
+          FeedbackMessage.error(_error!, onDismiss: () => setState(() => _error = null)),
         ],
       ];
 

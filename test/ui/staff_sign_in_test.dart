@@ -80,8 +80,11 @@ void main() {
     await tester.tap(find.text('Check staff access'));
     await tester.pump();
     expect(find.text('Staff access is on. Open the Dispatch tab.'), findsOneWidget);
-    // Success is the green block.
+    // Success is the green block, and the user can close it with the X button.
     expect(tester.widget<FeedbackMessage>(find.byType(FeedbackMessage)).tone, FeedbackTone.success);
+    await tester.tap(find.byTooltip('Dismiss message'));
+    await tester.pump();
+    expect(find.byType(FeedbackMessage), findsNothing);
   });
 
   testWidgets('a guest sees only the staff email form, with no Google button', (tester) async {

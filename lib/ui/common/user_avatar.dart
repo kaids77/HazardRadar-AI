@@ -27,7 +27,6 @@ class UserAvatar extends StatelessWidget {
     final palette = context.palette;
     final photo = this.photo;
     final letters = name == null ? '' : initials(name!);
-    final radius = BorderRadius.circular(size * 0.3);
     return Semantics(
       image: true,
       label: name == null ? 'Profile photo' : 'Profile photo of $name',
@@ -38,7 +37,7 @@ class UserAvatar extends StatelessWidget {
         height: size,
         decoration: BoxDecoration(
           color: palette.sage,
-          borderRadius: radius,
+          shape: BoxShape.circle,
           border: Border.all(color: palette.ink.withValues(alpha: 0.35), width: 1.2),
         ),
         clipBehavior: Clip.antiAlias,
