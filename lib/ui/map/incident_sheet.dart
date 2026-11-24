@@ -262,6 +262,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
     final incident = widget.incident;
     final textTheme = Theme.of(context).textTheme;
     final status = statusStyle(context, incident);
+    final statusColor = statusTextColor(context, incident);
     return SafeArea(
       child: ListView(
         controller: widget.scrollController,
@@ -282,14 +283,16 @@ class _IncidentSheetState extends State<IncidentSheet> {
             spacing: 6,
             runSpacing: 6,
             children: [
-              FlatBadge(
+              FlatBadge.outlined(
                 label: '${incident.riskLevel} risk',
-                background: riskColor(incident.riskLevel),
-                foreground: incident.riskLevel == 'High' ? AppColors.onError : AppColors.cream,
+                color: riskColor(incident.riskLevel),
               ),
-              FlatBadge(label: '${incident.reference} · ${status.label}', background: status.background, foreground: status.foreground),
+              FlatBadge.outlined(
+                label: '${incident.reference} · ${status.label}',
+                color: statusColor,
+              ),
               if (_netVotes >= Incident.verifiedThreshold && !_quarantinedNow)
-                const FlatBadge(label: 'Verified hazard', background: AppColors.riskLow, foreground: AppColors.cream),
+                const FlatBadge.outlined(label: 'Verified hazard', color: AppColors.riskLow),
             ],
           ),
           if (incident.isQuarantined) ...[const SizedBox(height: 12), const DisputedWarning()],

@@ -381,6 +381,7 @@ class _HistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = statusStyle(context, incident);
+    final statusColor = statusTextColor(context, incident);
     final textTheme = Theme.of(context).textTheme;
     return Container(
       decoration: BoxDecoration(
@@ -401,16 +402,15 @@ class _HistoryCard extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: [
-                FlatBadge(label: status.label, background: status.background, foreground: status.foreground),
-                FlatBadge(
+                FlatBadge.outlined(label: status.label, color: statusColor),
+                FlatBadge.outlined(
                   label: '${incident.riskLevel} risk',
-                  background: riskColor(incident.riskLevel),
-                  foreground: incident.riskLevel == 'High' ? AppColors.onError : AppColors.cream,
+                  color: riskColor(incident.riskLevel),
                 ),
                 if (incident.isVerified)
-                  const FlatBadge(label: 'Verified', background: AppColors.riskLow, foreground: AppColors.cream),
+                  const FlatBadge.outlined(label: 'Verified', color: AppColors.riskLow),
                 if (!incident.aiProcessed)
-                  FlatBadge(label: 'Pending AI review', background: context.palette.sage, foreground: context.palette.ink),
+                  FlatBadge.outlined(label: 'Pending AI review', color: context.palette.ink),
               ],
             ),
             const SizedBox(height: 6),

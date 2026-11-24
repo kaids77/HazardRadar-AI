@@ -33,6 +33,7 @@ class TicketCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final status = statusStyle(context, incident);
+    final statusColor = statusTextColor(context, incident);
     final created = incident.createdAt;
     final active = incident.status == Incident.statusActive;
     final verified = incident.isVerified;
@@ -57,17 +58,16 @@ class TicketCard extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: [
-                FlatBadge(
+                FlatBadge.outlined(
                   label: '${incident.riskLevel} · ${incident.category}',
-                  background: riskColor(incident.riskLevel),
-                  foreground: incident.riskLevel == 'High' ? AppColors.onError : AppColors.cream,
+                  color: riskColor(incident.riskLevel),
                 ),
-                FlatBadge(label: status.label, background: status.background, foreground: status.foreground),
-                FlatBadge(label: incident.reference, background: context.palette.sage, foreground: context.palette.ink),
+                FlatBadge.outlined(label: status.label, color: statusColor),
+                FlatBadge.outlined(label: incident.reference, color: context.palette.ink),
                 if (verified)
-                  const FlatBadge(label: 'Verified', background: AppColors.riskLow, foreground: AppColors.cream),
+                  const FlatBadge.outlined(label: 'Verified', color: AppColors.riskLow),
                 if (!incident.aiProcessed)
-                  FlatBadge(label: 'Offline triage', background: context.palette.sage, foreground: context.palette.ink),
+                  FlatBadge.outlined(label: 'Offline triage', color: context.palette.ink),
               ],
             ),
             const SizedBox(height: 8),

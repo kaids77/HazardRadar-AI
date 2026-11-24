@@ -48,7 +48,7 @@ class DispatchScreen extends StatelessWidget {
           ColoredBox(
             color: context.palette.paper,
             child: TabBar(
-              isScrollable: true,
+              isScrollable: false,
               labelColor: context.palette.ink,
               unselectedLabelColor: context.palette.ink,
               indicator: BoxDecoration(

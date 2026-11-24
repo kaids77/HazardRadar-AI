@@ -48,15 +48,13 @@ class ReviewStep extends StatelessWidget {
           spacing: 6,
           runSpacing: 6,
           children: [
-            FlatBadge(
+            FlatBadge.outlined(
               label: '${result.riskLevel} risk',
-              background: riskColor(result.riskLevel),
-              foreground: result.riskLevel == 'High' ? AppColors.onError : AppColors.cream,
+              color: riskColor(result.riskLevel),
             ),
-            FlatBadge(
+            FlatBadge.outlined(
               label: result.aiProcessed ? 'Classified by Radar AI' : 'Classified offline',
-              background: context.palette.sage,
-              foreground: context.palette.ink,
+              color: context.palette.ink,
             ),
           ],
         ),

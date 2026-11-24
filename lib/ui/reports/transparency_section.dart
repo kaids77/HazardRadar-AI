@@ -132,9 +132,7 @@ class _EntryCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final at = entry.at;
     final reason = entry.reasonLabel;
-    final kindColors = entry.isResolved
-        ? (background: palette.sage, foreground: palette.ink)
-        : (background: palette.ink, foreground: palette.paper);
+    final kindColor = entry.isResolved ? AppColors.riskLow : palette.ink;
     return Container(
       decoration: BoxDecoration(
         color: palette.paper,
@@ -154,11 +152,10 @@ class _EntryCard extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: [
-                FlatBadge(label: entry.kindLabel, background: kindColors.background, foreground: kindColors.foreground),
-                FlatBadge(
+                FlatBadge.outlined(label: entry.kindLabel, color: kindColor),
+                FlatBadge.outlined(
                   label: '${entry.riskLevel} risk',
-                  background: riskColor(entry.riskLevel),
-                  foreground: entry.riskLevel == 'High' ? AppColors.onError : AppColors.cream,
+                  color: riskColor(entry.riskLevel),
                 ),
               ],
             ),

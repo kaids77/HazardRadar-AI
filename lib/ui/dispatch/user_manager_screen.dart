@@ -271,14 +271,13 @@ class _UserDetailScreenState extends State<UserDetailScreen> {
                     Text('$label${isSelf ? ' (you)' : ''}', style: textTheme.titleLarge),
                     Text(user.tierTitle, style: textTheme.bodyMedium),
                     const SizedBox(height: 4),
-                    FlatBadge(
+                    FlatBadge.outlined(
                       label: user.accountStatus,
-                      background: blocked
+                      color: blocked
                           ? AppColors.riskHigh
                           : warned
                               ? AppColors.riskMedium
-                              : context.palette.sage,
-                      foreground: blocked || warned ? AppColors.onError : context.palette.ink,
+                              : AppColors.riskLow,
                     ),
                   ],
                 ),

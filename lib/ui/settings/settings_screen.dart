@@ -187,10 +187,10 @@ class _AccountStatusBadge extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final status = profile.accountStatus;
     final until = profile.suspendedUntil;
-    final (background, foreground) = switch (status) {
-      UserProfile.accountBanned || UserProfile.accountSuspended => (AppColors.riskHigh, AppColors.onError),
-      UserProfile.accountWarned => (AppColors.riskMedium, AppColors.onError),
-      _ => (AppColors.riskLow, AppColors.cream),
+    final color = switch (status) {
+      UserProfile.accountBanned || UserProfile.accountSuspended => AppColors.riskHigh,
+      UserProfile.accountWarned => AppColors.riskMedium,
+      _ => AppColors.riskLow,
     };
     final detail = switch (status) {
       UserProfile.accountWarned => 'A moderator issued a warning on this account.',
@@ -204,7 +204,7 @@ class _AccountStatusBadge extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        FlatBadge(label: status, background: background, foreground: foreground),
+        FlatBadge.outlined(label: status, color: color),
         if (detail != null) ...[
           const SizedBox(height: 4),
           Text(detail, style: textTheme.bodySmall),
