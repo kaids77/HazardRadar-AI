@@ -137,9 +137,14 @@ class _AccountSheetState extends State<AccountSheet> {
 
   List<Widget> _linked(TextTheme textTheme) {
     final profile = widget.profile;
+    final name = profile.displayName?.trim();
     final progress = LevelPolicy.progress(profile);
     final target = progress.target;
     return [
+      if (name != null && name.isNotEmpty) ...[
+        Text(name, style: textTheme.titleMedium),
+        const SizedBox(height: 2),
+      ],
       Text('Level ${profile.tier}', style: textTheme.labelLarge),
       const SizedBox(height: 4),
       Text(profile.tierTitle, style: _title),

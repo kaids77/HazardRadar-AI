@@ -101,7 +101,7 @@ class AppLogo extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             icon,
-            SizedBox(width: twoLine ? 18 : 10),
+            SizedBox(width: iconSize > 60 ? 18 : 8),
             Flexible(
               child: FittedBox(
                 fit: BoxFit.scaleDown,

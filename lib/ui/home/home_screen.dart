@@ -495,7 +495,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-/// The top-bar account button: square photo (or initials) and the user's name.
+/// The top-bar account button: shows only the square profile photo (or initials / guest icon).
 class _AccountButton extends StatelessWidget {
   const _AccountButton({required this.name, required this.photo, required this.initialsFrom, required this.onPressed});
 
@@ -519,23 +519,10 @@ class _AccountButton extends StatelessWidget {
           style: TextButton.styleFrom(
             foregroundColor: context.palette.ink,
             shape: const RoundedRectangleBorder(),
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.all(6),
+            minimumSize: Size.zero,
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 140),
-                child: Text(
-                  name,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.labelLarge,
-                ),
-              ),
-              const SizedBox(width: 8),
-              UserAvatar(name: initialsFrom, photo: photo, size: 32),
-            ],
-          ),
+          child: UserAvatar(name: initialsFrom, photo: photo, size: 32),
         ),
       ),
     );

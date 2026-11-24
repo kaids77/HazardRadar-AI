@@ -83,7 +83,11 @@ class SettingsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(shownName, style: textTheme.titleLarge, overflow: TextOverflow.ellipsis),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(shownName, style: textTheme.titleLarge, maxLines: 1, softWrap: false),
+                      ),
                       Text('${profile.tierTitle} · Level ${profile.tier}', style: textTheme.bodySmall),
                       const SizedBox(height: 6),
                       _AccountStatusBadge(profile: profile),
