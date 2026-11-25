@@ -46,6 +46,14 @@ void main() {
     expect(layer.evictErrorTileStrategy, EvictErrorTileStrategy.notVisibleRespectMargin);
   });
 
+  test('radarInteractionOptions disables map rotation and tunes pinch and scroll-wheel zoom', () {
+    expect(radarInteractionOptions.flags & InteractiveFlag.rotate, 0);
+    expect(radarInteractionOptions.flags & InteractiveFlag.pinchZoom, isNonZero);
+    expect(radarInteractionOptions.flags & InteractiveFlag.drag, isNonZero);
+    expect(radarInteractionOptions.enableMultiFingerGestureRace, isTrue);
+    expect(radarInteractionOptions.scrollWheelVelocity, greaterThan(0.005));
+  });
+
   test('throttledTileUpdateTransformer drops high-frequency move frames and passes move-end immediately', () async {
     var clock = DateTime(2026, 11, 25, 12, 0, 0);
     final controller = StreamController<TileUpdateEvent>(sync: true);

@@ -64,6 +64,8 @@ class _LocationStepState extends State<LocationStep> {
                     initialCenter: pin,
                     initialZoom: 18,
                     minZoom: 15,
+                    maxZoom: 19,
+                    interactionOptions: radarInteractionOptions,
                     onPositionChanged: (camera, hasGesture) {
                       if (hasGesture) draft.movePin(camera.center);
                     },

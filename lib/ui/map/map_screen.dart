@@ -73,9 +73,10 @@ class MapScreen extends StatefulWidget {
   State<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
+class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, SingleTickerProviderStateMixin {
   final MapController _map = MapController();
   late final TileProvider _tiles = cachedTileProvider();
+  AnimationController? _cameraAnim;
   StreamSubscription<List<Incident>>? _subscription;
   StreamSubscription<List<TransparencyEntry>>? _transparencySub;
   StreamSubscription<LocationFix>? _moves;
@@ -285,9 +286,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     final points = [for (final i in matches) LatLng(i.latitude, i.longitude)];
     if (points.length == 1) {
-      _map.move(points.single, 17);
+      _animateMove(points.single, 17);
       return;
     }
+    _cancelCameraAnimation();
     _map.fitCamera(
       CameraFit.coordinates(
         coordinates: points,
@@ -316,6 +318,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _transparencySub?.cancel();
     _moves?.cancel();
     _chat?.dispose();
+    _cameraAnim?.dispose();
     _clusterZoom.dispose();
     _map.dispose();
     super.dispose();
@@ -354,6 +357,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   void _onCamera(MapCamera camera, bool hasGesture) {
+    if (hasGesture) _cancelCameraAnimation();
     final zoom = (camera.zoom >= clusterMaxZoom ? clusterMaxZoom : camera.zoom).floorToDouble();
     if (zoom == _clusterZoom.value) return;
     // The camera can settle during layout; never notify listeners in the middle of a build.
@@ -389,10 +393,65 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _cancelCameraAnimation() {
+    final anim = _cameraAnim;
+    if (anim != null) {
+      _cameraAnim = null;
+      anim.stop();
+      anim.dispose();
+    }
+  }
+
+  /// Smoothly interpolates the camera center and zoom to [target] and [targetZoom] over
+  /// 260 ms so cluster taps, recentering, and search jumps feel fluid instead of snapping.
+  void _animateMove(LatLng target, double targetZoom) {
+    _cancelCameraAnimation();
+    final LatLng startCenter;
+    final double startZoom;
+    try {
+      startCenter = _map.camera.center;
+      startZoom = _map.camera.zoom;
+    } catch (_) {
+      return;
+    }
+    if ((startCenter.latitude - target.latitude).abs() < 1e-6 &&
+        (startCenter.longitude - target.longitude).abs() < 1e-6 &&
+        (startZoom - targetZoom).abs() < 1e-3) {
+      _map.move(target, targetZoom);
+      return;
+    }
+    final controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    );
+    _cameraAnim = controller;
+    final curve = CurvedAnimation(parent: controller, curve: Curves.easeOutCubic);
+    final latTween = Tween<double>(begin: startCenter.latitude, end: target.latitude);
+    final lonTween = Tween<double>(begin: startCenter.longitude, end: target.longitude);
+    final zoomTween = Tween<double>(begin: startZoom, end: targetZoom);
+
+    controller.addListener(() {
+      if (!mounted) return;
+      _map.move(
+        LatLng(latTween.evaluate(curve), lonTween.evaluate(curve)),
+        zoomTween.evaluate(curve),
+      );
+    });
+    controller.addStatusListener((status) {
+      if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+        if (identical(_cameraAnim, controller)) {
+          _cameraAnim = null;
+          controller.dispose();
+        }
+      }
+    });
+    controller.forward();
+  }
+
   void _moveCamera(LatLng target) {
     try {
       final zoom = _map.camera.zoom;
-      _map.move(target, zoom < _initialZoom ? _initialZoom : zoom);
+      _animateMove(target, zoom < _initialZoom ? _initialZoom : zoom);
     } catch (_) {
       // The map controller is not attached before the first FlutterMap build.
     }
@@ -456,7 +515,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       showError(context, 'Location is off.');
       return;
     }
-    _map.move(position, 16);
+    _animateMove(position, 16);
   }
 
   /// The user's live GPS position when available, falling back to the map center.
@@ -492,7 +551,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   void _focus(Incident incident) {
-    _map.move(LatLng(incident.latitude, incident.longitude), 17);
+    _animateMove(LatLng(incident.latitude, incident.longitude), 17);
     _openIncident(incident);
   }
 
@@ -535,7 +594,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             initialCenter: center,
             initialZoom: _initialZoom,
             minZoom: 5,
+            maxZoom: 19,
             cameraConstraint: CameraConstraint.contain(bounds: philippinesBounds),
+            interactionOptions: radarInteractionOptions,
             onPositionChanged: _onCamera,
             onTap: (_, point) {
               if (_pickingDestination) _planDetour(point);
@@ -720,7 +781,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         label: '$count hazards here, highest risk $risk. Tap to zoom in.',
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: () => _map.move(cluster.center, math.min(_map.camera.zoom + 2, clusterMaxZoom)),
+          onTap: () => _animateMove(cluster.center, math.min(_map.camera.zoom + 2, clusterMaxZoom)),
           child: Center(
             child: Container(
               width: 36,

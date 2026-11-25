@@ -56,6 +56,19 @@ TileProvider cachedTileProvider() => NetworkTileProvider(
       cachingProvider: BuiltInMapCachingProvider.getOrCreateInstance(maxCacheSize: tileCacheBytes),
     );
 
+/// Shared [InteractionOptions] for both the main Radar map and the Report Wizard map:
+/// disables accidental 2-finger/Ctrl+drag rotation so pinch-to-zoom never fights rotation,
+/// enables multi-finger gesture race for responsive mobile pinch zooming, and tunes scroll
+/// wheel velocity for smooth desktop/web zooming.
+final InteractionOptions radarInteractionOptions = InteractionOptions(
+  flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
+  enableMultiFingerGestureRace: true,
+  pinchZoomThreshold: 0.3,
+  pinchMoveThreshold: 32.0,
+  scrollWheelVelocity: 0.008,
+  cursorKeyboardRotationOptions: CursorKeyboardRotationOptions.disabled(),
+);
+
 /// Builds the tinted OpenStreetMap [TileLayer] bounded to the Philippines, with throttled
 /// tile updates and extra keep-buffer tiles so zooming and panning stay smooth on mobile and web.
 Widget buildRadarTileLayer({TileProvider? tileProvider}) => wrapTintedTileLayer(
