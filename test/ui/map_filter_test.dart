@@ -83,6 +83,15 @@ void main() {
     expect(applyMapFilter(_items, MapFilter.category('Pothole'), '').map((i) => i.id), ['def456', 'ghi789']);
   });
 
+  test('countMapFilters tallies all, high risk, and each category in a single pass', () {
+    final counts = countMapFilters(_items);
+    expect(counts[MapFilter.all.key], 3);
+    expect(counts[MapFilter.highRisk.key], 2);
+    expect(counts['Electrical'], 1);
+    expect(counts['Pothole'], 2);
+    expect(counts['Flooding'], 0);
+  });
+
   test('search matches the HZD reference or the category, ignoring case', () {
     expect(applyMapFilter(_items, MapFilter.all, 'hzd-abc').map((i) => i.id), ['abc123']);
     expect(applyMapFilter(_items, MapFilter.all, 'electr').map((i) => i.id), ['abc123']);

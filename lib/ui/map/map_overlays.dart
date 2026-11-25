@@ -51,6 +51,7 @@ class MapFilterChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final counts = countMapFilters(incidents);
     return SizedBox(
       height: 40,
       child: ListView(
@@ -60,7 +61,7 @@ class MapFilterChips extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: 6),
               child: ChoiceChip(
-                label: Text('${chip.label} ${incidents.where(chip.matches).length}'),
+                label: Text('${chip.label} ${counts[chip.key] ?? 0}'),
                 selected: chip == selected,
                 onSelected: (_) => onSelected(chip),
               ),

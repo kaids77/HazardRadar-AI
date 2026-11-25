@@ -598,89 +598,93 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           top: 12,
           left: 12,
           right: 12,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              MapSearchField(onChanged: _onSearchChanged),
-              const SizedBox(height: 8),
-              MapFilterChips(
-                incidents: _latest,
-                selected: _filter,
-                onSelected: (filter) {
-                  setState(() => _filter = filter);
-                  _flyToMatches();
-                },
-              ),
-              if (_chat != null) ...[
+          child: RepaintBoundary(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                MapSearchField(onChanged: _onSearchChanged),
                 const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: _RadarButton(onPressed: _openChat),
-                ),
-              ],
-              if (_pickingDestination || _routing || _route != null) ...[
-                const SizedBox(height: 8),
-                _routePanel(),
-              ],
-              if (nearby != null) ...[
-                const SizedBox(height: 8),
-                NewHighRiskBanner(
-                  incident: nearby.incident,
-                  title: 'High-risk hazard nearby',
-                  detail: '${nearby.incident.category} about ${nearby.meters.round()} m from you. Tap to open.',
-                  dismissTooltip: 'Dismiss nearby alert',
-                  onOpen: () {
-                    setState(() => _nearby = null);
-                    _focus(nearby.incident);
+                MapFilterChips(
+                  incidents: _latest,
+                  selected: _filter,
+                  onSelected: (filter) {
+                    setState(() => _filter = filter);
+                    _flyToMatches();
                   },
-                  onDismiss: () => setState(() => _nearby = null),
                 ),
-              ],
-              if (alert != null) ...[
-                const SizedBox(height: 8),
-                NewHighRiskBanner(
-                  incident: alert,
-                  onOpen: () {
-                    setState(() => _alert = null);
-                    _focus(alert);
-                  },
-                  onDismiss: () => setState(() => _alert = null),
-                ),
-              ],
-              if (_loadError) ...[
-                const SizedBox(height: 8),
-                Material(
-                  color: AppColors.error,
-                  child: InkWell(
-                    onTap: _subscribe,
-                    child: const MapLabel(
-                      text: 'Could not load hazards. Tap to try again.',
-                      color: AppColors.error,
-                      textColor: AppColors.onError,
+                if (_chat != null) ...[
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _RadarButton(onPressed: _openChat),
+                  ),
+                ],
+                if (_pickingDestination || _routing || _route != null) ...[
+                  const SizedBox(height: 8),
+                  _routePanel(),
+                ],
+                if (nearby != null) ...[
+                  const SizedBox(height: 8),
+                  NewHighRiskBanner(
+                    incident: nearby.incident,
+                    title: 'High-risk hazard nearby',
+                    detail: '${nearby.incident.category} about ${nearby.meters.round()} m from you. Tap to open.',
+                    dismissTooltip: 'Dismiss nearby alert',
+                    onOpen: () {
+                      setState(() => _nearby = null);
+                      _focus(nearby.incident);
+                    },
+                    onDismiss: () => setState(() => _nearby = null),
+                  ),
+                ],
+                if (alert != null) ...[
+                  const SizedBox(height: 8),
+                  NewHighRiskBanner(
+                    incident: alert,
+                    onOpen: () {
+                      setState(() => _alert = null);
+                      _focus(alert);
+                    },
+                    onDismiss: () => setState(() => _alert = null),
+                  ),
+                ],
+                if (_loadError) ...[
+                  const SizedBox(height: 8),
+                  Material(
+                    color: AppColors.error,
+                    child: InkWell(
+                      onTap: _subscribe,
+                      child: const MapLabel(
+                        text: 'Could not load hazards. Tap to try again.',
+                        color: AppColors.error,
+                        textColor: AppColors.onError,
+                      ),
                     ),
                   ),
-                ),
-                if (kDebugMode && _loadErrorDetail != null) _DebugError(text: _loadErrorDetail!),
+                  if (kDebugMode && _loadErrorDetail != null) _DebugError(text: _loadErrorDetail!),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         Positioned(
           left: 12,
           bottom: 24,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const MapLegend(),
-              const SizedBox(height: 8),
-              MapLabel(text: _gpsLabel),
-              const SizedBox(height: 8),
-              MapSquareButton(icon: Icons.my_location, tooltip: 'Recenter on me', onPressed: _recenter),
-              if (widget.detour != null) ...[
+          child: RepaintBoundary(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const MapLegend(),
                 const SizedBox(height: 8),
-                MapSquareButton(icon: Icons.alt_route, tooltip: 'Safe walking route', onPressed: _startDetour),
+                MapLabel(text: _gpsLabel),
+                const SizedBox(height: 8),
+                MapSquareButton(icon: Icons.my_location, tooltip: 'Recenter on me', onPressed: _recenter),
+                if (widget.detour != null) ...[
+                  const SizedBox(height: 8),
+                  MapSquareButton(icon: Icons.alt_route, tooltip: 'Safe walking route', onPressed: _startDetour),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ],
