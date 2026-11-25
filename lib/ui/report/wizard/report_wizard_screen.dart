@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../models/report.dart';
+import '../../../models/triage_result.dart';
 import '../../../services/location_service.dart';
 import '../../../services/photo_service.dart';
 import '../../../services/report_service.dart';
@@ -36,16 +38,42 @@ class _ReportWizardScreenState extends State<ReportWizardScreen> {
   bool _noLocation = false;
   String? _error;
 
+  WizardStep? _lastStep;
+  bool _hadFix = false;
+  CompressedPhoto? _lastPhoto;
+  TriageResult? _lastTriage;
+
   @override
   void initState() {
     super.initState();
+    _draft.addListener(_onDraftChanged);
     _locate();
   }
 
   @override
   void dispose() {
+    _draft.removeListener(_onDraftChanged);
     _draft.dispose();
     super.dispose();
+  }
+
+  /// Rebuilds the wizard scaffold only when the step, GPS fix presence, photo,
+  /// or AI triage result changes — so dragging the location map pin at 60-120 Hz only
+  /// updates the coordinate chips in [LocationStep] instead of rebuilding the whole screen.
+  void _onDraftChanged() {
+    final hasFix = _draft.fix != null;
+    final photo = _draft.photo;
+    final triage = _draft.triage;
+    if (_draft.step != _lastStep ||
+        hasFix != _hadFix ||
+        !identical(photo, _lastPhoto) ||
+        !identical(triage, _lastTriage)) {
+      _lastStep = _draft.step;
+      _hadFix = hasFix;
+      _lastPhoto = photo;
+      _lastTriage = triage;
+      if (mounted) setState(() {});
+    }
   }
 
   Future<void> _locate() async {
@@ -130,28 +158,25 @@ class _ReportWizardScreenState extends State<ReportWizardScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Report a hazard')),
       body: SafeArea(
-        child: ListenableBuilder(
-          listenable: _draft,
-          builder: (context, _) => Column(
-            children: [
-              WizardStepper(step: _draft.step),
-              Expanded(child: _body()),
-              if (_error != null && !(_draft.step == WizardStep.review && _draft.triage == null))
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: FeedbackMessage.error(_error!, onDismiss: () => setState(() => _error = null)),
-                ),
-              _NavBar(
-                showBack: _draft.step != WizardStep.location,
-                primaryLabel: _draft.step == WizardStep.review ? 'Publish report' : 'Next',
-                busy: _busy,
-                onBack: _busy ? null : _draft.back,
-                onPrimary: _busy || (_draft.step == WizardStep.review && _draft.triage == null)
-                    ? null
-                    : (_draft.step == WizardStep.review ? _publish : _next),
+        child: Column(
+          children: [
+            WizardStepper(step: _draft.step),
+            Expanded(child: _body()),
+            if (_error != null && !(_draft.step == WizardStep.review && _draft.triage == null))
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: FeedbackMessage.error(_error!, onDismiss: () => setState(() => _error = null)),
               ),
-            ],
-          ),
+            _NavBar(
+              showBack: _draft.step != WizardStep.location,
+              primaryLabel: _draft.step == WizardStep.review ? 'Publish report' : 'Next',
+              busy: _busy,
+              onBack: _busy ? null : _draft.back,
+              onPrimary: _busy || (_draft.step == WizardStep.review && _draft.triage == null)
+                  ? null
+                  : (_draft.step == WizardStep.review ? _publish : _next),
+            ),
+          ],
         ),
       ),
     );

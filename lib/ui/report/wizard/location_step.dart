@@ -56,67 +56,78 @@ class _LocationStepState extends State<LocationStep> {
           borderRadius: AppTheme.radiusLg,
           child: SizedBox(
             height: 260,
-            child: Stack(
-              children: [
-                FlutterMap(
-                  mapController: _map,
-                  options: MapOptions(
-                    initialCenter: pin,
-                    initialZoom: 18,
-                    minZoom: 15,
-                    maxZoom: 19,
-                    interactionOptions: radarInteractionOptions,
-                    onPositionChanged: (camera, hasGesture) {
-                      if (hasGesture) draft.movePin(camera.center);
-                    },
-                    onMapEvent: _onMapEvent,
-                  ),
-                  children: [
-                    buildRadarTileLayer(tileProvider: _tiles),
-                    CircleLayer(
-                      circles: [
-                        CircleMarker(
-                          point: fix.position,
-                          radius: ReportDraft.maxPinShiftMeters,
-                          useRadiusInMeter: true,
-                          color: Colors.transparent,
-                          borderColor: context.palette.ink,
-                          borderStrokeWidth: 1.5,
-                        ),
-                      ],
+            child: RepaintBoundary(
+              child: Stack(
+                children: [
+                  FlutterMap(
+                    mapController: _map,
+                    options: MapOptions(
+                      initialCenter: pin,
+                      initialZoom: 18,
+                      minZoom: 15,
+                      maxZoom: 19,
+                      interactionOptions: radarInteractionOptions,
+                      onPositionChanged: (camera, hasGesture) {
+                        if (hasGesture) draft.movePin(camera.center);
+                      },
+                      onMapEvent: _onMapEvent,
                     ),
-                    MarkerLayer(
-                      markers: [
-                        Marker(
-                          point: fix.position,
-                          width: 12,
-                          height: 12,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(color: context.palette.ink, shape: BoxShape.circle),
+                    children: [
+                      buildRadarTileLayer(tileProvider: _tiles),
+                      CircleLayer(
+                        circles: [
+                          CircleMarker(
+                            point: fix.position,
+                            radius: ReportDraft.maxPinShiftMeters,
+                            useRadiusInMeter: true,
+                            color: Colors.transparent,
+                            borderColor: context.palette.ink,
+                            borderStrokeWidth: 1.5,
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const IgnorePointer(child: Center(child: _Crosshair())),
-              ],
+                        ],
+                      ),
+                      MarkerLayer(
+                        markers: [
+                          Marker(
+                            point: fix.position,
+                            width: 12,
+                            height: 12,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(color: context.palette.ink, shape: BoxShape.circle),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const IgnorePointer(child: Center(child: _Crosshair())),
+                ],
+              ),
             ),
           ),
         ),
         const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            InfoChip(
-              label: 'GPS accuracy',
-              value: fix.accuracyMeters == null ? 'unknown' : '±${fix.accuracyMeters!.round()} m',
-            ),
-            InfoChip(label: 'Geohash', value: draft.geohash ?? '-'),
-            InfoChip(label: 'Position', value: '${pin.latitude.toStringAsFixed(5)}, ${pin.longitude.toStringAsFixed(5)}'),
-            InfoChip(label: 'Moved', value: '${draft.pinShiftMeters.round()} m'),
-          ],
+        ListenableBuilder(
+          listenable: draft,
+          builder: (context, _) {
+            final currentPin = draft.pin ?? pin;
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                InfoChip(
+                  label: 'GPS accuracy',
+                  value: fix.accuracyMeters == null ? 'unknown' : '±${fix.accuracyMeters!.round()} m',
+                ),
+                InfoChip(label: 'Geohash', value: draft.geohash ?? '-'),
+                InfoChip(
+                  label: 'Position',
+                  value: '${currentPin.latitude.toStringAsFixed(5)}, ${currentPin.longitude.toStringAsFixed(5)}',
+                ),
+                InfoChip(label: 'Moved', value: '${draft.pinShiftMeters.round()} m'),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 12),
         Text(

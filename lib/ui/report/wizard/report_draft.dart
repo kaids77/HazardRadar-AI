@@ -20,6 +20,8 @@ class ReportDraft extends ChangeNotifier {
   WizardStep _step = WizardStep.location;
   LocationFix? _fix;
   LatLng? _pin;
+  String? _geohash;
+  double _pinShiftMeters = 0;
   CompressedPhoto? _photo;
   String _note = '';
   TriageResult? _triage;
@@ -31,11 +33,14 @@ class ReportDraft extends ChangeNotifier {
   String get note => _note;
   TriageResult? get triage => _triage;
 
-  String? get geohash => _pin == null ? null : encodeGeohash(_pin!.latitude, _pin!.longitude);
+  String? get geohash => _geohash;
+  double get pinShiftMeters => _pinShiftMeters;
 
   void setFix(LocationFix fix) {
     _fix = fix;
     _pin = fix.position;
+    _geohash = encodeGeohash(fix.position.latitude, fix.position.longitude);
+    _pinShiftMeters = 0;
     notifyListeners();
   }
 
@@ -44,19 +49,27 @@ class ReportDraft extends ChangeNotifier {
   LatLng movePin(LatLng requested) {
     final origin = _fix?.position;
     if (origin == null) return requested;
+    final current = _pin;
+    if (current != null &&
+        (current.latitude - requested.latitude).abs() < 1e-6 &&
+        (current.longitude - requested.longitude).abs() < 1e-6) {
+      return current;
+    }
     final meters = _distance.as(LengthUnit.Meter, origin, requested);
     final clamped = meters <= maxPinShiftMeters
         ? requested
         : _distance.offset(origin, maxPinShiftMeters, _distance.bearing(origin, requested));
+    final actualMeters = meters <= maxPinShiftMeters ? meters : maxPinShiftMeters;
+    if (current != null &&
+        (current.latitude - clamped.latitude).abs() < 1e-6 &&
+        (current.longitude - clamped.longitude).abs() < 1e-6) {
+      return current;
+    }
     _pin = clamped;
+    _geohash = encodeGeohash(clamped.latitude, clamped.longitude);
+    _pinShiftMeters = actualMeters;
     notifyListeners();
     return clamped;
-  }
-
-  double get pinShiftMeters {
-    final origin = _fix?.position;
-    if (origin == null || _pin == null) return 0;
-    return _distance.as(LengthUnit.Meter, origin, _pin!);
   }
 
   void setPhoto(CompressedPhoto photo) {

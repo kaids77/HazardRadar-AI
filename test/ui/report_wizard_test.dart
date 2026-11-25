@@ -99,6 +99,22 @@ void main() {
       expect(far.latitude, greaterThan(_cebu.latitude));
     });
 
+    test('movePin skips redundant notifications when the pin has not moved', () {
+      final draft = ReportDraft()..setFix(const LocationFix(_cebu));
+      var notifications = 0;
+      draft.addListener(() => notifications++);
+
+      draft.movePin(_cebu);
+      expect(notifications, 0);
+
+      const moved = LatLng(10.3240, 123.9322);
+      draft.movePin(moved);
+      expect(notifications, 1);
+
+      draft.movePin(moved);
+      expect(notifications, 1);
+    });
+
     test('each step needs its input before advancing', () {
       final draft = ReportDraft();
       expect(draft.canAdvance, isFalse);
