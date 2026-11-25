@@ -89,7 +89,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   LocationFix? _fix;
 
   /// Whole-number zoom used for clustering. Pins regroup only when it changes.
-  double _clusterZoom = _initialZoom;
+  /// Stored in a [ValueNotifier] so crossing a zoom threshold only rebuilds the
+  /// cluster [MarkerLayer] instead of the entire [MapScreen] and overlays.
+  final ValueNotifier<double> _clusterZoom = ValueNotifier<double>(_initialZoom);
   static const double _initialZoom = 15;
 
   /// High hazards already announced as nearby. The map stays alive in the home
@@ -99,6 +101,21 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   /// Latest pins from the stream. Radar AI reads these when a question is sent.
   List<Incident> _latest = const [];
+
+  /// Pins from [_latest] that lie inside [philippinesBounds], computed once per snapshot.
+  List<Incident> _boundedIncidents = const [];
+
+  /// Memoized filtered pins and built markers so unrelated state updates (e.g. GPS accuracy,
+  /// route picking) reuse the existing [MarkerLayer] and its cached Web Mercator projection.
+  List<Incident>? _cachedBoundedSource;
+  MapFilter? _cachedFilter;
+  String? _cachedQuery;
+  List<Incident> _cachedShown = const [];
+
+  List<Incident>? _cachedMarkerShown;
+  double? _cachedMarkerZoom;
+  Color? _cachedMarkerPaper;
+  List<Marker> _cachedMarkers = const [];
   bool _loadError = false;
 
   /// The real error text, shown only in debug builds.
@@ -261,11 +278,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   /// match is centered at street zoom. Nothing happens for "All" with an empty search.
   void _flyToMatches() {
     if (_filter == MapFilter.all && _query.trim().isEmpty) return;
-    final matches = applyMapFilter(
-      [for (final i in _latest) if (philippinesBounds.contains(LatLng(i.latitude, i.longitude))) i],
-      _filter,
-      _query,
-    );
+    final matches = _shownIncidents();
     if (matches.isEmpty) {
       _toast('No matching hazards on the map.');
       return;
@@ -303,6 +316,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _transparencySub?.cancel();
     _moves?.cancel();
     _chat?.dispose();
+    _clusterZoom.dispose();
     _map.dispose();
     super.dispose();
   }
@@ -340,16 +354,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   void _onCamera(MapCamera camera, bool hasGesture) {
-    final zoom = camera.zoom.floorToDouble();
-    if (zoom == _clusterZoom) return;
-    _clusterZoom = zoom;
-    // The camera can settle during layout; never call setState in the middle of a build.
+    final zoom = (camera.zoom >= clusterMaxZoom ? clusterMaxZoom : camera.zoom).floorToDouble();
+    if (zoom == _clusterZoom.value) return;
+    // The camera can settle during layout; never notify listeners in the middle of a build.
     if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() {});
+        if (mounted) _clusterZoom.value = zoom;
       });
     } else {
-      setState(() {});
+      _clusterZoom.value = zoom;
     }
   }
 
@@ -387,10 +400,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   void _onIncidents(List<Incident> incidents) {
     if (!mounted) return;
+    final bounded = List<Incident>.unmodifiable([
+      for (final i in incidents)
+        if (philippinesBounds.contains(LatLng(i.latitude, i.longitude))) i,
+    ]);
     setState(() {
       _loadError = false;
       final seen = _seen;
       _latest = incidents;
+      _boundedIncidents = bounded;
       _updateNearby();
       if (seen != null) {
         final fresh = newHighRisk(seen, incidents);
@@ -399,6 +417,35 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       }
       _seen = {...?seen, for (final incident in incidents) incident.id};
     });
+  }
+
+  List<Incident> _shownIncidents() {
+    if (identical(_cachedBoundedSource, _boundedIncidents) &&
+        _cachedFilter == _filter &&
+        _cachedQuery == _query) {
+      return _cachedShown;
+    }
+    _cachedBoundedSource = _boundedIncidents;
+    _cachedFilter = _filter;
+    _cachedQuery = _query;
+    _cachedShown = applyMapFilter(_boundedIncidents, _filter, _query);
+    return _cachedShown;
+  }
+
+  List<Marker> _markersFor(List<Incident> shown, double zoom, Color paper) {
+    if (identical(_cachedMarkerShown, shown) &&
+        _cachedMarkerZoom == zoom &&
+        _cachedMarkerPaper == paper) {
+      return _cachedMarkers;
+    }
+    _cachedMarkerShown = shown;
+    _cachedMarkerZoom = zoom;
+    _cachedMarkerPaper = paper;
+    _cachedMarkers = List<Marker>.unmodifiable([
+      for (final cluster in clusterPins(shown, zoom: zoom))
+        cluster.isSingle ? _markerFor(cluster.members.single) : _clusterMarker(cluster),
+    ]);
+    return _cachedMarkers;
   }
 
   Future<void> _recenter() async {
@@ -476,11 +523,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     if (center == null) {
       return const Center(child: CircularProgressIndicator(color: AppColors.redOrange));
     }
-    final shown = applyMapFilter(
-      [for (final i in _latest) if (philippinesBounds.contains(LatLng(i.latitude, i.longitude))) i],
-      _filter,
-      _query,
-    );
+    final shown = _shownIncidents();
+    final paper = context.palette.paper;
     final alert = _alert;
     final nearby = _nearby;
     return Stack(
@@ -535,17 +579,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       decoration: BoxDecoration(
                         color: context.palette.ink,
                         shape: BoxShape.circle,
-                        border: Border.all(color: context.palette.paper, width: 2),
+                        border: Border.all(color: paper, width: 2),
                       ),
                     ),
                   ),
                 ],
               ),
-            MarkerLayer(
-              markers: [
-                for (final cluster in clusterPins(shown, zoom: _clusterZoom))
-                  cluster.isSingle ? _markerFor(cluster.members.single) : _clusterMarker(cluster),
-              ],
+            ValueListenableBuilder<double>(
+              valueListenable: _clusterZoom,
+              builder: (context, zoom, _) => MarkerLayer(
+                markers: _markersFor(shown, zoom, paper),
+              ),
             ),
             RichAttributionWidget(attributions: [TextSourceAttribution('OpenStreetMap contributors')]),
           ],
