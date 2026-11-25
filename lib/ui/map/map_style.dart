@@ -25,4 +25,15 @@ Widget tintedTileBuilder(BuildContext context, Widget tileWidget, Object tile) {
   return ColorFiltered(colorFilter: _filter, child: tileWidget);
 }
 
+/// Wraps an entire [TileLayer] in a single [ColorFiltered] and [RepaintBoundary] so the
+/// GPU applies the tint once per frame instead of allocating a `saveLayer` buffer per tile.
+Widget wrapTintedTileLayer(Widget tileLayer) {
+  return RepaintBoundary(
+    child: ColorFiltered(
+      colorFilter: _filter,
+      child: tileLayer,
+    ),
+  );
+}
+
 final ColorFilter _filter = tileTintFilter();

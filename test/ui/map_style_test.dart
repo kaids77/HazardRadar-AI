@@ -20,4 +20,11 @@ void main() {
     );
     expect(find.byType(ColorFiltered), findsOneWidget);
   });
+
+  testWidgets('wrapTintedTileLayer wraps the tile layer in a single RepaintBoundary and ColorFiltered', (tester) async {
+    await tester.pumpWidget(wrapTintedTileLayer(const SizedBox(key: ValueKey('layer'))));
+    expect(find.byType(RepaintBoundary), findsOneWidget);
+    expect(find.byType(ColorFiltered), findsOneWidget);
+    expect(find.byKey(const ValueKey('layer')), findsOneWidget);
+  });
 }

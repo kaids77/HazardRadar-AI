@@ -69,10 +69,11 @@ class _LocationStepState extends State<LocationStep> {
                     onMapEvent: _onMapEvent,
                   ),
                   children: [
-                    TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'com.example.hazardradarai',
-                      tileBuilder: tintedTileBuilder,
+                    wrapTintedTileLayer(
+                      TileLayer(
+                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.example.hazardradarai',
+                      ),
                     ),
                     CircleLayer(
                       circles: [

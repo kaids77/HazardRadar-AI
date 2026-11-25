@@ -499,11 +499,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             },
           ),
           children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'com.example.hazardradarai',
-              tileProvider: _tiles,
-              tileBuilder: tintedTileBuilder,
+            wrapTintedTileLayer(
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.hazardradarai',
+                tileProvider: _tiles,
+              ),
             ),
             if (_route case final route?)
               PolylineLayer(
