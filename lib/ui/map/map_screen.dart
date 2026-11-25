@@ -27,7 +27,6 @@ import '../common/feedback.dart';
 import 'incident_sheet.dart';
 import 'map_filter.dart';
 import 'map_overlays.dart';
-import 'map_style.dart';
 import 'map_tiles.dart';
 import 'pin_clusters.dart';
 import 'proximity_alert.dart';
@@ -499,13 +498,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             },
           ),
           children: [
-            wrapTintedTileLayer(
-              TileLayer(
-                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.hazardradarai',
-                tileProvider: _tiles,
-              ),
-            ),
+            buildRadarTileLayer(tileProvider: _tiles),
             if (_route case final route?)
               PolylineLayer(
                 polylines: [

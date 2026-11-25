@@ -3,7 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../../../theme/app_theme.dart';
-import '../../map/map_style.dart';
+import '../../map/map_tiles.dart';
 import 'report_draft.dart';
 import 'wizard_widgets.dart';
 
@@ -20,6 +20,7 @@ class LocationStep extends StatefulWidget {
 
 class _LocationStepState extends State<LocationStep> {
   final MapController _map = MapController();
+  late final TileProvider _tiles = cachedTileProvider();
 
   @override
   void dispose() {
@@ -69,12 +70,7 @@ class _LocationStepState extends State<LocationStep> {
                     onMapEvent: _onMapEvent,
                   ),
                   children: [
-                    wrapTintedTileLayer(
-                      TileLayer(
-                        urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                        userAgentPackageName: 'com.example.hazardradarai',
-                      ),
-                    ),
+                    buildRadarTileLayer(tileProvider: _tiles),
                     CircleLayer(
                       circles: [
                         CircleMarker(
