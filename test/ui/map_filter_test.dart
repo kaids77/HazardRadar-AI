@@ -152,6 +152,18 @@ void main() {
     await tester.tap(find.byTooltip('Dismiss'));
     await tester.pump();
     expect(find.text('New high-risk report'), findsNothing);
+
+    expect(find.byTooltip('Zoom in'), findsOneWidget);
+    expect(find.byTooltip('Zoom out'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'pothole');
+    await tester.pump();
+    expect(find.byTooltip('Clear search'), findsOneWidget);
+    await tester.tap(find.byTooltip('Clear search'));
+    await tester.pump();
+    expect(find.byTooltip('Clear search'), findsNothing);
+    // Flush the 600ms search debounce timer.
+    await tester.pump(const Duration(milliseconds: 650));
   });
 }
 

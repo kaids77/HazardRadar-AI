@@ -739,6 +739,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Sing
                 const SizedBox(height: 8),
                 MapLabel(text: _gpsLabel),
                 const SizedBox(height: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    MapSquareButton(
+                      icon: Icons.add,
+                      tooltip: 'Zoom in',
+                      onPressed: () => _animateMove(_map.camera.center, (_map.camera.zoom + 1).clamp(5.0, 19.0)),
+                    ),
+                    const SizedBox(width: 8),
+                    MapSquareButton(
+                      icon: Icons.remove,
+                      tooltip: 'Zoom out',
+                      onPressed: () => _animateMove(_map.camera.center, (_map.camera.zoom - 1).clamp(5.0, 19.0)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
                 MapSquareButton(icon: Icons.my_location, tooltip: 'Recenter on me', onPressed: _recenter),
                 if (widget.detour != null) ...[
                   const SizedBox(height: 8),

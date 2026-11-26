@@ -5,23 +5,54 @@ import '../../theme/app_theme.dart';
 import 'map_filter.dart';
 
 /// Rounded search field: filters pins by HZD reference or category, on the device.
-class MapSearchField extends StatelessWidget {
+class MapSearchField extends StatefulWidget {
   const MapSearchField({super.key, required this.onChanged});
 
   final ValueChanged<String> onChanged;
 
   @override
+  State<MapSearchField> createState() => _MapSearchFieldState();
+}
+
+class _MapSearchFieldState extends State<MapSearchField> {
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _clear() {
+    _controller.clear();
+    widget.onChanged('');
+    setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final hasText = _controller.text.isNotEmpty;
     return Material(
       color: context.palette.paper,
       borderRadius: AppTheme.radiusMd,
       clipBehavior: Clip.antiAlias,
       child: TextField(
-        onChanged: onChanged,
+        controller: _controller,
+        onChanged: (value) {
+          setState(() {});
+          widget.onChanged(value);
+        },
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           hintText: 'Search: high risk, pothole, HZD id',
           prefixIcon: Icon(Icons.search, color: context.palette.ink),
+          suffixIcon: hasText
+              ? IconButton(
+                  tooltip: 'Clear search',
+                  onPressed: _clear,
+                  icon: Icon(Icons.close, color: context.palette.ink, size: 20),
+                )
+              : null,
           isDense: true,
           border: OutlineInputBorder(
             borderRadius: AppTheme.radiusMd,
