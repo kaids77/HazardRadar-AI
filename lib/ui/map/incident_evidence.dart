@@ -73,19 +73,58 @@ class EvidencePhoto extends StatelessWidget {
                 : const CircularProgressIndicator(),
           );
         }
-        return ClipRRect(
-          borderRadius: AppTheme.radiusMd,
-          child: SizedBox(
-            height: _height,
-            width: double.infinity,
-            child: Image.memory(
-              bytes,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _panel(context, const Text('Visual evidence unavailable')),
+        return Semantics(
+          button: true,
+          label: 'View full-screen photo',
+          child: InkWell(
+            onTap: () => _openFullScreen(context, bytes),
+            borderRadius: AppTheme.radiusMd,
+            child: ClipRRect(
+              borderRadius: AppTheme.radiusMd,
+              child: SizedBox(
+                height: _height,
+                width: double.infinity,
+                child: Image.memory(
+                  bytes,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, _, _) => _panel(context, const Text('Visual evidence unavailable')),
+                ),
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  void _openFullScreen(BuildContext context, Uint8List bytes) {
+    showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog.fullscreen(
+        backgroundColor: context.palette.paper,
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: Center(child: Image.memory(bytes, fit: BoxFit.contain)),
+                ),
+              ),
+              Positioned(
+                top: 12,
+                right: 12,
+                child: IconButton(
+                  tooltip: 'Close photo',
+                  onPressed: () => Navigator.of(dialogContext).pop(),
+                  icon: Icon(Icons.close, color: context.palette.ink),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

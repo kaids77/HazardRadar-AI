@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:latlong2/latlong.dart';
 
 import '../../models/incident.dart';
@@ -282,6 +284,7 @@ class _IncidentSheetState extends State<IncidentSheet> {
           Wrap(
             spacing: 6,
             runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               FlatBadge.outlined(
                 label: '${incident.riskLevel} risk',
@@ -293,6 +296,17 @@ class _IncidentSheetState extends State<IncidentSheet> {
               ),
               if (_netVotes >= Incident.verifiedThreshold && !_quarantinedNow)
                 const FlatBadge.outlined(label: 'Verified hazard', color: AppColors.riskLow),
+              IconButton(
+                tooltip: 'Copy reference',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                icon: Icon(Icons.copy_outlined, size: 16, color: context.palette.ink),
+                onPressed: () {
+                  unawaited(Clipboard.setData(ClipboardData(text: incident.reference)).catchError((Object _) {}));
+                  setState(() => _message = (text: 'Copied ${incident.reference}.', tone: FeedbackTone.success));
+                },
+              ),
             ],
           ),
           if (incident.isQuarantined) ...[const SizedBox(height: 12), const DisputedWarning()],

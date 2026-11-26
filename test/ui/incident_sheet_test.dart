@@ -43,12 +43,25 @@ const _unverified = Incident(
   reporterUid: 'reporter',
 );
 
+// 1x1 transparent PNG for testing full-screen photo preview.
+final _png = Uint8List.fromList(const [
+  0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4,
+  0x89, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x44, 0x41, 0x54, 0x78, 0x9C, 0x63, 0x00, 0x01, 0x00, 0x00,
+  0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE,
+  0x42, 0x60, 0x82,
+]);
+
 class _Incidents implements IncidentRepository {
+  _Incidents([this.photo]);
+
+  final Uint8List? photo;
+
   @override
   Stream<List<Incident>> watchActivePublic({int limit = 150}) => const Stream.empty();
 
   @override
-  Future<Uint8List?> loadPhoto(String incidentId) async => null;
+  Future<Uint8List?> loadPhoto(String incidentId) async => photo;
 }
 
 class _Votes implements VoteRepository {
@@ -103,6 +116,7 @@ Future<_Votes> _open(
   Incident incident = _incident,
   bool autoLoadPhoto = true,
   String role = 'CITIZEN',
+  Uint8List? photo,
 }) async {
   // The full sheet is tall; a tall test screen keeps every control built and tappable.
   tester.view.physicalSize = const Size(800, 2400);
@@ -117,7 +131,7 @@ Future<_Votes> _open(
         body: IncidentSheet(
           incident: incident,
           profile: UserProfile(uid: uid, role: role, tier: tier, accountStatus: 'ACTIVE'),
-          incidents: _Incidents(),
+          incidents: _Incidents(photo),
           votes: votes,
           location: _Location(position),
           onUpgrade: onUpgrade,
@@ -147,6 +161,22 @@ void main() {
     await tester.tap(find.text('Load photo'));
     await tester.pumpAndSettle();
     expect(find.text('Visual evidence unavailable'), findsOneWidget);
+  });
+
+  testWidgets('tapping the evidence photo opens the full-screen viewer and copy reference copies the ID',
+      (tester) async {
+    await _open(tester, tier: 2, photo: _png);
+
+    await tester.tap(find.byTooltip('Copy reference'));
+    await tester.pumpAndSettle();
+    expect(find.text('Copied HZD-INC-1.'), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('View full-screen photo'));
+    await tester.pumpAndSettle();
+    expect(find.byType(InteractiveViewer), findsOneWidget);
+    await tester.tap(find.byTooltip('Close photo'));
+    await tester.pumpAndSettle();
+    expect(find.byType(InteractiveViewer), findsNothing);
   });
 
   testWidgets('a Sentinel flags someone else\'s report after confirming', (tester) async {
