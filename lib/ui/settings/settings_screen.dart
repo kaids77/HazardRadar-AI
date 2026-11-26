@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/user_profile.dart';
 import '../../services/app_settings.dart';
+import '../../services/report_limit_policy.dart';
 import '../../theme/app_theme.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
@@ -96,6 +97,8 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            _DailyReportAllowanceCard(profile: profile),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -210,6 +213,46 @@ class _AccountStatusBadge extends StatelessWidget {
           Text(detail, style: textTheme.bodySmall),
         ],
       ],
+    );
+  }
+}
+
+class _DailyReportAllowanceCard extends StatelessWidget {
+  const _DailyReportAllowanceCard({required this.profile});
+
+  final UserProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final palette = context.palette;
+    final allowance = ReportLimitPolicy.check(profile, DateTime.now());
+    final limit = allowance.limit;
+    final used = allowance.usedToday;
+    final remaining = allowance.remaining;
+    final String summary;
+    if (!allowance.allowed && (allowance.block == ReportBlock.banned || allowance.block == ReportBlock.suspended)) {
+      summary = 'Reporting paused while account is ${profile.accountStatus.toLowerCase()}';
+    } else if (limit == null) {
+      summary = 'Unlimited daily reports · $used filed today';
+    } else {
+      summary = '$used of $limit filed today · $remaining remaining (resets at midnight PHT)';
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.sage,
+        borderRadius: AppTheme.radiusMd,
+        border: Border.all(color: palette.ink.withValues(alpha: 0.22)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Daily report limit', style: textTheme.labelLarge),
+          const SizedBox(height: 2),
+          Text(summary, style: textTheme.bodySmall),
+        ],
+      ),
     );
   }
 }

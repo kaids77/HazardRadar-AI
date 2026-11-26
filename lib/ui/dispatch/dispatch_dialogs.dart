@@ -47,21 +47,48 @@ class _NoteDialogState extends State<_NoteDialog> {
     }
   }
 
+  static const List<String> _quickNotes = [
+    'Patched by City Engineering Team',
+    'Cleared obstruction and reopened lane',
+    'Electrical line secured by utility crew',
+  ];
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Resolve report'),
-      content: TextField(
-        controller: _note,
-        autofocus: true,
-        maxLength: DispatchPolicy.maxNoteLength,
-        maxLines: 3,
-        decoration: InputDecoration(
-          labelText: 'Resolution note',
-          hintText: 'Patched by City Engineering Team B',
-          errorText: _error,
-          border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
-        ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _note,
+            autofocus: true,
+            maxLength: DispatchPolicy.maxNoteLength,
+            maxLines: 3,
+            decoration: InputDecoration(
+              labelText: 'Resolution note',
+              hintText: 'Patched by City Engineering Team B',
+              errorText: _error,
+              border: const OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final preset in _quickNotes)
+                ActionChip(
+                  label: Text(preset),
+                  onPressed: () => setState(() {
+                    _note.text = preset;
+                    _error = null;
+                  }),
+                ),
+            ],
+          ),
+        ],
       ),
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
@@ -89,19 +116,43 @@ class _CrewDialogState extends State<_CrewDialog> {
     super.dispose();
   }
 
+  static const List<String> _quickCrews = [
+    'DPWH Patch Crew',
+    'City Engineering Team',
+    'DRRMO Response Unit',
+  ];
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Assign a crew'),
-      content: TextField(
-        controller: _crew,
-        autofocus: true,
-        maxLength: DispatchPolicy.maxCrewLength,
-        decoration: const InputDecoration(
-          labelText: 'Crew',
-          hintText: 'DPWH Patch Crew 4',
-          border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
-        ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _crew,
+            autofocus: true,
+            maxLength: DispatchPolicy.maxCrewLength,
+            decoration: const InputDecoration(
+              labelText: 'Crew',
+              hintText: 'DPWH Patch Crew 4',
+              border: OutlineInputBorder(borderRadius: BorderRadius.all(Radius.circular(14))),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final preset in _quickCrews)
+                ActionChip(
+                  label: Text(preset),
+                  onPressed: () => setState(() => _crew.text = preset),
+                ),
+            ],
+          ),
+        ],
       ),
       actions: [
         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),

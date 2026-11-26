@@ -50,6 +50,8 @@ void main() {
     await _pump(tester);
     expect(tester.takeException(), isNull);
     expect(find.text('ACTIVE'), findsOneWidget);
+    expect(find.text('Daily report limit'), findsOneWidget);
+    expect(find.textContaining('0 of 10 filed today · 10 remaining'), findsOneWidget);
     expect(find.text('Edit name'), findsOneWidget);
     expect(find.text('Change photo'), findsOneWidget);
     expect(find.text('Appearance'), findsOneWidget);
