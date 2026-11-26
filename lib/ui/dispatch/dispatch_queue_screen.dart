@@ -34,6 +34,9 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
   late Stream<List<Incident>> _queue = _watchQueue();
   ({int resolved, int quarantined})? _closed;
   String? _risk;
+  String? _status;
+  String _query = '';
+  final TextEditingController _searchController = TextEditingController();
   int _page = 0;
   final Set<String> _busy = {};
 
@@ -60,8 +63,18 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
 
   @override
   void dispose() {
+    _searchController.dispose();
     stopReporterLookup();
     super.dispose();
+  }
+
+  bool _matchesQuery(Incident incident) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return incident.reference.toLowerCase().contains(q) ||
+        incident.category.toLowerCase().contains(q) ||
+        incident.aiSummary.toLowerCase().contains(q) ||
+        (incident.assignedCrew?.toLowerCase().contains(q) ?? false);
   }
 
   /// Pull-to-refresh: re-subscribes the queue (revives it after an error) and reloads the counts.
@@ -136,7 +149,14 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
       stream: _queue,
       builder: (context, snapshot) {
         final open = [for (final i in snapshot.data ?? const <Incident>[]) if (!i.isQuarantined) i];
-        final shown = DispatchPolicy.sortQueue(_risk == null ? open : open.where((i) => i.riskLevel == _risk));
+        final filtered = [
+          for (final i in open)
+            if ((_risk == null || i.riskLevel == _risk) &&
+                (_status == null || i.status == _status) &&
+                _matchesQuery(i))
+              i,
+        ];
+        final shown = DispatchPolicy.sortQueue(filtered);
         final page = paginate(shown, page: _page);
         final closed = _closed;
         return PullToRefresh(
@@ -154,6 +174,33 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
               ],
             ),
             const SizedBox(height: 16),
+            TextField(
+              key: const ValueKey('dispatch-queue-search'),
+              controller: _searchController,
+              onChanged: (value) => setState(() {
+                _query = value;
+                _page = 0;
+              }),
+              decoration: InputDecoration(
+                hintText: 'Search queue: HZD id, category, crew, summary',
+                prefixIcon: Icon(Icons.search, color: context.palette.ink),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        tooltip: 'Clear queue search',
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _query = '';
+                            _page = 0;
+                          });
+                        },
+                        icon: Icon(Icons.close, color: context.palette.ink, size: 20),
+                      )
+                    : null,
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -164,6 +211,18 @@ class _DispatchQueueScreenState extends State<DispatchQueueScreen> with Reporter
                     selected: _risk == risk,
                     onSelected: (_) => setState(() {
                       _risk = risk;
+                      _page = 0;
+                    }),
+                  ),
+                for (final (statusKey, statusLabel) in const [
+                  (Incident.statusActive, 'Active'),
+                  (Incident.statusInProgress, 'In progress'),
+                ])
+                  ChoiceChip(
+                    label: Text(statusLabel),
+                    selected: _status == statusKey,
+                    onSelected: (selected) => setState(() {
+                      _status = selected ? statusKey : null;
                       _page = 0;
                     }),
                   ),

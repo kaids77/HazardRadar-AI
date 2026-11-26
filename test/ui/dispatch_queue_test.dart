@@ -157,7 +157,7 @@ void main() {
 
     await tester.tap(find.text('Start work'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'DPWH Crew 4');
+    await tester.enterText(find.byType(TextField).last, 'DPWH Crew 4');
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
 
@@ -175,7 +175,7 @@ void main() {
     expect(find.text('Write a short resolution note.'), findsOneWidget);
     expect(repo.calls, isEmpty);
 
-    await tester.enterText(find.byType(TextField), 'Patched by crew B');
+    await tester.enterText(find.byType(TextField).last, 'Patched by crew B');
     await tester.tap(find.text('Resolve').last);
     await tester.pumpAndSettle();
 
@@ -205,6 +205,31 @@ void main() {
 
     expect(find.text('Summary m'), findsOneWidget);
     expect(find.text('Summary a'), findsNothing);
+  });
+
+  testWidgets('status filter chips and search box filter the queue', (tester) async {
+    await _pump(tester, [
+      _i('a1', 'High', status: 'ACTIVE'),
+      _i('p2', 'Medium', status: 'IN_PROGRESS'),
+    ]);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'In progress'));
+    await tester.pumpAndSettle();
+    expect(find.text('Summary p2'), findsOneWidget);
+    expect(find.text('Summary a1'), findsNothing);
+
+    await tester.tap(find.widgetWithText(ChoiceChip, 'In progress'));
+    await tester.pumpAndSettle();
+    expect(find.text('Summary a1'), findsOneWidget);
+
+    await tester.enterText(find.byKey(const ValueKey('dispatch-queue-search')), 'HZD-P2');
+    await tester.pumpAndSettle();
+    expect(find.text('Summary p2'), findsOneWidget);
+    expect(find.text('Summary a1'), findsNothing);
+
+    await tester.tap(find.byTooltip('Clear queue search'));
+    await tester.pumpAndSettle();
+    expect(find.text('Summary a1'), findsOneWidget);
   });
 
   testWidgets('paginates open tickets 5 per page', (tester) async {
