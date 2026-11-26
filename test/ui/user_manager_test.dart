@@ -192,6 +192,33 @@ void main() {
     expect(find.text('User 1'), findsNothing);
     expect(find.text('User 6'), findsOneWidget);
   });
+
+  testWidgets('filter chips narrow users by staff, warned, and suspended/banned', (tester) async {
+    const warned = UserProfile(uid: 'w1', role: 'CITIZEN', tier: 2, accountStatus: 'WARNED', displayName: 'Warned User');
+    const banned = UserProfile(uid: 'b1', role: 'CITIZEN', tier: 2, accountStatus: 'BANNED', displayName: 'Banned User');
+    await _pump(tester, repository: _Repo(users: const [_admin, _bob, warned, banned]));
+
+    expect(find.text('All (4)'), findsOneWidget);
+    expect(find.text('Staff (1)'), findsOneWidget);
+    expect(find.text('Warned (1)'), findsOneWidget);
+    expect(find.text('Suspended / Banned (1)'), findsOneWidget);
+
+    await tester.tap(find.text('Staff (1)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ana Admin (you)'), findsOneWidget);
+    expect(find.text('Bob Santos'), findsNothing);
+
+    await tester.tap(find.text('Warned (1)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Warned User'), findsOneWidget);
+    expect(find.text('WARNED'), findsOneWidget);
+    expect(find.text('Ana Admin (you)'), findsNothing);
+
+    await tester.tap(find.text('Suspended / Banned (1)'));
+    await tester.pumpAndSettle();
+    expect(find.text('Banned User'), findsOneWidget);
+    expect(find.text('BANNED'), findsOneWidget);
+  });
 }
 
 Future<void> _openBob(WidgetTester tester) async {

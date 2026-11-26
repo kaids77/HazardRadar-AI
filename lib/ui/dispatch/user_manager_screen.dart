@@ -21,6 +21,25 @@ String userLabel(UserProfile user) {
   return user.tier == UserProfile.tierCommuterObserver ? 'Guest' : 'Name not set yet';
 }
 
+enum UserFilter { all, staff, warned, blocked }
+
+extension on UserFilter {
+  String get label => switch (this) {
+        UserFilter.all => 'All',
+        UserFilter.staff => 'Staff',
+        UserFilter.warned => 'Warned',
+        UserFilter.blocked => 'Suspended / Banned',
+      };
+
+  bool matches(UserProfile user) => switch (this) {
+        UserFilter.all => true,
+        UserFilter.staff => user.isStaff,
+        UserFilter.warned => user.accountStatus == UserProfile.accountWarned,
+        UserFilter.blocked =>
+          user.accountStatus == UserProfile.accountSuspended || user.accountStatus == UserProfile.accountBanned,
+      };
+}
+
 /// Dispatch tab B (admins): a list of users by name and role. Tapping a user opens
 /// their details and the actions (role, account status, daily limit override).
 class UserManagerScreen extends StatefulWidget {
@@ -40,7 +59,15 @@ class UserManagerScreen extends StatefulWidget {
 class _UserManagerScreenState extends State<UserManagerScreen> {
   late Stream<List<UserProfile>> _users = widget.users.watchUsers();
   String _query = '';
+  UserFilter _filter = UserFilter.all;
+  final TextEditingController _searchController = TextEditingController();
   int _page = 0;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   void _open(UserProfile user) {
     Navigator.of(context).push(
@@ -62,7 +89,9 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
     return StreamBuilder<List<UserProfile>>(
       stream: _users,
       builder: (context, snapshot) {
-        final shown = searchUsers(snapshot.data ?? const [], _query);
+        final all = snapshot.data ?? const <UserProfile>[];
+        final searched = searchUsers(all, _query);
+        final shown = [for (final u in searched) if (_filter.matches(u)) u];
         final page = paginate(shown, page: _page);
         return PullToRefresh(
           onRefresh: () async => setState(() => _users = widget.users.watchUsers()),
@@ -71,6 +100,7 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
             padding: const EdgeInsets.all(16),
             children: [
               TextField(
+                controller: _searchController,
                 onChanged: (value) => setState(() {
                   _query = value;
                   _page = 0;
@@ -78,8 +108,37 @@ class _UserManagerScreenState extends State<UserManagerScreen> {
                 decoration: InputDecoration(
                   hintText: 'Search by name',
                   prefixIcon: Icon(Icons.search, color: palette.ink),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(
+                          tooltip: 'Clear user search',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _query = '';
+                              _page = 0;
+                            });
+                          },
+                          icon: Icon(Icons.close, color: palette.ink, size: 20),
+                        )
+                      : null,
                   border: const OutlineInputBorder(borderRadius: AppTheme.radiusMd),
                 ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final f in UserFilter.values)
+                    ChoiceChip(
+                      label: Text('${f.label} (${all.where(f.matches).length})'),
+                      selected: _filter == f,
+                      onSelected: (_) => setState(() {
+                        _filter = f;
+                        _page = 0;
+                      }),
+                    ),
+                ],
               ),
               const SizedBox(height: 12),
               if (snapshot.hasError)
@@ -114,6 +173,8 @@ class _UserRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = context.palette;
     final label = userLabel(user);
+    final nonActive = user.accountStatus != UserProfile.accountActive;
+    final statusColor = user.accountStatus == UserProfile.accountWarned ? AppColors.riskMedium : AppColors.riskHigh;
     return Container(
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: palette.sage))),
       child: ListTile(
@@ -121,7 +182,16 @@ class _UserRow extends StatelessWidget {
         leading: UserAvatar(name: user.displayName == null ? null : label, size: 40),
         title: Text('$label${isSelf ? ' (you)' : ''}', overflow: TextOverflow.ellipsis),
         subtitle: Text(user.tierTitle),
-        trailing: Icon(Icons.chevron_right, color: palette.ink),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (nonActive) ...[
+              FlatBadge.outlined(label: user.accountStatus, color: statusColor),
+              const SizedBox(width: 6),
+            ],
+            Icon(Icons.chevron_right, color: palette.ink),
+          ],
+        ),
         onTap: onTap,
       ),
     );
