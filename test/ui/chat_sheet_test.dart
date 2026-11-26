@@ -70,6 +70,11 @@ void main() {
     expect(find.text('Is it safe to walk?'), findsOneWidget);
     expect(find.text('Avoid the sparking wire ahead.'), findsOneWidget);
     expect(find.text('Report a hazard'), findsOneWidget);
+    expect(find.byTooltip('Copy reply'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Copy reply'));
+    await tester.pump();
+    expect(find.text('Reply copied.'), findsOneWidget);
 
     await tester.tap(find.text('Show electrical on map'));
     await tester.pumpAndSettle();

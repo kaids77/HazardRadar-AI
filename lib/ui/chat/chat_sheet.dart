@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:latlong2/latlong.dart';
 
 import '../../models/chat.dart';
@@ -66,7 +69,13 @@ class _ChatSheetState extends State<ChatSheet> {
 
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) _scroll.jumpTo(_scroll.position.maxScrollExtent);
+      if (_scroll.hasClients) {
+        _scroll.animateTo(
+          _scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+      }
     });
   }
 
@@ -162,7 +171,7 @@ class _ChatSheetState extends State<ChatSheet> {
                     padding: const EdgeInsets.all(20),
                     children: [
                       for (final (index, message) in messages.indexed) ...[
-                        _Bubble(message: message),
+                        _Bubble(message: message, canCopy: !message.fromUser && index > 0),
                         // Only the newest interview question takes answers.
                         if (message.choices.isNotEmpty && index == messages.length - 1 && widget.controller.interviewing)
                           Padding(
@@ -206,7 +215,26 @@ class _ChatSheetState extends State<ChatSheet> {
                         const SizedBox(height: 12),
                       ],
                       if (widget.controller.waiting)
-                        Text('Radar AI is checking the map...', style: textTheme.bodyMedium),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          decoration: BoxDecoration(
+                            color: context.palette.sage,
+                            borderRadius: AppTheme.radiusMd,
+                            border: Border.all(color: context.palette.ink.withValues(alpha: 0.2)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: context.palette.ink),
+                              ),
+                              const SizedBox(width: 10),
+                              Text('Radar AI is checking the map...', style: textTheme.bodyMedium),
+                            ],
+                          ),
+                        ),
                       if (widget.controller.error != null)
                         FeedbackMessage.error(
                           widget.controller.error!,
@@ -273,11 +301,12 @@ class _ChatSheetState extends State<ChatSheet> {
   }
 }
 
-/// User lines sit right on a rounded sage bubble. Assistant lines sit left with a red-orange rule.
+/// User lines sit right on a rounded sage bubble. Assistant lines sit left with a primary rule.
 class _Bubble extends StatelessWidget {
-  const _Bubble({required this.message});
+  const _Bubble({required this.message, this.canCopy = false});
 
   final ChatMessage message;
+  final bool canCopy;
 
   @override
   Widget build(BuildContext context) {
@@ -304,7 +333,24 @@ class _Bubble extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(left: BorderSide(color: Theme.of(context).colorScheme.primary, width: 3)),
       ),
-      child: text,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: text),
+          if (canCopy)
+            IconButton(
+              tooltip: 'Copy reply',
+              visualDensity: VisualDensity.compact,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              icon: Icon(Icons.copy_outlined, size: 16, color: context.palette.ink),
+              onPressed: () {
+                unawaited(Clipboard.setData(ClipboardData(text: message.text)).catchError((Object _) {}));
+                showSuccess(context, 'Reply copied.');
+              },
+            ),
+        ],
+      ),
     );
   }
 }
