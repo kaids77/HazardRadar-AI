@@ -105,6 +105,11 @@ void main() {
     );
 
     expect(find.text('Sign in with Google'), findsNothing);
+    expect(find.byTooltip('Show password'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Show password'));
+    await tester.pump();
+    expect(find.byTooltip('Hide password'), findsOneWidget);
 
     await tester.tap(find.text('Sign in as staff'));
     await tester.pump();

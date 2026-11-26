@@ -54,6 +54,7 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _busy = false;
+  bool _obscurePassword = true;
   ({String text, FeedbackTone tone})? _message;
 
   @override
@@ -252,9 +253,20 @@ class _StaffSignInSectionState extends State<StaffSignInSection> {
       const SizedBox(height: 8),
       TextField(
         controller: _password,
-        obscureText: true,
+        obscureText: _obscurePassword,
         autofillHints: const [AutofillHints.password],
-        decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
+        decoration: InputDecoration(
+          labelText: 'Password',
+          border: const OutlineInputBorder(borderRadius: AppTheme.radiusMd),
+          suffixIcon: IconButton(
+            tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+            icon: Icon(
+              _obscurePassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+              color: context.palette.ink,
+            ),
+          ),
+        ),
         onSubmitted: (_) => _signIn(),
       ),
       const SizedBox(height: 8),
@@ -283,6 +295,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
   final _password = TextEditingController();
   final _confirm = TextEditingController();
   bool _busy = false;
+  bool _obscure = true;
   String? _error;
 
   @override
@@ -327,14 +340,25 @@ class _PasswordDialogState extends State<_PasswordDialog> {
         children: [
           TextField(
             controller: _password,
-            obscureText: true,
+            obscureText: _obscure,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'New password', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
+            decoration: InputDecoration(
+              labelText: 'New password',
+              border: const OutlineInputBorder(borderRadius: AppTheme.radiusMd),
+              suffixIcon: IconButton(
+                tooltip: _obscure ? 'Show password' : 'Hide password',
+                onPressed: () => setState(() => _obscure = !_obscure),
+                icon: Icon(
+                  _obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                  color: context.palette.ink,
+                ),
+              ),
+            ),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _confirm,
-            obscureText: true,
+            obscureText: _obscure,
             onSubmitted: (_) => _save(),
             decoration: const InputDecoration(labelText: 'Repeat password', border: OutlineInputBorder(borderRadius: AppTheme.radiusMd)),
           ),
