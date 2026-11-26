@@ -629,21 +629,53 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver, Sing
                     ),
                 ],
               ),
-            if (_fix != null)
+            if (_fix?.accuracyMeters case final acc? when acc > 0)
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: _fix!.position,
+                    radius: acc,
+                    useRadiusInMeter: true,
+                    color: context.palette.ink.withValues(alpha: 0.08),
+                    borderColor: context.palette.ink.withValues(alpha: 0.3),
+                    borderStrokeWidth: 1.2,
+                  ),
+                ],
+              ),
+            if (_fix != null || (_route != null && _route!.path.isNotEmpty))
               MarkerLayer(
                 markers: [
-                  Marker(
-                    point: _fix!.position,
-                    width: 14,
-                    height: 14,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: context.palette.ink,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: paper, width: 2),
+                  if (_fix != null)
+                    Marker(
+                      point: _fix!.position,
+                      width: 14,
+                      height: 14,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: context.palette.ink,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: paper, width: 2),
+                        ),
                       ),
                     ),
-                  ),
+                  if (_route case final route? when route.path.isNotEmpty)
+                    Marker(
+                      key: const ValueKey('route-destination'),
+                      point: route.path.last,
+                      width: 30,
+                      height: 30,
+                      child: Semantics(
+                        label: 'Route destination',
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: (route.isSafe || route.riskyDirect != null) ? routeSafeColor : routeRiskyColor,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: paper, width: 2),
+                          ),
+                          child: const Icon(Icons.flag, size: 16, color: AppColors.cream),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ValueListenableBuilder<double>(

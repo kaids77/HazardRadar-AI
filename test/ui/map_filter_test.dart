@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_map/flutter_map.dart' show PolylineLayer;
+import 'package:flutter_map/flutter_map.dart' show CircleLayer, PolylineLayer;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -220,9 +220,12 @@ void detourTests() {
     expect(lines.map((l) => l.color), [routeSafeColor, routeRiskyColor.withValues(alpha: 0.6)]);
     expect(find.text('Suggested safe route'), findsOneWidget);
     expect(find.text('Passes a hazard'), findsOneWidget);
+    expect(find.byType(CircleLayer), findsOneWidget);
+    expect(find.byKey(const ValueKey('route-destination')), findsOneWidget);
     await tester.tap(find.text('Clear route'));
     await tester.pump();
     expect(find.textContaining('min walk'), findsNothing);
+    expect(find.byKey(const ValueKey('route-destination')), findsNothing);
   });
 }
 
