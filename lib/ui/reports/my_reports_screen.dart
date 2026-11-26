@@ -71,6 +71,8 @@ class MyReportsScreen extends StatefulWidget {
 class _MyReportsScreenState extends State<MyReportsScreen> {
   late Stream<List<Incident>> _mine;
   ReportFilter _filter = ReportFilter.all;
+  String _query = '';
+  final TextEditingController _searchController = TextEditingController();
   int _page = 0;
 
   /// The public transparency log, or null when the build has none.
@@ -82,6 +84,22 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     super.initState();
     _mine = widget.reports.watchMine(widget.profile.uid);
     _subscribeLog();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _matchesQuery(Incident incident) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return incident.reference.toLowerCase().contains(q) ||
+        incident.category.toLowerCase().contains(q) ||
+        incident.riskLevel.toLowerCase().contains(q) ||
+        incident.aiSummary.toLowerCase().contains(q) ||
+        (incident.resolutionNote?.toLowerCase().contains(q) ?? false);
   }
 
   void _subscribeLog() {
@@ -128,7 +146,10 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
       stream: _mine,
       builder: (context, snapshot) {
         final all = snapshot.data ?? const <Incident>[];
-        final shown = all.where(_filter.matches).toList();
+        final shown = [
+          for (final incident in all)
+            if (_filter.matches(incident) && _matchesQuery(incident)) incident,
+        ];
         final page = paginate(shown, page: _page);
         return PullToRefresh(
           onRefresh: _reload,
@@ -149,6 +170,35 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
             ],
             const SizedBox(height: 20),
             Text('My reports', style: _heading),
+            if (all.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              TextField(
+                key: const ValueKey('my-reports-search'),
+                controller: _searchController,
+                onChanged: (value) => setState(() {
+                  _query = value;
+                  _page = 0;
+                }),
+                decoration: InputDecoration(
+                  hintText: 'Filter by HZD reference, category, or summary',
+                  prefixIcon: Icon(Icons.search, color: context.palette.ink),
+                  suffixIcon: _query.isNotEmpty
+                      ? IconButton(
+                          tooltip: 'Clear my reports search',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _query = '';
+                              _page = 0;
+                            });
+                          },
+                          icon: Icon(Icons.close, color: context.palette.ink, size: 20),
+                        )
+                      : null,
+                  isDense: true,
+                ),
+              ),
+            ],
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,

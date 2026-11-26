@@ -43,7 +43,27 @@ class TransparencySection extends StatefulWidget {
 
 class _TransparencySectionState extends State<TransparencySection> {
   TransparencyFilter _filter = TransparencyFilter.all;
+  String _query = '';
+  final TextEditingController _searchController = TextEditingController();
   int _page = 0;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  bool _matchesQuery(TransparencyEntry entry) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return true;
+    return entry.reference.toLowerCase().contains(q) ||
+        entry.category.toLowerCase().contains(q) ||
+        entry.riskLevel.toLowerCase().contains(q) ||
+        entry.crew.toLowerCase().contains(q) ||
+        entry.resolutionNote.toLowerCase().contains(q) ||
+        (entry.reporterName?.toLowerCase().contains(q) ?? false) ||
+        (entry.reasonLabel?.toLowerCase().contains(q) ?? false);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,6 +76,33 @@ class _TransparencySectionState extends State<TransparencySection> {
         Text(
           'Reports the city resolved and reports moderators took off the map, for everyone to see.',
           style: textTheme.bodySmall,
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          key: const ValueKey('transparency-search'),
+          controller: _searchController,
+          onChanged: (value) => setState(() {
+            _query = value;
+            _page = 0;
+          }),
+          decoration: InputDecoration(
+            hintText: 'Search transparency log: HZD id, crew, category',
+            prefixIcon: Icon(Icons.search, color: context.palette.ink),
+            suffixIcon: _query.isNotEmpty
+                ? IconButton(
+                    tooltip: 'Clear transparency search',
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {
+                        _query = '';
+                        _page = 0;
+                      });
+                    },
+                    icon: Icon(Icons.close, color: context.palette.ink, size: 20),
+                  )
+                : null,
+            isDense: true,
+          ),
         ),
         const SizedBox(height: 8),
         FutureBuilder<({int resolved, int quarantined})>(
@@ -95,7 +142,10 @@ class _TransparencySectionState extends State<TransparencySection> {
             if (!snapshot.hasData) {
               return const Center(child: Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()));
             }
-            final shown = snapshot.data!.where(_filter.matches).toList();
+            final shown = [
+              for (final entry in snapshot.data!)
+                if (_filter.matches(entry) && _matchesQuery(entry)) entry,
+            ];
             if (shown.isEmpty) {
               return Text(
                 switch (_filter) {

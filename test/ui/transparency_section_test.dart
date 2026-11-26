@@ -81,6 +81,17 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Crew: DPWH Patch Crew 4'), findsNothing);
     expect(find.text('Removed as spam'), findsOneWidget);
+
+    await tester.tap(find.text('All'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('transparency-search')), 'Bob Santos');
+    await tester.pumpAndSettle();
+    expect(find.text('Pothole · HZD-ABC123'), findsOneWidget);
+    expect(find.text('Removed as spam'), findsNothing);
+
+    await tester.tap(find.byTooltip('Clear transparency search'));
+    await tester.pumpAndSettle();
+    expect(find.text('Removed as spam'), findsOneWidget);
   });
 
   testWidgets('an empty log says so', (tester) async {

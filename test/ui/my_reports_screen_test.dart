@@ -52,6 +52,9 @@ UserProfile _profile({int tier = 2, int ctp = 120, int total = 10, int resolved 
     );
 
 Future<void> _pump(WidgetTester tester, Widget child) async {
+  tester.view.physicalSize = const Size(900, 1600);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
   await tester.pumpWidget(MaterialApp(theme: AppTheme.light(), home: Scaffold(body: child)));
   await tester.pump();
 }
@@ -114,6 +117,15 @@ void main() {
     await tester.tap(find.text('Pothole · HZD-AAAAAA'));
     await tester.pump();
     expect(opened?.id, 'aaaaaa1');
+
+    await tester.enterText(find.byKey(const ValueKey('my-reports-search')), 'Patched by crew B');
+    await tester.pump();
+    expect(find.text('Pothole · HZD-CCCCCC'), findsOneWidget);
+    expect(find.text('Pothole · HZD-AAAAAA'), findsNothing);
+
+    await tester.tap(find.byTooltip('Clear my reports search'));
+    await tester.pump();
+    expect(find.text('Pothole · HZD-AAAAAA'), findsOneWidget);
   });
 
   testWidgets('a Sentinel without a badge picks one', (tester) async {
