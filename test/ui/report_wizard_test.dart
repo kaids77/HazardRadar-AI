@@ -42,8 +42,20 @@ class _Repo implements ReportRepository {
 }
 
 class _Photos implements PhotoCapture {
+  int cameraCalls = 0;
+  int galleryCalls = 0;
+
   @override
-  Future<CompressedPhoto?> takePhoto() async => CompressedPhoto(bytes: _png);
+  Future<CompressedPhoto?> takePhoto() async {
+    cameraCalls++;
+    return CompressedPhoto(bytes: _png);
+  }
+
+  @override
+  Future<CompressedPhoto?> pickFromGallery() async {
+    galleryCalls++;
+    return CompressedPhoto(bytes: _png);
+  }
 }
 
 class _Location implements LocationProvider {
@@ -151,9 +163,14 @@ void main() {
     await _tapNext(tester);
 
     expect(find.text('Step 2 of 4: Photo'), findsOneWidget);
+    expect(find.text('Choose from gallery'), findsOneWidget);
     await _tapNext(tester);
     expect(find.text('Take a photo of the hazard.'), findsOneWidget);
-    await tester.tap(find.text('Tap to take a photo'));
+    await tester.tap(find.text('Choose from gallery'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('KB JPEG'), findsOneWidget);
+    await tester.tap(find.byType(Image));
     await tester.pump();
     await tester.pump();
     expect(find.textContaining('KB JPEG'), findsOneWidget);

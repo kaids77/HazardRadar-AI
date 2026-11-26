@@ -88,18 +88,22 @@ class _ReportWizardScreenState extends State<ReportWizardScreen> {
     _draft.setFix(fix);
   }
 
-  Future<void> _takePhoto() async {
+  Future<void> _takePhoto() => _capturePhoto(widget.photos.takePhoto, 'Could not use the camera.');
+
+  Future<void> _pickFromGallery() => _capturePhoto(widget.photos.pickFromGallery, 'Could not pick the photo.');
+
+  Future<void> _capturePhoto(Future<CompressedPhoto?> Function() capture, String failureMessage) async {
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      final photo = await widget.photos.takePhoto();
+      final photo = await capture();
       if (photo != null) _draft.setPhoto(photo);
     } on PhotoTooLargeException {
       _fail('That photo is too large to send. Try again.');
     } catch (error) {
-      _fail('Could not use the camera.', error);
+      _fail(failureMessage, error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -200,7 +204,12 @@ class _ReportWizardScreenState extends State<ReportWizardScreen> {
     }
     return switch (_draft.step) {
       WizardStep.location => LocationStep(draft: _draft),
-      WizardStep.photo => PhotoStep(draft: _draft, onTakePhoto: _takePhoto, busy: _busy),
+      WizardStep.photo => PhotoStep(
+          draft: _draft,
+          onTakePhoto: _takePhoto,
+          onPickFromGallery: _pickFromGallery,
+          busy: _busy,
+        ),
       WizardStep.notes => NotesStep(draft: _draft),
       WizardStep.review => ReviewStep(draft: _draft, onRetry: _review, error: _error),
     };
