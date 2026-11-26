@@ -1,9 +1,12 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../models/incident.dart';
 import '../../models/user_profile.dart';
 import '../../services/avatar_repository.dart';
 import '../../services/dispatch_repository.dart';
+import '../../services/incident_repository.dart';
 import '../../services/moderation_repository.dart';
 import '../../services/user_admin_repository.dart';
 import '../../theme/app_theme.dart';
@@ -12,6 +15,7 @@ import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
 import '../map/incident_evidence.dart';
+import '../map/risk_style.dart';
 import 'reporter_line.dart';
 
 /// Dispatch tab: quarantined reports. Staff restore them; admins purge them for good.
@@ -20,6 +24,7 @@ class QuarantineScreen extends StatefulWidget {
     super.key,
     required this.profile,
     required this.moderation,
+    this.incidents,
     this.onSyncTransparency,
     this.users,
     this.avatars,
@@ -28,6 +33,10 @@ class QuarantineScreen extends StatefulWidget {
   /// Profiles for the "Reported by" line. Null shows the reporter's level only.
   final UserAdminRepository? users;
   final AvatarRepository? avatars;
+
+  /// Optional incident photo loader so moderators can inspect visual evidence before
+  /// restoring or purging a quarantined report.
+  final IncidentRepository? incidents;
 
   final UserProfile profile;
   final ModerationRepository moderation;
@@ -59,7 +68,17 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
   late Stream<List<Incident>> _queue = widget.moderation.watchQuarantined();
   int _page = 0;
   final Set<String> _busy = {};
+  final Map<String, Future<Uint8List?>> _photos = {};
   bool _syncing = false;
+
+  void _loadPhoto(String incidentId) {
+    final repo = widget.incidents;
+    if (repo == null) return;
+    final photo = repo.loadPhoto(incidentId);
+    setState(() {
+      _photos[incidentId] = photo;
+    });
+  }
 
   Future<void> _syncLog() async {
     final sync = widget.onSyncTransparency;
@@ -167,50 +186,68 @@ class _QuarantineScreenState extends State<QuarantineScreen> with ReporterLookup
                     borderRadius: AppTheme.radiusMd,
                     border: Border.all(color: context.palette.ink.withValues(alpha: 0.25), width: 1.2),
                   ),
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          FlatBadge(label: 'Quarantined', background: context.palette.ink, foreground: context.palette.paper),
-                          FlatBadge(label: incident.reference, background: context.palette.sage, foreground: context.palette.ink),
-                          FlatBadge(label: '${incident.netVotes} votes', background: context.palette.sage, foreground: context.palette.ink),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Text('${incident.category}: ${incident.aiSummary}', style: textTheme.bodyLarge),
-                      if (incident.note.isNotEmpty) Text('"${incident.note}"', style: textTheme.bodyMedium),
-                      if (incident.createdAt != null)
-                        Text(formatPhilippineTime(incident.createdAt!), style: textTheme.bodySmall),
-                      reporterLineFor(incident),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          OutlinedButton(
-                            onPressed: _busy.contains(incident.id)
-                                ? null
-                                : () => _run(incident, () => widget.moderation.restore(incident), 'Restored to the map.'),
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: context.palette.ink,
-                              side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
-                              shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                  clipBehavior: Clip.antiAlias,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border(left: BorderSide(color: riskColor(incident.riskLevel), width: 5)),
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            FlatBadge.outlined(label: 'Quarantined', color: context.palette.ink),
+                            FlatBadge.outlined(
+                              label: '${incident.riskLevel} · ${incident.category}',
+                              color: riskColor(incident.riskLevel),
                             ),
-                            child: const Text('Restore and verify'),
+                            FlatBadge.outlined(label: incident.reference, color: context.palette.ink),
+                            FlatBadge.outlined(label: '${incident.netVotes} votes', color: context.palette.ink),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text('${incident.category}: ${incident.aiSummary}', style: textTheme.bodyLarge),
+                        if (incident.note.isNotEmpty) Text('"${incident.note}"', style: textTheme.bodyMedium),
+                        if (incident.createdAt != null)
+                          Text(formatPhilippineTime(incident.createdAt!), style: textTheme.bodySmall),
+                        reporterLineFor(incident),
+                        if (widget.incidents != null) ...[
+                          const SizedBox(height: 10),
+                          EvidencePhoto(
+                            photo: _photos[incident.id],
+                            onLoad: () => _loadPhoto(incident.id),
+                            incident: incident,
                           ),
-                          if (widget.profile.isAdmin)
-                            ElevatedButton(
-                              onPressed: _busy.contains(incident.id) ? null : () => _purge(incident),
-                              style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd)),
-                              child: const Text('Permanently purge'),
-                            ),
                         ],
-                      ),
-                    ],
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            OutlinedButton(
+                              onPressed: _busy.contains(incident.id)
+                                  ? null
+                                  : () => _run(incident, () => widget.moderation.restore(incident), 'Restored to the map.'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: context.palette.ink,
+                                side: BorderSide(color: context.palette.ink.withValues(alpha: 0.45), width: 1.2),
+                                shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd),
+                              ),
+                              child: const Text('Restore and verify'),
+                            ),
+                            if (widget.profile.isAdmin)
+                              ElevatedButton(
+                                onPressed: _busy.contains(incident.id) ? null : () => _purge(incident),
+                                style: ElevatedButton.styleFrom(shape: const RoundedRectangleBorder(borderRadius: AppTheme.radiusMd)),
+                                child: const Text('Permanently purge'),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),

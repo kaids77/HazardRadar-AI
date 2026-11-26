@@ -402,6 +402,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 QuarantineScreen(
                   profile: profile,
                   moderation: moderation,
+                  incidents: _s.incidents,
                   onSyncTransparency: profile.isAdmin ? _s.transparencySync?.syncMissing : null,
                   users: _s.userAdmin,
                   avatars: _s.avatars,

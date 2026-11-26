@@ -1,8 +1,11 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:hazardradarai/models/incident.dart';
 import 'package:hazardradarai/models/user_profile.dart';
+import 'package:hazardradarai/services/incident_repository.dart';
 import 'package:hazardradarai/services/moderation_repository.dart';
 import 'package:hazardradarai/theme/app_theme.dart';
 import 'package:hazardradarai/ui/dispatch/quarantine_screen.dart';
@@ -39,7 +42,20 @@ class _Repo implements ModerationRepository {
       StorageEstimate.compute(photoBytesSum: 100 * 96 * 1024, withBytes: 100, total: 100);
 }
 
-Future<_Repo> _pump(WidgetTester tester, UserProfile profile) async {
+class _Incidents implements IncidentRepository {
+  int photoLoads = 0;
+
+  @override
+  Stream<List<Incident>> watchActivePublic({int limit = 150}) => const Stream.empty();
+
+  @override
+  Future<Uint8List?> loadPhoto(String incidentId) async {
+    photoLoads++;
+    return null;
+  }
+}
+
+Future<_Repo> _pump(WidgetTester tester, UserProfile profile, {IncidentRepository? incidents}) async {
   tester.view.physicalSize = const Size(900, 2000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -47,7 +63,7 @@ Future<_Repo> _pump(WidgetTester tester, UserProfile profile) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.light(),
-      home: Scaffold(body: QuarantineScreen(profile: profile, moderation: repo)),
+      home: Scaffold(body: QuarantineScreen(profile: profile, moderation: repo, incidents: incidents)),
     ),
   );
   await tester.pumpAndSettle();
@@ -98,5 +114,18 @@ void main() {
 
     expect(repo.calls, ['purge spam01']);
     expect(find.text('Purged. Storage freed.'), findsOneWidget);
+  });
+
+  testWidgets('moderators can load photo evidence on quarantined cards', (tester) async {
+    final incidents = _Incidents();
+    await _pump(tester, _dispatcher, incidents: incidents);
+
+    expect(find.text('Low · Other'), findsOneWidget);
+    expect(find.text('Load photo'), findsOneWidget);
+
+    await tester.tap(find.text('Load photo'));
+    await tester.pumpAndSettle();
+    expect(incidents.photoLoads, 1);
+    expect(find.text('Visual evidence unavailable'), findsOneWidget);
   });
 }
