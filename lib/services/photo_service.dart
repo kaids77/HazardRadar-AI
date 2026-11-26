@@ -16,10 +16,16 @@ abstract interface class PhotoCapture {
   /// Opens the camera. Returns null if the user cancels.
   /// Throws [PhotoTooLargeException] if the photo cannot be made small enough.
   Future<CompressedPhoto?> takePhoto();
+}
 
-  /// Opens the device gallery/file picker. Returns null if the user cancels.
-  /// Defaults to [takePhoto] for test doubles that only implement [takePhoto].
-  Future<CompressedPhoto?> pickFromGallery() => takePhoto();
+extension PhotoCaptureGallery on PhotoCapture {
+  /// Opens the device gallery/file picker when supported by [CameraPhotoCapture],
+  /// falling back to [takePhoto] for test doubles that only implement [PhotoCapture].
+  Future<CompressedPhoto?> pickFromGallery() {
+    final self = this;
+    if (self is CameraPhotoCapture) return self._capture(ImageSource.gallery);
+    return takePhoto();
+  }
 }
 
 /// Tries each quality in turn and returns the first result within [maxBytes].
@@ -45,9 +51,6 @@ class CameraPhotoCapture implements PhotoCapture {
 
   @override
   Future<CompressedPhoto?> takePhoto() => _capture(ImageSource.camera);
-
-  @override
-  Future<CompressedPhoto?> pickFromGallery() => _capture(ImageSource.gallery);
 
   Future<CompressedPhoto?> _capture(ImageSource source) async {
     final shot = await _picker.pickImage(

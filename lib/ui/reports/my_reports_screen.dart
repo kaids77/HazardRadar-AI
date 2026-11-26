@@ -11,6 +11,7 @@ import '../common/feedback.dart';
 import '../common/pagination.dart';
 import '../common/pull_to_refresh.dart';
 import '../common/status_style.dart';
+import '../map/incident_evidence.dart';
 import '../map/risk_style.dart';
 import 'transparency_section.dart';
 
@@ -41,6 +42,7 @@ class MyReportsScreen extends StatefulWidget {
     this.onSignIn,
     this.onPickBadge,
     this.onRefresh,
+    this.onOpenIncident,
     this.transparency,
   });
 
@@ -58,6 +60,9 @@ class MyReportsScreen extends StatefulWidget {
 
   /// Reloads the profile (level, points) on pull-to-refresh.
   final Future<void> Function()? onRefresh;
+
+  /// Opens the incident detail sheet when a history card is tapped.
+  final ValueChanged<Incident>? onOpenIncident;
 
   @override
   State<MyReportsScreen> createState() => _MyReportsScreenState();
@@ -172,7 +177,10 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
               )
             else ...[
               for (final incident in page.items) ...[
-                _HistoryCard(incident: incident),
+                _HistoryCard(
+                  incident: incident,
+                  onTap: widget.onOpenIncident == null ? null : () => widget.onOpenIncident!(incident),
+                ),
                 const SizedBox(height: 8),
               ],
               PaginationBar(page: page, onPageChanged: (next) => setState(() => _page = next)),
@@ -374,55 +382,63 @@ class _Stat extends StatelessWidget {
 }
 
 class _HistoryCard extends StatelessWidget {
-  const _HistoryCard({required this.incident});
+  const _HistoryCard({required this.incident, this.onTap});
 
   final Incident incident;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final status = statusStyle(context, incident);
     final statusColor = statusTextColor(context, incident);
     final textTheme = Theme.of(context).textTheme;
-    return Container(
+    final created = incident.createdAt;
+    final body = Container(
       decoration: BoxDecoration(
-        color: context.palette.paper,
+        border: Border(left: BorderSide(color: riskColor(incident.riskLevel), width: 5)),
+      ),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              FlatBadge.outlined(label: status.label, color: statusColor),
+              FlatBadge.outlined(
+                label: '${incident.riskLevel} risk',
+                color: riskColor(incident.riskLevel),
+              ),
+              if (incident.isVerified)
+                const FlatBadge.outlined(label: 'Verified', color: AppColors.riskLow),
+              if (!incident.aiProcessed)
+                FlatBadge.outlined(label: 'Pending AI review', color: context.palette.ink),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text('${incident.category} · ${incident.reference}', style: textTheme.titleSmall),
+          if (created != null) Text(formatPhilippineTime(created), style: textTheme.bodySmall),
+          Text(incident.aiSummary, style: textTheme.bodyMedium),
+          if (incident.assignedCrew != null && incident.assignedCrew!.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text('Crew: ${incident.assignedCrew}', style: textTheme.bodySmall),
+          ],
+          if (incident.resolutionNote != null) ...[
+            const SizedBox(height: 6),
+            Text('City note: ${incident.resolutionNote}', style: textTheme.bodyMedium),
+          ],
+        ],
+      ),
+    );
+    return Material(
+      color: context.palette.paper,
+      shape: RoundedRectangleBorder(
         borderRadius: AppTheme.radiusMd,
-        border: Border.all(color: context.palette.ink.withValues(alpha: 0.22)),
+        side: BorderSide(color: context.palette.ink.withValues(alpha: 0.22)),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(left: BorderSide(color: riskColor(incident.riskLevel), width: 5)),
-        ),
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                FlatBadge.outlined(label: status.label, color: statusColor),
-                FlatBadge.outlined(
-                  label: '${incident.riskLevel} risk',
-                  color: riskColor(incident.riskLevel),
-                ),
-                if (incident.isVerified)
-                  const FlatBadge.outlined(label: 'Verified', color: AppColors.riskLow),
-                if (!incident.aiProcessed)
-                  FlatBadge.outlined(label: 'Pending AI review', color: context.palette.ink),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text('${incident.category} · ${incident.reference}', style: textTheme.titleSmall),
-            Text(incident.aiSummary, style: textTheme.bodyMedium),
-            if (incident.resolutionNote != null) ...[
-              const SizedBox(height: 6),
-              Text('City note: ${incident.resolutionNote}', style: textTheme.bodyMedium),
-            ],
-          ],
-        ),
-      ),
+      child: onTap == null ? body : InkWell(onTap: onTap, child: body),
     );
   }
 }

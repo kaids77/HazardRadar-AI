@@ -100,6 +100,22 @@ void main() {
     expect(find.text('Pothole · HZD-AAAAAA'), findsNothing);
   });
 
+  testWidgets('tapping a history card invokes onOpenIncident', (tester) async {
+    Incident? opened;
+    await _pump(
+      tester,
+      MyReportsScreen(
+        profile: _profile(),
+        reports: _Repo(reports),
+        onOpenIncident: (incident) => opened = incident,
+      ),
+    );
+
+    await tester.tap(find.text('Pothole · HZD-AAAAAA'));
+    await tester.pump();
+    expect(opened?.id, 'aaaaaa1');
+  });
+
   testWidgets('a Sentinel without a badge picks one', (tester) async {
     String? picked;
     await _pump(

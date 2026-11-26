@@ -19,6 +19,7 @@ import '../dispatch/analytics_screen.dart';
 import '../dispatch/dispatch_screen.dart';
 import '../dispatch/quarantine_screen.dart';
 import '../dispatch/user_manager_screen.dart';
+import '../map/incident_sheet.dart';
 import '../map/map_screen.dart';
 import '../report/wizard/report_wizard_screen.dart';
 import '../reports/my_reports_screen.dart';
@@ -375,6 +376,16 @@ class _HomeScreenState extends State<HomeScreen> {
         onSignIn: () => _openAccount(profile),
         onPickBadge: (badge) => _pickBadge(profile, badge),
         onRefresh: _refresh,
+        onOpenIncident: (incident) => showIncidentSheet(
+          context,
+          incident: incident,
+          profile: profile,
+          incidents: _s.incidents,
+          votes: _s.votes,
+          location: _s.location,
+          autoLoadPhoto: !_s.settings.dataSaver,
+          onUpgrade: () => _openAccount(profile, reason: UpgradeReason.vote),
+        ),
         transparency: _s.transparency,
       ),
       if (showDispatch)

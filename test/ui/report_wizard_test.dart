@@ -43,17 +43,10 @@ class _Repo implements ReportRepository {
 
 class _Photos implements PhotoCapture {
   int cameraCalls = 0;
-  int galleryCalls = 0;
 
   @override
   Future<CompressedPhoto?> takePhoto() async {
     cameraCalls++;
-    return CompressedPhoto(bytes: _png);
-  }
-
-  @override
-  Future<CompressedPhoto?> pickFromGallery() async {
-    galleryCalls++;
     return CompressedPhoto(bytes: _png);
   }
 }
